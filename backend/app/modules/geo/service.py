@@ -43,7 +43,7 @@ async def list_stations(session: AsyncSession, ward_id: str | None, q: str | Non
 async def seed_geography(session: AsyncSession) -> int:
     """Idempotent: inserts any missing constituency/ward by code."""
     existing_c = {c.code: c for c in (await session.execute(select(Constituency))).scalars()}
-    existing_w = {w.code for w in (await session.execute(select(Ward.code))).scalars()}
+    existing_w = set((await session.execute(select(Ward.code))).scalars())
     created, ward_no = 0, 0
     for code, name, wards in seed_data.CONSTITUENCIES:
         c = existing_c.get(code)

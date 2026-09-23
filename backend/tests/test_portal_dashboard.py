@@ -67,3 +67,10 @@ async def test_station_csv_import_upserts(client, admin):
     r = (await client.post("/api/v1/geo/stations/import", headers=admin,
                            files={"file": ("s.csv", "code,name,ward_code\n001,Tudor Primary,0027\n", "text/csv")})).json()
     assert r["updated"] == 1
+
+
+async def test_geography_seed_is_idempotent():
+    from app.modules.geo.service import seed_geography
+
+    async with SessionLocal() as s:
+        assert await seed_geography(s) == 0  # conftest already seeded
