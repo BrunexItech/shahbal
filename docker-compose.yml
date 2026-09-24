@@ -44,10 +44,9 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://shahbal:${POSTGRES_PASSWORD:-shahbal}@postgres:5432/shahbal
+      RECORDINGS_DIR: /data/recordings
     depends_on:
       - backend
-    environment:
-      RECORDINGS_DIR: /data/recordings
     volumes:
       - recordings:/data/recordings   # the worker purges expired recordings
     command: python -m app.worker
