@@ -112,3 +112,24 @@ async def test_production_refuses_default_secrets(monkeypatch):
 
     with pytest.raises(RuntimeError, match="default secrets"):
         settings.assert_production_safe()
+
+
+async def test_client_ip_cannot_be_spoofed_via_forwarded_for(monkeypatch):
+    from starlette.requests import Request
+
+    from app.core.config import settings
+    from app.core.ratelimit import client_ip
+
+    def req(xff: str | None, headers: dict | None = None):
+        h = [(b"x-forwarded-for", xff.encode())] if xff else []
+        h += [(k.encode(), v.encode()) for k, v in (headers or {}).items()]
+        return Request({"type": "http", "headers": h, "client": ("10.0.0.5", 1234)})
+
+    # No proxies trusted: the header is ignored entirely.
+    assert client_ip(req("1.2.3.4")) == "10.0.0.5"
+    # One trusted proxy (the gateway): take what IT appended, not the forged prefix.
+    monkeypatch.setattr(settings, "trusted_proxies", 1)
+    assert client_ip(req("6.6.6.6, 41.90.1.2")) == "41.90.1.2"
+    monkeypatch.setattr(settings, "trusted_proxies", 0)
+    monkeypatch.setattr(settings, "client_ip_header", "cf-connecting-ip")
+    assert client_ip(req("6.6.6.6", {"cf-connecting-ip": "41.90.1.3"})) == "41.90.1.3"

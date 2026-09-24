@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     pii_pepper: str = "change-me-pepper"
 
     cors_origins: list[str] = ["http://localhost:3000"]
+    # How to find the real client IP (rate limits + audit). X-Forwarded-For's
+    # leftmost value is client-controlled, so we only trust hops appended by our
+    # own proxies: set TRUSTED_PROXIES to how many sit in front of the API
+    # (gateway = 1, host nginx + gateway = 2). Or name a header your edge sets
+    # and clients can't forge, e.g. CLIENT_IP_HEADER=cf-connecting-ip behind Cloudflare.
+    trusted_proxies: int = 0
+    client_ip_header: str | None = None
     portal_rate_limit_per_hour: int = 10
     testing: bool = False
 
