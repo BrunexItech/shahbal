@@ -17,10 +17,53 @@ class LoginOut(BaseModel):
     user: UserOut | None = None
     mfa_required: bool = False
     mfa_token: str | None = None
+    mfa_methods: list[str] = []  # "passkey", "totp"
 
 
 class MeOut(UserOut):
     mfa_setup_required: bool
+    passkey_count: int = 0
+    session_method: str = "password"
+    elevated_until: str | None = None
+
+
+class PasskeyOptionsIn(BaseModel):
+    mfa_token: str | None = None  # present = second factor after a password; absent = passwordless
+
+
+class PasskeyVerifyIn(BaseModel):
+    flow_id: str = Field(max_length=64)
+    credential: dict
+    mfa_token: str | None = None
+
+
+class PasskeyRegisterOptionsIn(BaseModel):
+    kind: str = Field(default="platform", pattern="^(platform|security_key)$")
+
+
+class PasskeyRegisterIn(BaseModel):
+    flow_id: str = Field(max_length=64)
+    credential: dict
+    name: str = Field(default="My passkey", min_length=1, max_length=60)
+
+
+class OptionsOut(BaseModel):
+    flow_id: str
+    options: dict
+
+
+class StepUpOptionsOut(BaseModel):
+    methods: list[str]
+    flow_id: str | None = None
+    options: dict | None = None
+
+
+class StepUpIn(BaseModel):
+    method: str = Field(pattern="^(passkey|totp|password)$")
+    flow_id: str | None = Field(default=None, max_length=64)
+    credential: dict | None = None
+    code: str | None = Field(default=None, max_length=8)
+    password: str | None = Field(default=None, max_length=200)
 
 
 class TotpSetupOut(BaseModel):

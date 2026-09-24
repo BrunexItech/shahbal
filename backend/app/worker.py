@@ -9,6 +9,7 @@ import signal
 from app import models  # noqa: F401
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.auth.passkeys import purge_expired_challenges
 from app.modules.messaging.dispatcher import dispatch_once
 
 log = logging.getLogger("worker")
@@ -21,7 +22,15 @@ async def main() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
     log.info("worker started (sms=%s, whatsapp=%s)", settings.sms_provider, settings.whatsapp_provider)
+    loops = 0
     while not stop.is_set():
+        loops += 1
+        if loops % 720 == 1:  # ~hourly at the idle cadence
+            try:
+                async with SessionLocal() as s:
+                    await purge_expired_challenges(s)
+            except Exception:
+                log.exception("challenge purge failed")
         try:
             sent = await dispatch_once(SessionLocal)
         except Exception:  # never let one bad batch kill the worker

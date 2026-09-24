@@ -25,10 +25,12 @@ class Ctx:
     user: User
     ip: str
     session_id: str | None = None
+    user_session: UserSession | None = None
 
 
 def mfa_setup_pending(user: User) -> bool:
-    return settings.is_production and user.role.value in settings.mfa_roles and not user.totp_enabled
+    """Production policy: roles in MFA_ROLES must enrol a passkey or an authenticator app."""
+    return settings.is_production and user.role.value in settings.mfa_roles and not user.has_second_factor
 
 
 def _token(request: Request) -> tuple[str | None, bool]:
@@ -75,7 +77,24 @@ def require(*roles: Role, allow_mfa_pending: bool = False):
         user, us = await _authenticate(request, session, allow_mfa_pending)
         if allowed and user.role not in allowed:
             raise HTTPException(403, "You do not have access to this action")
-        return Ctx(session=session, user=user, ip=client_ip(request), session_id=us.id)
+        return Ctx(session=session, user=user, ip=client_ip(request), session_id=us.id, user_session=us)
+
+    return dep
+
+
+STEP_UP_STATUS = 428  # Precondition Required: the client re-confirms identity, then retries
+
+
+def require_step_up(*roles: Role, allow_mfa_pending: bool = False):
+    """Like `require`, plus a recent re-confirmation (passkey / authenticator code)
+    for actions that could leak data or change access even from an unlocked device."""
+    base = require(*roles, allow_mfa_pending=allow_mfa_pending)
+
+    async def dep(ctx: Ctx = Depends(base)) -> Ctx:
+        us = ctx.user_session
+        if us is None or us.elevated_until is None or us.elevated_until <= utcnow():
+            raise HTTPException(STEP_UP_STATUS, "Please confirm it's you to continue")
+        return ctx
 
     return dep
 

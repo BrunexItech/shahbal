@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 
-from app.core.deps import Ctx, any_user, require
+from app.core.deps import Ctx, any_user, require, require_step_up
 from app.core.pagination import Page
 from app.core.roles import ADMINS, CAPTURERS, VERIFIERS, Role
 from app.modules.voters.models import Source, Status, Support
@@ -68,5 +68,5 @@ async def reopen_voter(voter_id: str, ctx: Ctx = Depends(verifiers)):
 
 
 @router.post("/{voter_id}/reveal-id")
-async def reveal_national_id(voter_id: str, ctx: Ctx = Depends(require(*ADMINS))):
+async def reveal_national_id(voter_id: str, ctx: Ctx = Depends(require_step_up(*ADMINS))):
     return {"national_id": await VoterService(ctx).reveal_national_id(voter_id)}

@@ -35,7 +35,8 @@ async def clean():
     async with engine.begin() as conn:
         # DELETE, not TRUNCATE: tiny tables, and TRUNCATE's file rewrite + fsync is slow per test.
         for table in ("audit_logs", "messages", "call_logs", "visits", "message_campaigns", "election_settings", "voters",
-                      "user_sessions", "users", "polling_stations", "wards", "constituencies"):
+                      "auth_challenges", "known_devices", "passkeys", "user_sessions", "users", "polling_stations",
+                      "wards", "constituencies"):
             await conn.execute(text(f"DELETE FROM {table}"))
     async with SessionLocal() as s:
         await seed_geography(s)
@@ -46,6 +47,7 @@ async def clean():
 
     auth_router._login_limiter._hits.clear()
     auth_router._mfa_limiter._hits.clear()
+    auth_router._passkey_limiter._hits.clear()
     portal_router._limiter._hits.clear()
 
 
@@ -70,9 +72,16 @@ async def login(client, email, password) -> dict:
     return session_headers(r)
 
 
+async def elevate(client, headers: dict, password: str) -> dict:
+    """Re-confirm identity (step-up) so sensitive endpoints accept this session."""
+    r = await client.post("/api/v1/auth/step-up/verify", json={"method": "password", "password": password}, headers=headers)
+    assert r.status_code == 204, r.text
+    return headers
+
+
 @pytest.fixture
 async def admin(client):
-    return await login(client, *ADMIN)
+    return await elevate(client, await login(client, *ADMIN), ADMIN[1])
 
 
 @pytest.fixture

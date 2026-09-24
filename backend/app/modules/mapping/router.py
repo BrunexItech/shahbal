@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import select
 
 from app.core import audit
-from app.core.deps import Ctx, any_user, require
+from app.core.deps import Ctx, any_user, require, require_step_up
 from app.core.roles import ADMINS
 from app.core.scope import voter_scope
 from app.modules.audit.models import AuditLog
@@ -18,6 +18,8 @@ from app.modules.voters.models import Voter
 
 router = APIRouter(prefix="/api/v1/map", tags=["map"])
 admins = require(*ADMINS)
+# Anything that leaves the system needs a fresh re-confirmation.
+exporters = require_step_up(*ADMINS)
 
 
 @router.get("/boundaries")
@@ -50,28 +52,28 @@ def _geojson(name: str, data: dict) -> JSONResponse:
 
 
 @router.get("/export/wards.geojson")
-async def export_wards(ctx: Ctx = Depends(admins)):
+async def export_wards(ctx: Ctx = Depends(exporters)):
     audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id="wards", ip=ctx.ip)
     await ctx.session.commit()
     return _geojson("ward-coverage", await MapService(ctx).export_wards())
 
 
 @router.get("/export/grid.geojson")
-async def export_grid(ctx: Ctx = Depends(admins)):
+async def export_grid(ctx: Ctx = Depends(exporters)):
     audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id="grid", ip=ctx.ip)
     await ctx.session.commit()
     return _geojson("capture-density", await MapService(ctx).export_grid())
 
 
 @router.get("/export/stations.geojson")
-async def export_stations(ctx: Ctx = Depends(admins)):
+async def export_stations(ctx: Ctx = Depends(exporters)):
     audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id="stations", ip=ctx.ip)
     await ctx.session.commit()
     return _geojson("polling-stations", await MapService(ctx).export_stations())
 
 
 @router.get("/export/project.geolibre.json")
-async def export_project(ctx: Ctx = Depends(admins)):
+async def export_project(ctx: Ctx = Depends(exporters)):
     """One-click GIS Lab project: styled layers, popups, charts and a story map."""
     svc = MapService(ctx)
     project = build_project(await svc.export_wards(), await svc.export_grid(), await svc.export_stations())
@@ -81,7 +83,7 @@ async def export_project(ctx: Ctx = Depends(admins)):
 
 
 @router.get("/export/voters.csv")
-async def export_voters(ward_id: str | None = None, ctx: Ctx = Depends(admins)):
+async def export_voters(ward_id: str | None = None, ctx: Ctx = Depends(exporters)):
     """Operational export for HQ. National IDs stay masked; every export is audited."""
     stmt = (select(Voter.reference, Voter.full_name, Voter.phone, Voter.national_id_last4, Voter.support, Voter.status,
                    Voter.source, Voter.opted_out, Voter.voted_at, Ward.name, Constituency.name, PollingStation.name, Voter.created_at)

@@ -34,7 +34,16 @@ class Settings(BaseSettings):
     environment: str = "development"
     session_hours: int = 12
     cookie_name: str = "chq_session"
-    mfa_roles: list[str] = ["super_admin"]
+    # Production: every staff role must enrol a passkey or an authenticator app.
+    mfa_roles: list[str] = ["super_admin", "coordinator", "ward_coordinator", "field_agent", "call_agent", "viewer"]
+    # Re-confirmation window for sensitive actions (reveal ID, exports, approvals, team changes).
+    step_up_minutes: int = 5
+    device_cookie_name: str = "chq_device"
+
+    # Passkeys (WebAuthn). rp_id is the bare domain the app is served on; origins
+    # are the exact page origins allowed to run the ceremony.
+    webauthn_rp_id: str = "localhost"
+    webauthn_origins: list[str] = ["http://localhost:3000", "http://localhost:8090"]
     max_failed_logins: int = 5
     lockout_minutes: int = 15
 

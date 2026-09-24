@@ -3,7 +3,7 @@ from sqlalchemy import select
 from app.core.db import SessionLocal
 from app.modules.audit.models import AuditLog
 from app.modules.voters.models import Voter
-from tests.conftest import make_user, voter_payload
+from tests.conftest import elevate, make_user, voter_payload
 
 
 async def test_login_rejects_bad_password(client):
@@ -57,7 +57,8 @@ async def test_coordinator_sees_only_constituency(client, admin, wards):
     await client.post("/api/v1/voters", json=voter_payload(tudor), headers=admin)
     await client.post("/api/v1/voters", json=voter_payload(bamburi, national_id="22223333"), headers=admin)
     assert (await client.get("/api/v1/voters", headers=coord)).json()["total"] == 1
-    # cannot promote someone to coordinator
+    # cannot promote someone to coordinator (even after re-confirming identity)
+    await elevate(client, coord, "Password!1")
     r = await client.post("/api/v1/users", headers=coord, json={
         "full_name": "Nope Nope", "email": "n@campaign.co.ke", "password": "Password!1",
         "role": "coordinator", "constituency_id": tudor.constituency_id})

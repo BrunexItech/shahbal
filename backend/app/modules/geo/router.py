@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile
 
-from app.core.deps import Ctx, any_user, require
+from app.core.deps import Ctx, any_user, require, require_step_up
 from app.core.roles import ADMINS, MANAGERS, Role
 from app.modules.geo.schemas import (
     ConstituencyOut,
@@ -44,5 +44,5 @@ async def update_station(station_id: str, payload: StationUpdate, ctx: Ctx = Dep
 
 
 @router.post("/stations/import", response_model=ImportResult)
-async def import_stations(file: UploadFile, ctx: Ctx = Depends(require(*ADMINS))):
+async def import_stations(file: UploadFile, ctx: Ctx = Depends(require_step_up(*ADMINS))):
     return await GeoService(ctx).import_csv(await file.read())

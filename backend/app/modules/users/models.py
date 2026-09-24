@@ -28,6 +28,12 @@ class User(Base):
     # TOTP 2FA. The secret is Fernet-encrypted like other sensitive fields.
     totp_secret_enc: Mapped[str | None] = mapped_column(Text)
     totp_enabled: Mapped[bool] = mapped_column(default=False)
+    # Denormalised so the per-request MFA-policy check needs no extra query.
+    passkey_count: Mapped[int] = mapped_column(default=0)
+
+    @property
+    def has_second_factor(self) -> bool:
+        return self.totp_enabled or self.passkey_count > 0
 
 
 class UserSession(Base):
@@ -42,3 +48,6 @@ class UserSession(Base):
     last_seen_at: Mapped[datetime | None]
     ip: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(300))
+    auth_method: Mapped[str] = mapped_column(String(20), default="password")  # password | totp | passkey
+    # Re-confirmed ("step-up") until: sensitive actions require this to be in the future.
+    elevated_until: Mapped[datetime | None]

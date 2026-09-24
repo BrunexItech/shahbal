@@ -9,7 +9,8 @@ from app.core import audit
 from app.core.clock import utcnow
 from app.core.config import settings
 from app.core.db import get_session
-from app.core.deps import Ctx, any_user
+from app.core.deps import Ctx, any_user, require_step_up
+from app.core.roles import Role
 from app.core.pagination import Page
 from app.core.phone import to_e164
 from app.core.ratelimit import client_ip
@@ -45,7 +46,7 @@ async def get_campaign(cid: str, ctx: Ctx = Depends(any_user)):
 
 
 @router.post("/campaigns/{cid}/review", response_model=CampaignOut)
-async def review_campaign(cid: str, payload: ReviewIn, ctx: Ctx = Depends(any_user)):
+async def review_campaign(cid: str, payload: ReviewIn, ctx: Ctx = Depends(require_step_up(Role.super_admin))):
     return await MessagingService(ctx).review(cid, payload)
 
 

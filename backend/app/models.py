@@ -1,5 +1,6 @@
 """Imports every model so Alembic autogenerate and metadata.create_all see them."""
 from app.modules.audit.models import AuditLog  # noqa: F401
+from app.modules.auth.models import AuthChallenge, KnownDevice, Passkey  # noqa: F401
 from app.modules.calls.models import CallLog  # noqa: F401
 from app.modules.election.models import ElectionSettings  # noqa: F401
 from app.modules.geo.models import Constituency, PollingStation, Ward  # noqa: F401
