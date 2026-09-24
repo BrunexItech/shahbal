@@ -1,14 +1,19 @@
 "use client";
 
-import { Clock, Headphones, History, MapPin, Phone, PhoneOff, SkipForward, Trophy } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Headphones, History, MapPin, Phone, PhoneOff, Smartphone, SkipForward, Trophy } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Spinner } from "@/components/loaders";
 import { Badge, Button, Card, CardHeader, EmptyState, Input, PageHeader, StatusBadge, SUPPORT, SupportBadge, Textarea } from "@/components/ui";
 import { claimNext, releaseClaim, useAgentStats, useLogCall, useQueueCounts } from "@/features/calls/api";
+import { RecordingsPanel } from "@/features/calls/RecordingsPanel";
+import { SoftphonePanel } from "@/features/calls/SoftphonePanel";
+import { type Softphone, uploadRecording, useSoftphone } from "@/features/calls/useSoftphone";
+import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { dateTime, initials, num, timeAgo } from "@/lib/format";
+import { can } from "@/lib/roles";
 import type { CallOutcome, CallQueue, Claim, Support } from "@/lib/types";
 
 const QUEUES: { id: CallQueue; label: string; hint: string }[] = [
@@ -28,6 +33,29 @@ const OUTCOMES: { id: CallOutcome; label: string; tone: string }[] = [
 ];
 
 export default function CallCentrePage() {
+  const user = useUser();
+  const supervisor = can.manageUsers(user.role);
+  const [tab, setTab] = useState<"console" | "recordings">("console");
+  const phone = useSoftphone();
+
+  return (
+    <>
+      <PageHeader eyebrow="Outreach" title="Call centre"
+        subtitle="Built-in softphone, recorded calls and live queues. One voter per agent at a time, logged against the voter's record."
+        actions={supervisor && (
+          <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+            {(["console", "recordings"] as const).map((t) => (
+              <button key={t} onClick={() => setTab(t)}
+                className={cn("rounded-lg px-4 py-1.5 text-sm font-semibold capitalize transition", tab === t ? "bg-white text-navy-900 shadow-sm" : "text-muted")}>{t}</button>
+            ))}
+          </div>
+        )} />
+      {tab === "recordings" ? <RecordingsPanel /> : <Console phone={phone} canManualDial={supervisor} />}
+    </>
+  );
+}
+
+function Console({ phone, canManualDial }: { phone: Softphone; canManualDial: boolean }) {
   const counts = useQueueCounts();
   const stats = useAgentStats();
   const [queue, setQueue] = useState<CallQueue>("verify");
@@ -38,6 +66,7 @@ export default function CallCentrePage() {
   async function next(q = queue) {
     setLoading(true);
     setEmpty(false);
+    phone.clearFinished();
     try {
       const c = await claimNext(q);
       setClaim(c ?? null);
@@ -46,7 +75,7 @@ export default function CallCentrePage() {
       toast.error(e instanceof Error ? e.message : "Couldn't load the next voter");
     } finally {
       setLoading(false);
-      counts.refetch();
+      void counts.refetch();
     }
   }
 
@@ -54,36 +83,37 @@ export default function CallCentrePage() {
   useEffect(() => () => void releaseClaim().catch(() => {}), []);
 
   return (
-    <>
-      <PageHeader eyebrow="Outreach" title="Call centre" subtitle="One voter at a time, never the same person as a colleague. Every call is logged against the voter's record." />
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {QUEUES.map((q) => (
-              <button key={q.id} onClick={() => { setQueue(q.id); if (claim) void releaseClaim(); setClaim(null); setEmpty(false); }}
-                className={cn("rounded-2xl p-4 text-left ring-1 transition", queue === q.id ? "bg-navy-950 text-white ring-navy-950" : "bg-white ring-line hover:ring-slate-300")}>
-                <p className={cn("text-xs font-semibold", queue === q.id ? "text-gold" : "text-muted")}>{q.label}</p>
-                <p className="mt-1 font-display text-2xl font-bold tabular-nums">{counts.data ? num(counts.data[q.id]) : "–"}</p>
-                <p className={cn("mt-1 text-[11px]", queue === q.id ? "text-slate-400" : "text-muted")}>{q.hint}</p>
-              </button>
-            ))}
-          </div>
-
-          {loading ? (
-            <Card className="grid h-80 place-items-center"><div className="flex flex-col items-center gap-3 text-sm text-muted"><Spinner size="lg" />Finding the next voter…</div></Card>
-          ) : claim ? (
-            <CallCard key={claim.voter.id} claim={claim} queue={queue} onDone={() => next()} onSkip={async () => { await releaseClaim(); next(); }} />
-          ) : (
-            <Card>
-              <EmptyState icon={<Headphones className="size-6" />}
-                title={empty ? "This queue is clear" : "Ready when you are"}
-                body={empty ? "Nobody left to call in this queue right now. Try another queue or check back later." : "Press start and the next voter in the queue is reserved for you."}
-                action={<Button size="lg" icon={<Phone className="size-4" />} onClick={() => next()}>{empty ? "Check again" : "Start calling"}</Button>} />
-            </Card>
-          )}
+    <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {QUEUES.map((q) => (
+            <button key={q.id} disabled={["dialing", "ringing", "in_call"].includes(phone.state)}
+              onClick={() => { setQueue(q.id); if (claim) void releaseClaim(); setClaim(null); setEmpty(false); }}
+              className={cn("rounded-2xl p-4 text-left ring-1 transition disabled:opacity-60", queue === q.id ? "bg-navy-950 text-white ring-navy-950" : "bg-white ring-line hover:ring-slate-300")}>
+              <p className={cn("text-xs font-semibold", queue === q.id ? "text-gold" : "text-muted")}>{q.label}</p>
+              <p className="mt-1 font-display text-2xl font-bold tabular-nums">{counts.data ? num(counts.data[q.id]) : "–"}</p>
+              <p className={cn("mt-1 text-[11px]", queue === q.id ? "text-slate-400" : "text-muted")}>{q.hint}</p>
+            </button>
+          ))}
         </div>
 
-        <Card className="xl:sticky xl:top-24 xl:self-start">
+        {loading ? (
+          <Card className="grid h-80 place-items-center"><div className="flex flex-col items-center gap-3 text-sm text-muted"><Spinner size="lg" />Finding the next voter…</div></Card>
+        ) : claim ? (
+          <CallCard key={claim.voter.id} claim={claim} queue={queue} phone={phone} onDone={() => next()} onSkip={async () => { await releaseClaim(); await next(); }} />
+        ) : (
+          <Card>
+            <EmptyState icon={<Headphones className="size-6" />}
+              title={empty ? "This queue is clear" : "Ready when you are"}
+              body={empty ? "Nobody left to call in this queue right now. Try another queue or check back later." : "Press start and the next voter in the queue is reserved for you."}
+              action={<Button size="lg" icon={<Phone className="size-4" />} onClick={() => next()}>{empty ? "Check again" : "Start calling"}</Button>} />
+          </Card>
+        )}
+      </div>
+
+      <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+        <SoftphonePanel phone={phone} canManualDial={canManualDial} />
+        <Card>
           <CardHeader title="Today's leaderboard" subtitle="Calls since midnight" />
           {stats.data?.length ? (
             <ol className="space-y-3 p-5">
@@ -103,11 +133,11 @@ export default function CallCentrePage() {
           ) : <p className="p-5 text-sm text-muted">No calls logged yet today.</p>}
         </Card>
       </div>
-    </>
+    </div>
   );
 }
 
-function CallCard({ claim, queue, onDone, onSkip }: { claim: Claim; queue: CallQueue; onDone: () => void; onSkip: () => void }) {
+function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue: CallQueue; phone: Softphone; onDone: () => void; onSkip: () => void }) {
   const v = claim.voter;
   const log = useLogCall();
   const [outcome, setOutcome] = useState<CallOutcome | null>(null);
@@ -116,32 +146,45 @@ function CallCard({ claim, queue, onDone, onSkip }: { claim: Claim; queue: CallQ
   const [notes, setNotes] = useState("");
   const [issue, setIssue] = useState("");
   const [followUp, setFollowUp] = useState("");
-  const [started, setStarted] = useState<number | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval>>(undefined);
+  const [saving, setSaving] = useState(false);
+  const live = ["dialing", "ringing", "in_call"].includes(phone.state);
+  const thisCall = phone.party?.voterId === v.id;
+  const finished = phone.finished?.party.voterId === v.id ? phone.finished : null;
 
-  useEffect(() => () => clearInterval(timer.current), []);
-  const dial = () => {
-    setStarted(Date.now());
-    timer.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-  };
-  const mmss = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
+  const callNow = () => phone.dial({ voterId: v.id, name: v.full_name, number: v.phone });
 
-  function save() {
+  async function save() {
     if (!outcome) return toast.error("Choose how the call went");
     if (outcome === "call_back" && !followUp) return toast.error("Pick when to call back");
-    clearInterval(timer.current);
-    log.mutate({
-      voter_id: v.id, queue, outcome,
-      support: outcome === "answered" ? support : undefined,
-      verify: outcome === "answered" && verify,
-      notes: notes.trim() || undefined, issue: issue.trim() || undefined,
-      duration_seconds: started ? Math.round((Date.now() - started) / 1000) : undefined,
-      follow_up_at: followUp ? `${followUp}:00+03:00` : undefined,
-    }, {
-      onSuccess: () => { toast.success("Call logged"); onDone(); },
-      onError: (e) => toast.error(e.message),
-    });
+    if (live && thisCall) await phone.hangup();
+    setSaving(true);
+    try {
+      let recordingId: string | undefined;
+      if (finished) {
+        try {
+          recordingId = await uploadRecording(finished);
+        } catch (e) {
+          toast.error(`Recording not saved: ${e instanceof Error ? e.message : "upload failed"}`);
+        }
+      }
+      await log.mutateAsync({
+        voter_id: v.id, queue, outcome,
+        support: outcome === "answered" ? support : undefined,
+        verify: outcome === "answered" && verify,
+        notes: notes.trim() || undefined, issue: issue.trim() || undefined,
+        duration_seconds: finished?.seconds,
+        follow_up_at: followUp ? `${followUp}:00+03:00` : undefined,
+        ...(recordingId ? { recording_id: recordingId } : {}),
+        ...(finished?.consent === "declined" ? { recording_declined: true } : {}),
+      });
+      toast.success(recordingId ? "Call and recording saved" : "Call logged");
+      phone.clearFinished();
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save the call");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -160,14 +203,29 @@ function CallCard({ claim, queue, onDone, onSkip }: { claim: Claim; queue: CallQ
             <span>{v.reference}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {started && <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 font-mono text-sm"><Clock className="size-4 text-gold" />{mmss}</span>}
-          <a href={`tel:${v.phone}`} onClick={() => !started && dial()}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-kenya-green px-5 font-semibold text-white shadow-lg shadow-kenya-green/30 hover:bg-kenya-green-600">
-            <Phone className="size-4" /> {v.phone}
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          {live && thisCall ? (
+            <button onClick={() => void phone.hangup()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-kenya-red px-5 font-semibold shadow-lg shadow-kenya-red/30 hover:brightness-110">
+              <PhoneOff className="size-4" /> End call
+            </button>
+          ) : (
+            <button onClick={callNow} disabled={!["ready", "ended"].includes(phone.state)}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1fa463] px-5 font-semibold shadow-lg shadow-[#1fa463]/30 hover:brightness-110 disabled:opacity-50">
+              <Phone className="size-4" /> Call now
+            </button>
+          )}
+          <a href={`tel:${v.phone}`} className="inline-flex items-center justify-center gap-1.5 text-xs text-slate-300 hover:text-white">
+            <Smartphone className="size-3.5" /> Use my own phone ({v.phone})
           </a>
         </div>
       </div>
+
+      {finished && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-slate-50 px-5 py-2.5 text-xs text-slate-700">
+          Call lasted <b>{Math.floor(finished.seconds / 60)}m {finished.seconds % 60}s</b>
+          {finished.consent === "declined" ? <Badge>Recording declined</Badge> : finished.recording ? <Badge tone="blue">Recording ready to save</Badge> : <Badge>Not recorded</Badge>}
+        </div>
+      )}
 
       <div className="grid gap-6 p-5 lg:grid-cols-[1fr_260px]">
         <div className="space-y-5">
@@ -212,8 +270,8 @@ function CallCard({ claim, queue, onDone, onSkip }: { claim: Claim; queue: CallQ
           )}
           <Textarea label="Notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the next caller should know" />
           <div className="flex flex-wrap justify-between gap-2">
-            <Button variant="ghost" icon={<SkipForward className="size-4" />} onClick={onSkip} disabled={log.isPending}>Skip</Button>
-            <Button size="lg" variant="gold" loading={log.isPending} onClick={save}>Save & next voter</Button>
+            <Button variant="ghost" icon={<SkipForward className="size-4" />} onClick={onSkip} disabled={saving || (live && thisCall)}>Skip</Button>
+            <Button size="lg" variant="gold" loading={saving} onClick={save}>Save & next voter</Button>
           </div>
         </div>
         <div>
@@ -223,7 +281,7 @@ function CallCard({ claim, queue, onDone, onSkip }: { claim: Claim; queue: CallQ
               {claim.history.map((h) => (
                 <li key={h.id} className="rounded-xl bg-slate-50 p-3 text-xs ring-1 ring-line">
                   <div className="flex items-center justify-between"><Badge>{h.outcome.replace(/_/g, " ")}</Badge><span className="text-muted">{timeAgo(h.created_at)}</span></div>
-                  <p className="mt-1.5 text-slate-600">{h.agent_name}{h.issue && ` · ${h.issue}`}</p>
+                  <p className="mt-1.5 text-slate-600">{h.agent_name}{h.issue && ` · ${h.issue}`}{h.recording_id && " · recorded"}</p>
                   {h.notes && <p className="mt-1 text-slate-800">{h.notes}</p>}
                 </li>
               ))}

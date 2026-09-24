@@ -58,6 +58,10 @@ deploy/        nginx gateway, encrypted backup script
   - Server-side sessions in an `httpOnly` `SameSite=Strict` cookie, which JavaScript never sees.
   - A CSRF header is required on writes.
   - Logout, disabling a user, a role change or a password change revokes sessions at once.
+- **Separate sign-in portals:** HQ and leadership use `/command/login`, and field and call-centre staff use `/field/login`.
+  - The server decides which roles each portal admits and ties every session to its portal.
+  - Signing in at the wrong portal looks exactly like a wrong password, and the attempt is flagged in the audit trail (`PORTAL_DENIED`).
+  - In production, `/command` can additionally be IP-restricted or put behind Cloudflare Access.
 - **Passkeys:** sign-in with a fingerprint, face or phone PIN (WebAuthn), or a hardware security key.
   - Biometrics never leave the device; the server stores only a public key. That keeps the campaign clear of the Data Protection Act's rules on biometric data.
   - Passkeys can't be phished: they only work on the real domain.
@@ -85,6 +89,22 @@ deploy/        nginx gateway, encrypted backup script
   - Audiences are always limited to the sender's area.
   - Opt-outs are honoured at send time, not just when the campaign is created.
   - Nothing sends between 21:00 and 08:00.
+
+## Live command centre & call centre
+
+- **Live data:** `/api/v1/live/stream` (Server-Sent Events) pushes a scoped pulse every few seconds: captures, calls, turnout, staff online and on calls. HQ also gets the activity feed and the live call wall. Dashboards refresh the moment numbers move.
+- **Mission control dashboard:**
+  - progress to the county target, with a projection to election day and the required daily pace,
+  - plain-language insight cards,
+  - constituency traffic lights (on track, at risk or critical, based on current pace),
+  - KPI sparklines with day-on-day and week-on-week changes.
+- **Softphone:** a built-in dialpad, with mute, hold and keypad tones.
+  - `VOICE_PROVIDER=sip` connects to any SIP-over-WebSocket carrier (Africa's Talking SIP, Yeastar, Asterisk): set `SIP_WSS_URL`, `SIP_DOMAIN` and `SIP_CALLER_ID` on the API, `NEXT_PUBLIC_SIP_WSS_ORIGIN` on the frontend, and give each agent a line under *Call centre → SIP lines* via the API (`PUT /api/v1/calls/sip-accounts/{user_id}`).
+  - `VOICE_PROVIDER=sandbox` (the default) is a training line that simulates calls end to end.
+- **Call recording:**
+  - The agent reads a disclosure script as the call connects. If the voter declines, the recording is thrown away and never uploaded.
+  - Recordings are stored AES-256-GCM encrypted in `RECORDINGS_DIR` (use a persistent volume) and deleted after `RECORDING_RETENTION_DAYS` (90).
+  - Playback is for supervisors only, needs re-confirmation, and every play is audited.
 
 ## Run locally (development)
 

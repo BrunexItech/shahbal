@@ -23,6 +23,8 @@ export type CallInput = {
   issue?: string;
   duration_seconds?: number;
   follow_up_at?: string;
+  recording_id?: string;
+  recording_declined?: boolean;
 };
 
 export function useLogCall() {

@@ -12,6 +12,7 @@ from app.modules.calls.router import router as calls_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.election.router import router as election_router
 from app.modules.geo.router import router as geo_router
+from app.modules.live.router import router as live_router
 from app.modules.mapping.router import router as map_router
 from app.modules.messaging.router import router as messaging_router
 from app.modules.portal.router import router as portal_router
@@ -47,7 +48,7 @@ app.add_middleware(
 
 # Each module owns its router; adding a module = one line here.
 for r in (auth_router, users_router, geo_router, voters_router, portal_router, dashboard_router, audit_router,
-          messaging_router, visits_router, calls_router, election_router, map_router):
+          messaging_router, visits_router, calls_router, election_router, map_router, live_router):
     app.include_router(r)
 
 

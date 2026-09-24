@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.db import get_session
 from app.core.deps import STEP_UP_STATUS, Ctx, mfa_setup_pending, require, require_step_up
 from app.core.ratelimit import RateLimiter, client_ip
-from app.core.roles import Role
+from app.core.roles import PORTAL_ROLES, Role
 from app.core.security import (
     burn_password_check,
     create_mfa_token,
@@ -63,11 +63,22 @@ def _mfa_methods(user: User) -> list[str]:
     return [m for m, on in (("passkey", user.passkey_count > 0), ("totp", user.totp_enabled)) if on]
 
 
+def _portal_admits(user: User, portal: str) -> bool:
+    return user.role in PORTAL_ROLES.get(portal, set())
+
+
+def _deny_portal(session: AsyncSession, user: User, portal: str, ip: str) -> None:
+    """Right credentials, wrong door: record it, but answer exactly like a bad password
+    so the page reveals nothing about which accounts exist or what role they hold."""
+    audit.record(session, actor_id=user.id, action="PORTAL_DENIED", entity="user", entity_id=user.id, ip=ip, portal=portal)
+
+
 async def _start_session(session: AsyncSession, user: User, request: Request, response: Response,
-                         tasks: BackgroundTasks, method: str) -> LoginOut:
+                         tasks: BackgroundTasks, method: str, portal: str) -> LoginOut:
     """The one place a session is created, whatever the sign-in method."""
     now = utcnow()
     us = UserSession(
+        portal=portal,
         user_id=user.id,
         expires_at=now + timedelta(hours=settings.session_hours),
         ip=client_ip(request),
@@ -85,16 +96,19 @@ async def _start_session(session: AsyncSession, user: User, request: Request, re
     )
     new_device = await check_device(session, user, request, response, tasks)
     audit.record(session, actor_id=user.id, action="LOGIN", entity="user", entity_id=user.id, ip=us.ip,
-                 method=method, new_device=new_device)
+                 method=method, portal=portal, new_device=new_device)
     await session.commit()
     return LoginOut(user=UserOut.model_validate(user))
 
 
-def _user_from_mfa_token(token: str) -> str:
+def _user_from_mfa_token(token: str, portal: str) -> str:
     try:
-        return decode_token(token, "mfa")["sub"]
+        payload = decode_token(token, "mfa")
     except jwt.PyJWTError:
         raise HTTPException(401, "Your sign-in expired. Please start again.")
+    if payload.get("portal") != portal:  # a token from one portal can't finish sign-in on the other
+        raise HTTPException(401, "Your sign-in expired. Please start again.")
+    return payload["sub"]
 
 
 # ---- password (+ second factor) ---------------------------------------------------
@@ -122,27 +136,31 @@ async def login(payload: LoginIn, request: Request, response: Response, tasks: B
         raise HTTPException(401, GENERIC_FAIL)
     if not user.is_active:
         raise HTTPException(403, "This account has been disabled")
+    if not _portal_admits(user, payload.portal):
+        _deny_portal(session, user, payload.portal, ip)
+        await session.commit()
+        raise HTTPException(401, GENERIC_FAIL)
 
     if user.has_second_factor:
         user.failed_logins = 0
         await session.commit()
-        return LoginOut(mfa_required=True, mfa_token=create_mfa_token(user.id), mfa_methods=_mfa_methods(user))
-    return await _start_session(session, user, request, response, tasks, "password")
+        return LoginOut(mfa_required=True, mfa_token=create_mfa_token(user.id, payload.portal), mfa_methods=_mfa_methods(user))
+    return await _start_session(session, user, request, response, tasks, "password", payload.portal)
 
 
 @router.post("/mfa", response_model=LoginOut)
 async def login_mfa(payload: MfaIn, request: Request, response: Response, tasks: BackgroundTasks,
                     session: AsyncSession = Depends(get_session)):
-    user_id = _user_from_mfa_token(payload.mfa_token)
+    user_id = _user_from_mfa_token(payload.mfa_token, payload.portal)
     _mfa_limiter.hit(user_id)
     user = await session.get(User, user_id)
-    if user is None or not user.is_active or not user.totp_enabled or not user.totp_secret_enc:
+    if user is None or not user.is_active or not user.totp_enabled or not user.totp_secret_enc or not _portal_admits(user, payload.portal):
         raise HTTPException(401, "Your sign-in expired. Please start again.")
     if not verify_totp(crypto.decrypt(user.totp_secret_enc), payload.code):
         audit.record(session, actor_id=user.id, action="MFA_FAIL", entity="user", entity_id=user.id, ip=client_ip(request))
         await session.commit()
         raise HTTPException(401, "That code is incorrect or has expired")
-    return await _start_session(session, user, request, response, tasks, "totp")
+    return await _start_session(session, user, request, response, tasks, "totp", payload.portal)
 
 
 # ---- passkey sign-in (passwordless, or as the second factor) ----------------------
@@ -150,7 +168,7 @@ async def login_mfa(payload: MfaIn, request: Request, response: Response, tasks:
 async def passkey_login_options(payload: PasskeyOptionsIn, request: Request, session: AsyncSession = Depends(get_session)):
     _passkey_limiter.hit(client_ip(request))
     if payload.mfa_token:
-        user = await session.get(User, _user_from_mfa_token(payload.mfa_token))
+        user = await session.get(User, _user_from_mfa_token(payload.mfa_token, payload.portal))
         if user is None or not user.is_active:
             raise HTTPException(401, "Your sign-in expired. Please start again.")
         flow, opts = await passkeys.authentication_options(session, ChallengePurpose.second_factor, user)
@@ -165,7 +183,7 @@ async def passkey_login_verify(payload: PasskeyVerifyIn, request: Request, respo
                                session: AsyncSession = Depends(get_session)):
     ip = client_ip(request)
     _passkey_limiter.hit(ip)
-    expected = _user_from_mfa_token(payload.mfa_token) if payload.mfa_token else None
+    expected = _user_from_mfa_token(payload.mfa_token, payload.portal) if payload.mfa_token else None
     purpose = ChallengePurpose.second_factor if expected else ChallengePurpose.login
     try:
         _, user = await passkeys.authenticate(session, payload.flow_id, purpose, payload.credential, expected)
@@ -174,7 +192,12 @@ async def passkey_login_verify(payload: PasskeyVerifyIn, request: Request, respo
         audit.record(session, actor_id=expected, action="PASSKEY_FAIL", entity="user", entity_id=expected, ip=ip)
         await session.commit()
         raise
-    return await _start_session(session, user, request, response, tasks, "passkey")
+    if not _portal_admits(user, payload.portal):
+        # Passwordless: the passkey picked the account, so the portal check happens here.
+        _deny_portal(session, user, payload.portal, ip)
+        await session.commit()
+        raise HTTPException(401, "Passkey sign-in failed")
+    return await _start_session(session, user, request, response, tasks, "passkey", payload.portal)
 
 
 # ---- session ---------------------------------------------------------------------
@@ -192,6 +215,7 @@ async def me(ctx: Ctx = Depends(me_dep)):
     us = ctx.user_session
     elevated = us.elevated_until if us and us.elevated_until and us.elevated_until > utcnow() else None
     return MeOut(**UserOut.model_validate(ctx.user).model_dump(), mfa_setup_required=mfa_setup_pending(ctx.user),
+                 portal=us.portal if us else "command",
                  passkey_count=ctx.user.passkey_count, session_method=us.auth_method if us else "password",
                  elevated_until=elevated.isoformat() if elevated else None)
 

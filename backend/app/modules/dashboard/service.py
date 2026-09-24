@@ -5,6 +5,7 @@ Definitions (shown in the UI too):
   achieved = records in the area that are not rejected
   gap      = max(target - achieved, 0)
 """
+import math
 from sqlalchemy import case, func, select
 
 from datetime import timedelta
@@ -127,7 +128,7 @@ class DashboardService:
 
         ops = await self._ops(vs, today)
 
-        return {
+        result = {
             "ops": ops,
             "totals": {"total": totals.total, "achieved": totals.achieved, "verified": totals.verified,
                        "pending": totals.pending, "rejected": totals.rejected, "today": totals.today,
@@ -141,6 +142,8 @@ class DashboardService:
             "top_agents": top_agents,
             "recent": recent,
         }
+        result["insights"] = await insights(self.s, self.user, result)
+        return result
 
     async def _ops(self, vs, today) -> dict:
         ws = ward_scope(self.user)
@@ -168,3 +171,109 @@ class DashboardService:
         return {"messages_today": msgs[0], "delivered_today": msgs[1], "calls_today": calls[0], "answered_today": calls[1],
                 "visits_today": visits[0], "visits_upcoming": visits[1], "wards_visited": visits[2],
                 "approvals_pending": pending, "voted": voted}
+
+
+# ---- insight layer: turns counts into direction, pace and plain-language advice ----
+def _status(projected_pct: float | None) -> str:
+    if projected_pct is None:
+        return "unknown"
+    return "on_track" if projected_pct >= 100 else "at_risk" if projected_pct >= 75 else "critical"
+
+
+async def insights(session, user, summary: dict) -> dict:
+    from app.core.clock import TZ, local_date
+    from app.modules.election.service import load_settings
+
+    vs = voter_scope(user)
+    live = Voter.status != Status.rejected
+    today = local_midnight()
+    now = utcnow()
+
+    def window(start, end):
+        return select(func.count(Voter.id)).where(vs, live, Voter.created_at >= start, Voter.created_at < end)
+
+    same_time_yesterday = now - timedelta(days=1)
+    today_n = (await session.execute(window(today, now))).scalar_one()
+    yday_to_now = (await session.execute(window(local_midnight(1), same_time_yesterday))).scalar_one()
+    last7 = (await session.execute(window(local_midnight(6), now))).scalar_one()
+    prev7 = (await session.execute(window(local_midnight(13), local_midnight(6)))).scalar_one()
+    pace = round(last7 / 7, 1)
+
+    hour = func.extract("hour", func.timezone("Africa/Nairobi", Voter.created_at))
+    hourly_rows = dict((await session.execute(
+        select(hour, func.count(Voter.id)).where(vs, live, Voter.created_at >= today).group_by(hour))).all())
+    hourly = [int(hourly_rows.get(h, 0)) for h in range(24)]
+
+    st = await load_settings(session)
+    days_left = None
+    if st.election_date:
+        days_left = max((st.election_date - now.astimezone(TZ).date()).days, 0)
+
+    overall = summary["overall"]
+    projected = overall["achieved"] + pace * days_left if days_left is not None else None
+    required = math.ceil(overall["gap"] / days_left) if days_left else None
+
+    # Per-constituency pace (last 7 days) → projection and a traffic light.
+    cons_pace = dict((await session.execute(
+        select(Ward.constituency_id, func.count(Voter.id)).join(Ward, Ward.id == Voter.ward_id)
+        .where(vs, live, Voter.created_at >= local_midnight(6)).group_by(Ward.constituency_id))).all())
+    cons_today = dict((await session.execute(
+        select(Ward.constituency_id, func.count(Voter.id)).join(Ward, Ward.id == Voter.ward_id)
+        .where(vs, live, Voter.created_at >= today).group_by(Ward.constituency_id))).all())
+    constituencies = []
+    for c in summary["constituencies"]:
+        p = cons_pace.get(c["id"], 0) / 7
+        proj = c["achieved"] + p * days_left if days_left is not None else None
+        pct = (proj / c["target"] * 100) if (proj is not None and c["target"]) else (c["percent"] if days_left is None else None)
+        constituencies.append({**c, "pace": round(p, 1), "today": cons_today.get(c["id"], 0),
+                               "projected": round(proj) if proj is not None else None,
+                               "projected_percent": round(pct, 1) if pct is not None else None,
+                               "status": _status(pct if days_left is not None else (c["percent"] or 0) * 1.33 if c["target"] else None)})
+
+    verified_week = (await session.execute(select(func.count(Voter.id)).where(
+        vs, Voter.status == Status.verified, Voter.verified_at >= local_midnight(6)))).scalar_one()
+    backlog_days = round(summary["totals"]["pending"] / (verified_week / 7), 1) if verified_week else None
+
+    # Plain-language cards, most important first.
+    cards: list[dict] = []
+    if days_left is not None and overall["target"]:
+        if projected >= overall["target"]:
+            cards.append({"tone": "good", "title": "On course to hit the county target",
+                          "detail": f"At {round(pace):,}/day we reach about {round(projected):,} by election day, above the {overall['target']:,} target."})
+        else:
+            cards.append({"tone": "bad", "title": f"Need {required:,} supporters a day to hit target",
+                          "detail": f"Current pace is {round(pace):,}/day. At this rate we reach about {round(projected):,} of {overall['target']:,} with {days_left} days left."})
+    elif overall["target"]:
+        cards.append({"tone": "info", "title": f"{overall['percent'] or 0:g}% of the county target reached",
+                      "detail": "Set the election date in Election Day to get projections and a required daily pace."})
+    if yday_to_now or today_n:
+        diff = today_n - yday_to_now
+        cards.append({"tone": "good" if diff >= 0 else "warn",
+                      "title": f"{today_n:,} captured today, {'+' if diff >= 0 else ''}{diff:,} vs this time yesterday",
+                      "detail": f"This week {last7:,} vs {prev7:,} the week before ({'up' if last7 >= prev7 else 'down'} {abs(last7 - prev7):,})."})
+    ranked = [c for c in constituencies if c["target"]]
+    if ranked:
+        worst = min(ranked, key=lambda c: c["projected_percent"] if c["projected_percent"] is not None else c["percent"] or 0)
+        best_today = max(constituencies, key=lambda c: c["today"])
+        cards.append({"tone": "bad" if worst["status"] == "critical" else "warn", "title": f"{worst['name']} needs attention",
+                      "detail": f"{worst['achieved']:,} of {worst['target']:,} reached ({worst['percent'] or 0:g}%), gap of {worst['gap']:,}. Consider a visit and a call-centre push."})
+        if best_today["today"]:
+            cards.append({"tone": "good", "title": f"{best_today['name']} is leading today",
+                          "detail": f"{best_today['today']:,} supporters captured since midnight."})
+    if summary["totals"]["pending"]:
+        cards.append({"tone": "warn" if (backlog_days or 99) > 7 else "info",
+                      "title": f"{summary['totals']['pending']:,} records awaiting verification",
+                      "detail": (f"At this week's verification rate the queue clears in about {round(backlog_days)} days."
+                                 if backlog_days <= 60 else "At this week's verification rate that would take months. Put more call-centre time on the Verify queue.")
+                      if backlog_days
+                      else "No records were verified this week. Put the call centre on the Verify queue."})
+    peak = max(range(24), key=lambda h: hourly[h])
+    if hourly[peak]:
+        cards.append({"tone": "info", "title": f"Busiest hour today: {peak:02d}:00–{(peak + 1) % 24:02d}:00",
+                      "detail": f"{hourly[peak]:,} captures in that hour. Schedule field teams around it."})
+
+    return {
+        "today": today_n, "yesterday_same_time": yday_to_now, "last7": last7, "prev7": prev7, "pace": pace,
+        "days_left": days_left, "projected": round(projected) if projected is not None else None, "required_pace": required,
+        "hourly": hourly, "backlog_days": backlog_days, "constituencies": constituencies, "cards": cards[:6],
+    }

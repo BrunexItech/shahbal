@@ -17,3 +17,14 @@ ADMINS = {Role.super_admin}
 MANAGERS = {Role.super_admin, Role.coordinator, Role.ward_coordinator}
 VERIFIERS = MANAGERS | {Role.call_agent}
 CAPTURERS = MANAGERS | {Role.field_agent, Role.call_agent}
+
+# Sign-in portals. HQ/management and field staff never share a sign-in page:
+# each portal accepts only its roles, and every session stays bound to its portal.
+PORTAL_ROLES: dict[str, set[Role]] = {
+    "command": {Role.super_admin, Role.coordinator, Role.ward_coordinator, Role.viewer},
+    "field": {Role.field_agent, Role.call_agent},
+}
+
+
+def portal_for(role: Role) -> str:
+    return next(p for p, roles in PORTAL_ROLES.items() if role in roles)

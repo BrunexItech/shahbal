@@ -58,6 +58,18 @@ class Settings(BaseSettings):
     wa_template: str = "campaign_update"
     wa_template_lang: str = "en"
     webhook_secret: str = "change-me-webhook"
+
+    # Call centre telephony. "sandbox" simulates calls (development/training);
+    # "sip" registers each agent's browser softphone with a SIP-over-WebSocket
+    # provider (Africa's Talking SIP, Yeastar, Asterisk, …).
+    voice_provider: str = "sandbox"  # sandbox | sip
+    sip_wss_url: str = ""  # e.g. wss://sip.provider.co.ke:7443
+    sip_domain: str = ""  # e.g. sip.provider.co.ke
+    sip_caller_id: str = ""  # number shown to voters
+    stun_servers: list[str] = ["stun:stun.l.google.com:19302"]
+    recordings_dir: str = "./data/recordings"  # a persistent volume in production
+    recording_retention_days: int = 90
+    recording_max_mb: int = 50
     messaging_quiet_start: int = 21  # no sends 21:00–07:59 EAT (courtesy + compliance)
     messaging_quiet_end: int = 8
 

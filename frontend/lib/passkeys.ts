@@ -10,6 +10,7 @@ import {
 } from "@simplewebauthn/browser";
 
 import { api } from "@/lib/api";
+import type { Portal } from "@/lib/portal";
 
 /** Thin wrapper over the WebAuthn ceremonies; the server owns every security decision. */
 export const passkeySupport = async () => ({
@@ -29,10 +30,10 @@ export function passkeyErrorMessage(e: unknown): string {
   return e instanceof Error ? e.message : "Passkey failed";
 }
 
-export async function signInWithPasskey(opts: { mfaToken?: string; autofill?: boolean } = {}) {
-  const o = await api<Options>("/auth/passkeys/login/options", { body: { mfa_token: opts.mfaToken }, silent401: true });
+export async function signInWithPasskey(opts: { portal: Portal; mfaToken?: string; autofill?: boolean }) {
+  const o = await api<Options>("/auth/passkeys/login/options", { body: { mfa_token: opts.mfaToken, portal: opts.portal }, silent401: true });
   const credential = await startAuthentication({ optionsJSON: o.options as never, useBrowserAutofill: !!opts.autofill });
-  return api("/auth/passkeys/login/verify", { body: { flow_id: o.flow_id, credential, mfa_token: opts.mfaToken }, silent401: true });
+  return api("/auth/passkeys/login/verify", { body: { flow_id: o.flow_id, credential, mfa_token: opts.mfaToken, portal: opts.portal }, silent401: true });
 }
 
 export async function registerPasskey(kind: "platform" | "security_key", name: string) {

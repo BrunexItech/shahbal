@@ -9,3 +9,4 @@ node_modules/
 
 # generated from node_modules by scripts/copy-maplibre-worker.mjs
 frontend/public/maplibre/
+data/

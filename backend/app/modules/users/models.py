@@ -49,5 +49,6 @@ class UserSession(Base):
     ip: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(300))
     auth_method: Mapped[str] = mapped_column(String(20), default="password")  # password | totp | passkey
+    portal: Mapped[str] = mapped_column(String(10), default="command")  # command | field
     # Re-confirmed ("step-up") until: sensitive actions require this to be in the future.
     elevated_until: Mapped[datetime | None]

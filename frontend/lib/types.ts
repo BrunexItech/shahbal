@@ -102,7 +102,31 @@ export interface WardProgress extends Progress {
   pending: number;
 }
 
+export type Health = "on_track" | "at_risk" | "critical" | "unknown";
+
+export interface InsightCard {
+  tone: "good" | "warn" | "bad" | "info";
+  title: string;
+  detail: string;
+}
+
+export interface Insights {
+  today: number;
+  yesterday_same_time: number;
+  last7: number;
+  prev7: number;
+  pace: number;
+  days_left: number | null;
+  projected: number | null;
+  required_pace: number | null;
+  hourly: number[];
+  backlog_days: number | null;
+  constituencies: (Progress & { id: string; name: string; verified: number; pace: number; today: number; projected: number | null; projected_percent: number | null; status: Health })[];
+  cards: InsightCard[];
+}
+
 export interface DashboardSummary {
+  insights: Insights;
   ops: {
     messages_today: number;
     delivered_today: number;
@@ -235,6 +259,7 @@ export interface CallLog {
   duration_seconds: number | null;
   follow_up_at: string | null;
   created_at: string;
+  recording_id?: string | null;
 }
 
 export interface Claim {

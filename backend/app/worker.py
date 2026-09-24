@@ -10,6 +10,7 @@ from app import models  # noqa: F401
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.auth.passkeys import purge_expired_challenges
+from app.modules.calls.telephony import purge_expired_recordings
 from app.modules.messaging.dispatcher import dispatch_once
 
 log = logging.getLogger("worker")
@@ -29,8 +30,10 @@ async def main() -> None:
             try:
                 async with SessionLocal() as s:
                     await purge_expired_challenges(s)
+                async with SessionLocal() as s:
+                    await purge_expired_recordings(s)
             except Exception:
-                log.exception("challenge purge failed")
+                log.exception("housekeeping failed")
         try:
             sent = await dispatch_once(SessionLocal)
         except Exception:  # never let one bad batch kill the worker

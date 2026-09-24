@@ -10,6 +10,8 @@ const origin = (u: string) => {
   }
 };
 const isDev = process.env.NODE_ENV !== "production";
+// The browser softphone registers over a WebSocket to the SIP provider.
+const SIP_WSS = process.env.NEXT_PUBLIC_SIP_WSS_ORIGIN ?? "";
 
 /**
  * Static CSP (pages stay statically rendered). Scripts are additionally
@@ -23,7 +25,8 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${origin(MAP_STYLE)}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${origin(API)} ${origin(MAP_STYLE)}${isDev ? " ws:" : ""}`,
+  `connect-src 'self' ${origin(API)} ${origin(MAP_STYLE)} ${SIP_WSS}${isDev ? " ws:" : ""}`,
+  "media-src 'self' blob: mediastream:",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "frame-ancestors 'none'",
@@ -46,7 +49,7 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), payment=()" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(self), payment=()" },
           ...(origin(API).startsWith("https:") ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }] : []),
         ],
       },

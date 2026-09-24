@@ -7,7 +7,7 @@ from tests.conftest import elevate, make_user, voter_payload
 
 
 async def test_login_rejects_bad_password(client):
-    r = await client.post("/api/v1/auth/login", json={"email": "admin@campaign.co.ke", "password": "nope"})
+    r = await client.post("/api/v1/auth/login", json={"email": "admin@campaign.co.ke", "password": "nope", "portal": "command"})
     assert r.status_code == 401
 
 

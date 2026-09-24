@@ -9,7 +9,7 @@ from app.core.clock import utcnow
 from app.core.config import settings
 from app.core.db import get_session
 from app.core.ratelimit import client_ip
-from app.core.roles import Role
+from app.core.roles import PORTAL_ROLES, Role
 from app.core.security import decode_token
 from app.modules.users.models import User, UserSession
 
@@ -61,6 +61,10 @@ async def _authenticate(request: Request, session: AsyncSession, allow_mfa_pendi
     user = await session.get(User, us.user_id)
     if user is None or not user.is_active:
         raise HTTPException(401, "Account disabled")
+    # A session only works for roles its sign-in portal admits (defence in depth
+    # if a role changes mid-session, although role changes also revoke sessions).
+    if user.role not in PORTAL_ROLES.get(us.portal, set()):
+        raise HTTPException(401, "Session expired, please sign in again")
     if not allow_mfa_pending and mfa_setup_pending(user):
         raise HTTPException(403, "Two-factor authentication must be set up before continuing")
     # Throttled touch so "last seen" is useful without a write per request.

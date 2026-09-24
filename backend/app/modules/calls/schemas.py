@@ -23,6 +23,8 @@ class CallIn(BaseModel):
     issue: str | None = Field(default=None, max_length=120)
     duration_seconds: int | None = Field(default=None, ge=0, le=6 * 3600)
     follow_up_at: datetime | None = None
+    recording_id: str | None = Field(default=None, max_length=36)
+    recording_declined: bool = False
 
 
 class CallOut(BaseModel):
@@ -39,6 +41,7 @@ class CallOut(BaseModel):
     duration_seconds: int | None
     follow_up_at: datetime | None
     created_at: datetime
+    recording_id: str | None = None
 
 
 class Claim(BaseModel):

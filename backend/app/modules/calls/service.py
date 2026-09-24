@@ -8,7 +8,7 @@ from app.core.clock import local_midnight, utcnow
 from app.core.deps import Ctx
 from app.core.roles import MANAGERS, Role
 from app.core.scope import voter_scope
-from app.modules.calls.models import CallLog, Outcome, Queue
+from app.modules.calls.models import CallLog, CallRecording, Outcome, Queue
 from app.modules.calls.schemas import AgentStat, CallIn, CallOut, Claim, NextIn, QueueCounts
 from app.modules.messaging.service import as_utc
 from app.modules.users.models import User
@@ -55,10 +55,11 @@ class CallService:
 
     async def _history(self, voter_id: str) -> list[CallOut]:
         rows = (await self.s.execute(
-            select(CallLog, User.full_name).join(User, User.id == CallLog.agent_id)
+            select(CallLog, User.full_name, CallRecording.id).join(User, User.id == CallLog.agent_id)
+            .outerjoin(CallRecording, CallRecording.call_log_id == CallLog.id)
             .where(CallLog.voter_id == voter_id).order_by(CallLog.created_at.desc()).limit(20)
         )).all()
-        return [CallOut.model_validate(c).model_copy(update={"agent_name": n}) for c, n in rows]
+        return [CallOut.model_validate(c).model_copy(update={"agent_name": n, "recording_id": rid}) for c, n, rid in rows]
 
     async def claim_next(self, data: NextIn) -> Claim | None:
         """Atomically claims one voter for this agent (SKIP LOCKED) so parallel
@@ -93,8 +94,15 @@ class CallService:
                        duration_seconds=data.duration_seconds,
                        follow_up_at=as_utc(data.follow_up_at) if data.follow_up_at else None)
         self.s.add(call)
+        await self.s.flush()
+        if data.recording_id:
+            rec = await self.s.get(CallRecording, data.recording_id)
+            if rec is None or rec.agent_id != self.user.id or rec.call_log_id is not None:
+                raise HTTPException(422, "That recording can't be attached to this call")
+            rec.call_log_id, rec.voter_id = call.id, voter.id
         # Any earlier promised call-back is now handled.
-        await self.s.execute(update(CallLog).where(CallLog.voter_id == voter.id, CallLog.follow_up_done.is_(False))
+        # Any *earlier* promised call-back is now handled (never the one being logged now).
+        await self.s.execute(update(CallLog).where(CallLog.voter_id == voter.id, CallLog.follow_up_done.is_(False), CallLog.id != call.id)
                              .values(follow_up_done=True))
         voter.last_contacted_at = now
         voter.call_locked_by_id = voter.call_locked_until = None
@@ -113,7 +121,8 @@ class CallService:
             audit.record(self.s, actor_id=self.user.id, action="VERIFY", entity="voter", entity_id=voter.id, ip=self.ctx.ip, via="call")
         await self.s.flush()
         audit.record(self.s, actor_id=self.user.id, action="CALL", entity="voter", entity_id=voter.id, ip=self.ctx.ip,
-                     outcome=data.outcome.value, queue=data.queue.value)
+                     outcome=data.outcome.value, queue=data.queue.value, recorded=bool(data.recording_id),
+                     recording_declined=data.recording_declined or None)
         await self.s.commit()
         return CallOut.model_validate(call).model_copy(update={"agent_name": self.user.full_name})
 

@@ -1,16 +1,22 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.modules.users.schemas import UserOut
+
+Portal = Literal["command", "field"]
 
 
 class LoginIn(BaseModel):
     email: str = Field(max_length=160)  # matched, not validated: format rules belong to account creation
     password: str = Field(max_length=200)
+    portal: Portal
 
 
 class MfaIn(BaseModel):
     mfa_token: str
     code: str = Field(min_length=6, max_length=8)
+    portal: Portal
 
 
 class LoginOut(BaseModel):
@@ -22,6 +28,7 @@ class LoginOut(BaseModel):
 
 class MeOut(UserOut):
     mfa_setup_required: bool
+    portal: str = "command"
     passkey_count: int = 0
     session_method: str = "password"
     elevated_until: str | None = None
@@ -29,12 +36,14 @@ class MeOut(UserOut):
 
 class PasskeyOptionsIn(BaseModel):
     mfa_token: str | None = None  # present = second factor after a password; absent = passwordless
+    portal: Portal
 
 
 class PasskeyVerifyIn(BaseModel):
     flow_id: str = Field(max_length=64)
     credential: dict
     mfa_token: str | None = None
+    portal: Portal
 
 
 class PasskeyRegisterOptionsIn(BaseModel):

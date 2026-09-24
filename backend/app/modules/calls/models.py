@@ -37,3 +37,31 @@ class CallLog(Base):
     follow_up_at: Mapped[datetime | None] = mapped_column(index=True)
     follow_up_done: Mapped[bool] = mapped_column(default=False)
     issue: Mapped[str | None] = mapped_column(String(120))
+
+
+class SipAccount(Base):
+    """Per-agent SIP credentials for the browser softphone (password encrypted)."""
+
+    __tablename__ = "sip_accounts"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    sip_user: Mapped[str] = mapped_column(String(80))
+    sip_password_enc: Mapped[str] = mapped_column(Text)
+
+
+class CallRecording(Base):
+    """An encrypted call recording (AES-256-GCM at rest). Voice is personal data:
+    supervisors-only playback behind re-confirmation, audited, auto-deleted."""
+
+    __tablename__ = "call_recordings"
+
+    agent_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    voter_id: Mapped[str | None] = mapped_column(ForeignKey("voters.id", ondelete="SET NULL"), index=True)
+    call_log_id: Mapped[str | None] = mapped_column(ForeignKey("call_logs.id", ondelete="SET NULL"), index=True)
+    dialled_last4: Mapped[str | None] = mapped_column(String(4))
+    duration_seconds: Mapped[int] = mapped_column(default=0)
+    mime: Mapped[str] = mapped_column(String(60))
+    size_bytes: Mapped[int]
+    sha256: Mapped[str] = mapped_column(String(64))
+    path: Mapped[str] = mapped_column(String(300))
+    line: Mapped[str] = mapped_column(String(20))  # sip | sandbox

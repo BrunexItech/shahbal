@@ -48,10 +48,10 @@ def create_session_token(user_id: str, session_id: str, hours: int | None = None
     return jwt.encode({"sub": user_id, "sid": session_id, "typ": "session", "exp": exp}, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_mfa_token(user_id: str) -> str:
-    """Short-lived proof that the password step passed; only redeemable at /auth/mfa."""
+def create_mfa_token(user_id: str, portal: str) -> str:
+    """Short-lived proof that the password step passed, bound to the portal it started on."""
     exp = utcnow() + timedelta(minutes=5)
-    return jwt.encode({"sub": user_id, "typ": "mfa", "exp": exp}, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return jwt.encode({"sub": user_id, "typ": "mfa", "portal": portal, "exp": exp}, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
 def decode_token(token: str, typ: str) -> dict:

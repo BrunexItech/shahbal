@@ -8,7 +8,7 @@ from tests.conftest import ADMIN, login, make_user, session_headers, voter_paylo
 
 
 async def test_session_cookie_is_hardened(client):
-    r = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]})
+    r = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "command"})
     cookie = r.headers["set-cookie"].lower()
     assert "httponly" in cookie and "samesite=strict" in cookie
     assert "access_token" not in r.text  # token never exposed to JavaScript
@@ -34,14 +34,14 @@ async def test_forged_or_missing_token_rejected(client):
 
 async def test_account_lockout_after_repeated_failures(client):
     for _ in range(5):
-        assert (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": "wrong-pass-1"})).status_code == 401
-    r = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]})
+        assert (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": "wrong-pass-1", "portal": "command"})).status_code == 401
+    r = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "command"})
     assert r.status_code == 423  # locked even with the right password
 
 
 async def test_unknown_email_and_wrong_password_look_identical(client):
-    a = await client.post("/api/v1/auth/login", json={"email": "nobody@campaign.co.ke", "password": "x"})
-    b = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": "x"})
+    a = await client.post("/api/v1/auth/login", json={"email": "nobody@campaign.co.ke", "password": "x", "portal": "command"})
+    b = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": "x", "portal": "command"})
     assert a.status_code == b.status_code == 401 and a.json() == b.json()
 
 
@@ -70,11 +70,11 @@ async def test_totp_two_factor_flow(client, admin):
         assert u.totp_secret_enc and setup["secret"] not in u.totp_secret_enc  # stored encrypted
         assert crypto.decrypt(u.totp_secret_enc) == setup["secret"]
 
-    step1 = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]})
+    step1 = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "command"})
     assert step1.json()["mfa_required"] is True and "chq_session" not in step1.cookies
-    bad = await client.post("/api/v1/auth/mfa", json={"mfa_token": step1.json()["mfa_token"], "code": "123456"})
+    bad = await client.post("/api/v1/auth/mfa", json={"mfa_token": step1.json()["mfa_token"], "code": "123456", "portal": "command"})
     assert bad.status_code == 401
-    ok = await client.post("/api/v1/auth/mfa", json={"mfa_token": step1.json()["mfa_token"], "code": pyotp.TOTP(setup["secret"]).now()})
+    ok = await client.post("/api/v1/auth/mfa", json={"mfa_token": step1.json()["mfa_token"], "code": pyotp.TOTP(setup["secret"]).now(), "portal": "command"})
     assert ok.status_code == 200
     client.cookies.clear()
     assert (await client.get("/api/v1/auth/me", headers=session_headers(ok))).json()["totp_enabled"] is True
@@ -83,7 +83,7 @@ async def test_totp_two_factor_flow(client, admin):
 async def test_mfa_token_cannot_be_used_as_session(client, admin):
     setup = (await client.post("/api/v1/auth/totp/setup", headers=admin)).json()
     await client.post("/api/v1/auth/totp/enable", json={"code": pyotp.TOTP(setup["secret"]).now()}, headers=admin)
-    mfa_token = (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]})).json()["mfa_token"]
+    mfa_token = (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "command"})).json()["mfa_token"]
     client.cookies.clear()
     r = await client.get("/api/v1/auth/me", headers={"Cookie": f"chq_session={mfa_token}"})
     assert r.status_code == 401

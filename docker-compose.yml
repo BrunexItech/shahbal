@@ -27,10 +27,13 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://shahbal:${POSTGRES_PASSWORD:-shahbal}@postgres:5432/shahbal
       CORS_ORIGINS: '["http://localhost:8090"]'
-      TRUSTED_PROXIES: "1"   # the gateway; add 1 per extra proxy in front (see backend/app/core/config.py)
+      TRUSTED_PROXIES: "1"
+      RECORDINGS_DIR: /data/recordings   # the gateway; add 1 per extra proxy in front (see backend/app/core/config.py)
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - recordings:/data/recordings   # encrypted call recordings
     command: sh -c "alembic upgrade head && python -m scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     restart: unless-stopped
 
@@ -43,6 +46,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://shahbal:${POSTGRES_PASSWORD:-shahbal}@postgres:5432/shahbal
     depends_on:
       - backend
+    environment:
+      RECORDINGS_DIR: /data/recordings
+    volumes:
+      - recordings:/data/recordings   # the worker purges expired recordings
     command: python -m app.worker
     restart: unless-stopped
 
@@ -83,3 +90,4 @@ services:
 
 volumes:
   pgdata:
+  recordings:

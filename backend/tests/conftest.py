@@ -34,7 +34,7 @@ async def schema():
 async def clean():
     async with engine.begin() as conn:
         # DELETE, not TRUNCATE: tiny tables, and TRUNCATE's file rewrite + fsync is slow per test.
-        for table in ("audit_logs", "messages", "call_logs", "visits", "message_campaigns", "election_settings", "voters",
+        for table in ("audit_logs", "call_recordings", "sip_accounts", "agent_presence", "messages", "call_logs", "visits", "message_campaigns", "election_settings", "voters",
                       "auth_challenges", "known_devices", "passkeys", "user_sessions", "users", "polling_stations",
                       "wards", "constituencies"):
             await conn.execute(text(f"DELETE FROM {table}"))
@@ -63,10 +63,14 @@ def session_headers(response) -> dict:
     return {"Cookie": f"chq_session={token}", "X-Requested-With": "fetch"}
 
 
-async def login(client, email, password) -> dict:
+async def login(client, email, password, portal: str | None = None) -> dict:
     """Each test 'user' carries its own cookie explicitly; the shared jar is cleared
-    so identities never bleed between requests."""
-    r = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    so identities never bleed between requests. Without a portal, the one that
+    admits the user's role is used (HQ roles → command, field roles → field)."""
+    for p in ([portal] if portal else ["command", "field"]):
+        r = await client.post("/api/v1/auth/login", json={"email": email, "password": password, "portal": p})
+        if r.status_code == 200:
+            break
     assert r.status_code == 200, r.text
     client.cookies.clear()
     return session_headers(r)

@@ -84,3 +84,11 @@ export async function download(path: string, filename: string, query?: Query, re
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** Authenticated binary fetch (e.g. recordings) with the same re-confirmation handling. */
+export async function fetchBlob(path: string, retried = false): Promise<Blob> {
+  const res = await fetch(apiUrl(path), { credentials: "include", headers: { "X-Requested-With": "fetch" } });
+  if (res.status === STEP_UP && !retried && (await onStepUp())) return fetchBlob(path, true);
+  if (!res.ok) throw await toError(res);
+  return res.blob();
+}

@@ -17,9 +17,9 @@ async def enrol(client, headers, auth: SoftAuthenticator, name="Pixel 8 fingerpr
 
 
 async def passwordless(client, auth: SoftAuthenticator, **sign_kw):
-    o = (await client.post("/api/v1/auth/passkeys/login/options", json={})).json()
+    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"portal": "command"})).json()
     assert o["options"]["allowCredentials"] == []  # discoverable: no email needed
-    r = await client.post("/api/v1/auth/passkeys/login/verify", json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"], **sign_kw)})
+    r = await client.post("/api/v1/auth/passkeys/login/verify", json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"], **sign_kw), "portal": "command"})
     return r, o
 
 
@@ -42,12 +42,12 @@ async def test_enrol_then_passwordless_sign_in_is_elevated(client, admin, wards)
 async def test_password_then_passkey_as_second_factor(client, admin):
     auth = SoftAuthenticator()
     await enrol(client, admin, auth)
-    step1 = (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]})).json()
+    step1 = (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "command"})).json()
     assert step1["mfa_required"] and step1["mfa_methods"] == ["passkey"] and step1["user"] is None
-    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"mfa_token": step1["mfa_token"]})).json()
+    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"mfa_token": step1["mfa_token"], "portal": "command"})).json()
     assert len(o["options"]["allowCredentials"]) == 1  # only this account's passkeys
     r = await client.post("/api/v1/auth/passkeys/login/verify",
-                          json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"]), "mfa_token": step1["mfa_token"]})
+                          json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"]), "mfa_token": step1["mfa_token"], "portal": "command"})
     assert r.status_code == 200 and r.json()["user"]["email"] == ADMIN[0]
 
 
@@ -56,7 +56,7 @@ async def test_challenge_is_single_use(client, admin):
     await enrol(client, admin, auth)
     r, o = await passwordless(client, auth)
     assert r.status_code == 200
-    replay = await client.post("/api/v1/auth/passkeys/login/verify", json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"])})
+    replay = await client.post("/api/v1/auth/passkeys/login/verify", json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"]), "portal": "command"})
     assert replay.status_code == 400
 
 
@@ -110,10 +110,10 @@ async def test_passkey_cannot_satisfy_another_accounts_second_factor(client, adm
     coord = await make_user(client, admin, "coordinator", constituency_id=wards["Tudor"].constituency_id, email="c@campaign.co.ke")
     theirs = SoftAuthenticator()
     await enrol(client, coord, theirs)
-    step1 = (await client.post("/api/v1/auth/login", json={"email": "c@campaign.co.ke", "password": "Password!1"})).json()
-    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"mfa_token": step1["mfa_token"]})).json()
+    step1 = (await client.post("/api/v1/auth/login", json={"email": "c@campaign.co.ke", "password": "Password!1", "portal": "command"})).json()
+    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"mfa_token": step1["mfa_token"], "portal": "command"})).json()
     r = await client.post("/api/v1/auth/passkeys/login/verify",
-                          json={"flow_id": o["flow_id"], "credential": mine.sign(o["options"]), "mfa_token": step1["mfa_token"]})
+                          json={"flow_id": o["flow_id"], "credential": mine.sign(o["options"]), "mfa_token": step1["mfa_token"], "portal": "command"})
     assert r.status_code == 401
 
 
@@ -142,10 +142,10 @@ async def test_removing_a_passkey_needs_step_up_and_is_audited(client, admin):
     auth = SoftAuthenticator()
     pk = await enrol(client, admin, auth)
     # A new, un-elevated session for the same admin (via passkey second factor, then let elevation lapse).
-    step1 = (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]})).json()
-    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"mfa_token": step1["mfa_token"]})).json()
+    step1 = (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "command"})).json()
+    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"mfa_token": step1["mfa_token"], "portal": "command"})).json()
     r = await client.post("/api/v1/auth/passkeys/login/verify",
-                          json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"]), "mfa_token": step1["mfa_token"]})
+                          json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"]), "mfa_token": step1["mfa_token"], "portal": "command"})
     h = session_headers(r)
     client.cookies.clear()
     await expire_elevation()
@@ -167,16 +167,16 @@ async def test_new_device_alert(client, admin, wards, monkeypatch):
     monkeypatch.setattr("app.modules.auth.devices.send_system_sms", fake_sms)
     await client.post("/api/v1/users", headers=admin, json={"full_name": "Alert Agent", "email": "alert@campaign.co.ke", "phone": "+254712000111",
                                                              "password": "Password!1", "role": "field_agent", "ward_id": wards["Tudor"].id})
-    first = await client.post("/api/v1/auth/login", json={"email": "alert@campaign.co.ke", "password": "Password!1"},
+    first = await client.post("/api/v1/auth/login", json={"email": "alert@campaign.co.ke", "password": "Password!1", "portal": "field"},
                               headers={"User-Agent": "Mozilla/5.0 (Linux; Android 14) Chrome/130.0"})
     device = first.cookies.get("chq_device")
     assert device and not sent  # first ever sign-in: just remember the device
     client.cookies.clear()
-    same = await client.post("/api/v1/auth/login", json={"email": "alert@campaign.co.ke", "password": "Password!1"},
+    same = await client.post("/api/v1/auth/login", json={"email": "alert@campaign.co.ke", "password": "Password!1", "portal": "field"},
                              headers={"Cookie": f"chq_device={device}"})
     assert same.status_code == 200 and not sent  # recognised device: no alert
     client.cookies.clear()
-    await client.post("/api/v1/auth/login", json={"email": "alert@campaign.co.ke", "password": "Password!1"},
+    await client.post("/api/v1/auth/login", json={"email": "alert@campaign.co.ke", "password": "Password!1", "portal": "field"},
                       headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Firefox/131.0"})
     client.cookies.clear()
     assert len(sent) == 1 and sent[0][0] == "+254712000111" and "Firefox on Windows" in sent[0][1]
@@ -194,3 +194,32 @@ async def test_production_requires_every_role_to_enrol(client, admin, wards, mon
     assert (await client.get("/api/v1/auth/me", headers=agent)).json()["mfa_setup_required"] is True
     await enrol(client, agent, SoftAuthenticator())  # first factor: no step-up needed
     assert (await client.get("/api/v1/voters", headers=agent)).status_code == 200
+
+
+async def test_portals_are_separate(client, admin, wards):
+    """HQ and field staff can't sign in through each other's portal, and the
+    wrong door looks exactly like a wrong password."""
+    agent_email = "portal.agent@campaign.co.ke"
+    await client.post("/api/v1/users", headers=admin, json={"full_name": "Portal Agent", "email": agent_email,
+                                                             "password": "Password!1", "role": "field_agent", "ward_id": wards["Tudor"].id})
+    wrong = await client.post("/api/v1/auth/login", json={"email": agent_email, "password": "Password!1", "portal": "command"})
+    bad_pw = await client.post("/api/v1/auth/login", json={"email": agent_email, "password": "Wrong-pass1", "portal": "field"})
+    assert wrong.status_code == bad_pw.status_code == 401 and wrong.json() == bad_pw.json()
+    assert (await client.post("/api/v1/auth/login", json={"email": agent_email, "password": "Password!1", "portal": "field"})).status_code == 200
+    client.cookies.clear()
+    hq = await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "field"})
+    assert hq.status_code == 401
+    assert (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]})).status_code == 422  # portal is mandatory
+    async with SessionLocal() as s:
+        assert (await s.execute(select(AuditLog).where(AuditLog.action == "PORTAL_DENIED"))).scalars().first() is not None
+
+
+async def test_passkey_cannot_open_the_wrong_portal(client, admin):
+    auth = SoftAuthenticator()
+    await enrol(client, admin, auth)
+    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"portal": "field"})).json()
+    r = await client.post("/api/v1/auth/passkeys/login/verify", json={"flow_id": o["flow_id"], "credential": auth.sign(o["options"]), "portal": "field"})
+    assert r.status_code == 401  # an HQ passkey can't open the field portal
+    step1 = (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "command"})).json()
+    o = (await client.post("/api/v1/auth/passkeys/login/options", json={"mfa_token": step1["mfa_token"], "portal": "field"}))
+    assert o.status_code == 401  # a second-factor token is bound to the portal it started on
