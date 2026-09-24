@@ -1,0 +1,44 @@
+# Host nginx site for a shared server: Cloudflare (Full strict) → this → the stack's gateway.
+# Copy to /etc/nginx/sites-available/<domain>, adjust server_name / cert paths / port, enable, reload.
+server {
+    listen 80;
+    server_name itqaan.co.ke www.itqaan.co.ke;
+    return 301 https://itqaan.co.ke$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name itqaan.co.ke www.itqaan.co.ke;
+
+    # Cloudflare Origin certificate (keep the paths the site already uses).
+    ssl_certificate     /etc/ssl/cloudflare/itqaan.co.ke.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/itqaan.co.ke.key;
+
+    client_max_body_size 25m;   # profile photos, call recordings
+
+    location / {
+        proxy_pass http://127.0.0.1:8091;   # GATEWAY_PORT in the stack's .env
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header CF-Connecting-IP $http_cf_connecting_ip;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Live updates (Server-Sent Events): never buffer, keep the stream open.
+    location = /api/v1/live/stream {
+        proxy_pass http://127.0.0.1:8091;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header CF-Connecting-IP $http_cf_connecting_ip;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+    }
+}
