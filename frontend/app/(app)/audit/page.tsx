@@ -26,7 +26,7 @@ export default function AuditPage() {
       <PageHeader eyebrow="Compliance" title="Audit trail" subtitle="Every sign-in, view, change, verification and ID reveal. Kept for accountability under the Data Protection Act." />
       <Card className="overflow-hidden">
         <div className="border-b border-line p-4">
-          <select value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }} className="h-10 rounded-xl border border-line bg-white px-3 text-sm">
+          <select value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }} className="h-10 rounded-xl border border-line bg-white px-3 text-base">
             <option value="">All actions</option>
             {ACTIONS.map((a) => <option key={a} value={a}>{a.replace(/_/g, " ")}</option>)}
           </select>
@@ -37,7 +37,7 @@ export default function AuditPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-slate-50/70 text-left text-[11px] font-semibold tracking-wider text-muted uppercase">
+                <tr className="border-b border-line bg-slate-50/70 text-left text-xs font-semibold tracking-wider text-muted uppercase">
                   <th className="px-5 py-3">Time</th><th className="px-3 py-3">Who</th><th className="px-3 py-3">Action</th><th className="px-3 py-3">Entity</th><th className="px-3 py-3">Details</th><th className="px-5 py-3">IP</th>
                 </tr>
               </thead>
@@ -48,7 +48,7 @@ export default function AuditPage() {
                     <td className="px-3 py-2.5 font-medium text-navy-900">{a.actor_name ?? <span className="text-muted">Public portal</span>}</td>
                     <td className="px-3 py-2.5"><Badge tone={TONE[a.action] ?? "slate"}>{a.action.replace(/_/g, " ")}</Badge></td>
                     <td className="px-3 py-2.5 text-xs text-slate-600">{a.entity}{a.entity_id && <span className="font-mono text-muted"> · {a.entity_id.slice(0, 8)}</span>}</td>
-                    <td className="max-w-72 truncate px-3 py-2.5 font-mono text-[11px] text-muted">{a.meta ? JSON.stringify(a.meta) : "—"}</td>
+                    <td className="max-w-72 truncate px-3 py-2.5 font-mono text-xs text-muted">{a.meta ? JSON.stringify(a.meta) : "—"}</td>
                     <td className="px-5 py-2.5 font-mono text-xs text-muted">{a.ip ?? "—"}</td>
                   </tr>
                 ))}

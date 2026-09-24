@@ -107,7 +107,7 @@ function VisitCard({ visit: v, onComplete }: { visit: Visit; onComplete: () => v
     <Card className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
       <div className="flex w-20 shrink-0 flex-col items-center justify-center rounded-2xl bg-navy-950 py-3 text-white">
         <span className="font-display text-xl font-bold">{fmt(v.scheduled_at, { hour: "numeric", minute: "2-digit", hour12: false })}</span>
-        <span className="text-[10px] tracking-wider text-gold uppercase">{fmt(v.scheduled_at, { weekday: "short" })}</span>
+        <span className="text-xs tracking-wider text-gold uppercase">{fmt(v.scheduled_at, { weekday: "short" })}</span>
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">

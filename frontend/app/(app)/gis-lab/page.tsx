@@ -26,19 +26,26 @@ export default function GisLabPage() {
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => setOrigin(window.location.origin), []);
 
-  // The project URL must be absolute and on the same origin as the lab so the session cookie rides along.
   const apiBase = API_URL.startsWith("http") ? API_URL : `${origin}${API_URL}`;
-  const projectUrl = (mode: "workspace" | "briefing") => `${apiBase}/map/export/project.geolibre.json?mode=${mode}`;
-  const labUrl = (mode: "workspace" | "briefing") => `${GIS_URL}?url=${encodeURIComponent(projectUrl(mode))}&welcome=0`;
-  const sameOrigin = origin && apiBase.startsWith(origin);
 
-  // The lab fetches the project itself, so confirm identity first (the export is step-up protected).
+  /**
+   * Mint a one-time, 2-minute project link (needs re-confirmation), then hand it to
+   * GeoLibre. The lab window opens immediately so popup blockers don't interfere.
+   */
   async function openLab(mode: "workspace" | "briefing") {
+    const win = window.open("about:blank", "_blank");
     setBusy(mode);
     try {
-      await api("/auth/step-up/check", { method: "POST" });
-      window.open(labUrl(mode), "_blank", "noopener,noreferrer");
+      const link = await api<{ url: string }>(`/map/export/project-link?mode=${mode}`, { method: "POST" });
+      const lab = `${GIS_URL}?url=${encodeURIComponent(`${apiBase}${link.url}`)}&welcome=0`;
+      if (win) {
+        win.opener = null;
+        win.location.href = lab;
+      } else {
+        window.location.href = lab;
+      }
     } catch (e) {
+      win?.close();
       toast.error(e instanceof Error ? e.message : "Couldn't open the lab");
     } finally {
       setBusy(null);
@@ -70,13 +77,6 @@ export default function GisLabPage() {
             </Button>
           </>
         } />
-
-      {origin && !sameOrigin && (
-        <p className="mb-6 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-          The GIS Lab needs the app, API and lab on one address, which the production gateway provides (see <code>deploy/nginx/gateway.conf</code>).
-          In this development setup, use the downloads below with GeoLibre or QGIS instead.
-        </p>
-      )}
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <Card>

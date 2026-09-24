@@ -8,6 +8,7 @@ import { SkeletonRows, Spinner } from "@/components/loaders";
 import { Badge, Button, Card, CardHeader, Input, PageHeader } from "@/components/ui";
 import { changePassword, disableTotp, enableTotp, startTotp, useRevokeOthers, useSessions } from "@/features/account/api";
 import { PasskeysCard } from "@/features/account/PasskeysCard";
+import { PhotoCard } from "@/features/account/PhotoCard";
 import { useAuth, useUser } from "@/lib/auth";
 import { dateTime, timeAgo } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/roles";
@@ -24,6 +25,7 @@ export default function AccountPage() {
         </div>
       )}
       <div className="grid gap-6 xl:grid-cols-2">
+        <PhotoCard />
         <PasskeysCard />
         <TwoFactorCard />
         <PasswordCard />
@@ -90,7 +92,7 @@ function TwoFactorCard() {
                 <li>Open your authenticator app and scan this code.</li>
                 <li>Enter the 6-digit code it shows to confirm.</li>
               </ol>
-              <p className="text-xs text-muted">Can&apos;t scan? Enter this key manually: <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] break-all text-navy-900">{setup.secret}</code></p>
+              <p className="text-xs text-muted">Can&apos;t scan? Enter this key manually: <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs break-all text-navy-900">{setup.secret}</code></p>
               <div className="flex items-end gap-2">
                 <Input label="Code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className="w-40" />

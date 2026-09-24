@@ -247,7 +247,7 @@ export function VoterWizard() {
         >
           <p>{created.full_name} has been saved and is queued for verification.</p>
           <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-line">
-            <p className="text-[11px] font-semibold tracking-wider text-muted uppercase">Reference</p>
+            <p className="text-xs font-semibold tracking-wider text-muted uppercase">Reference</p>
             <p className="font-display text-2xl font-bold tracking-wide text-navy-900">{created.reference}</p>
           </div>
         </SuccessPanel>
@@ -339,7 +339,7 @@ export function VoterWizard() {
               ))}
             </dl>
             <div>
-              <p className="mb-2 text-[13px] font-semibold text-navy-900">Support level</p>
+              <p className="mb-2 text-sm font-semibold text-navy-900">Support level</p>
               <div className="flex flex-wrap gap-2">
                 {(Object.keys(SUPPORT) as Support[]).map((s) => (
                   <button key={s} type="button" onClick={() => set("support", s)}

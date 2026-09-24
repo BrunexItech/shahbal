@@ -17,3 +17,4 @@ httpx==0.28.1
 pyotp==2.9.0
 segno==1.6.1
 webauthn==3.0.0
+pillow==12.3.0

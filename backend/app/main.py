@@ -16,6 +16,7 @@ from app.modules.live.router import router as live_router
 from app.modules.mapping.router import router as map_router
 from app.modules.messaging.router import router as messaging_router
 from app.modules.portal.router import router as portal_router
+from app.modules.users.router import invites_router
 from app.modules.users.router import router as users_router
 from app.modules.visits.router import router as visits_router
 from app.modules.voters.router import router as voters_router
@@ -40,7 +41,7 @@ app = FastAPI(
 app.add_middleware(SecurityHeaders)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=[*settings.cors_origins, settings.gis_origin],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "X-Requested-With", "Authorization"],
@@ -48,7 +49,7 @@ app.add_middleware(
 
 # Each module owns its router; adding a module = one line here.
 for r in (auth_router, users_router, geo_router, voters_router, portal_router, dashboard_router, audit_router,
-          messaging_router, visits_router, calls_router, election_router, map_router, live_router):
+          messaging_router, visits_router, calls_router, election_router, map_router, live_router, invites_router):
     app.include_router(r)
 
 

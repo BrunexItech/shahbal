@@ -13,8 +13,8 @@ export function DailyChart({ data }: { data: { date: string; count: number }[] }
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
           <CartesianGrid vertical={false} stroke="#eef1f5" />
-          <XAxis dataKey="date" tickFormatter={fmtDay} tickLine={false} axisLine={{ stroke: "#e3e8ef" }} tick={{ fontSize: 11, fill: "#64748b" }} interval="preserveStartEnd" minTickGap={16} />
-          <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#64748b" }} tickFormatter={num} width={44} />
+          <XAxis dataKey="date" tickFormatter={fmtDay} tickLine={false} axisLine={{ stroke: "#e3e8ef" }} tick={{ fontSize: 12, fill: "#64748b" }} interval="preserveStartEnd" minTickGap={16} />
+          <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#64748b" }} tickFormatter={num} width={44} />
           <Tooltip
             cursor={{ fill: "rgba(11,31,58,.04)" }}
             content={({ active, payload }) =>

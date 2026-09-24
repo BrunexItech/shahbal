@@ -75,3 +75,33 @@
 .chq-popup .maplibregl-popup-content { background: var(--color-navy-950); border-radius: 12px; padding: 8px 12px; box-shadow: 0 12px 32px -8px rgba(7, 20, 39, .45); }
 .chq-popup .maplibregl-popup-tip { display: none; }
 .maplibregl-ctrl-group { border-radius: 12px !important; overflow: hidden; box-shadow: 0 4px 16px -4px rgba(11, 31, 58, .25) !important; }
+
+/* ---------------------------------------------------------------------------
+   Typography baseline: 16px root (browser standard). UI never goes below 12px.
+   --------------------------------------------------------------------------- */
+html { font-size: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* ---------------------------------------------------------------------------
+   Scrollbars: slim, rounded, colour-matched. WebKit/Blink use the pseudo-
+   elements; Firefox (no ::-webkit-scrollbar) gets the standard properties.
+   --------------------------------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: rgb(100 116 139 / 0.35);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgb(71 85 105 / 0.6); }
+::-webkit-scrollbar-corner { background: transparent; }
+.scroll-dark::-webkit-scrollbar-thumb { background-color: rgb(255 255 255 / 0.12); }
+.scroll-dark::-webkit-scrollbar-thumb:hover { background-color: rgb(255 255 255 / 0.25); }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: rgb(100 116 139 / 0.4) transparent; }
+  .scroll-dark { scrollbar-color: rgb(255 255 255 / 0.15) transparent; }
+}
+
+/* MapLibre controls follow the 12px floor. */
+.maplibregl-ctrl-scale { font-size: 12px !important; }
+.maplibregl-ctrl-attrib { font-size: 12px !important; }

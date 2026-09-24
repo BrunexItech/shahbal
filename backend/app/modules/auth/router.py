@@ -136,6 +136,8 @@ async def login(payload: LoginIn, request: Request, response: Response, tasks: B
         raise HTTPException(401, GENERIC_FAIL)
     if not user.is_active:
         raise HTTPException(403, "This account has been disabled")
+    if user.activated_at is None:  # invitation not accepted yet (defence in depth: its password is random anyway)
+        raise HTTPException(401, GENERIC_FAIL)
     if not _portal_admits(user, payload.portal):
         _deny_portal(session, user, payload.portal, ip)
         await session.commit()

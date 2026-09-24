@@ -20,7 +20,7 @@ export function TargetHero({ overall, verified }: { overall: Progress; verified:
           </svg>
           <div className="text-center">
             <p className="font-display text-3xl font-bold tabular-nums">{pct(overall.percent)}</p>
-            <p className="text-[11px] text-slate-400">of target</p>
+            <p className="text-xs text-slate-400">of target</p>
           </div>
         </div>
         <div className="flex-1">
@@ -30,11 +30,11 @@ export function TargetHero({ overall, verified }: { overall: Progress; verified:
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-xl bg-white/[.05] px-3 py-2 ring-1 ring-white/10">
-              <p className="text-[11px] text-slate-400">Gap remaining</p>
+              <p className="text-xs text-slate-400">Gap remaining</p>
               <p className="font-display text-lg font-bold tabular-nums">{num(overall.gap)}</p>
             </div>
             <div className="rounded-xl bg-white/[.05] px-3 py-2 ring-1 ring-white/10">
-              <p className="text-[11px] text-slate-400">Verified contacts</p>
+              <p className="text-xs text-slate-400">Verified contacts</p>
               <p className="font-display text-lg font-bold tabular-nums">{num(verified)}</p>
             </div>
           </div>

@@ -33,7 +33,7 @@ function Meters({ phone }: { phone: Softphone }) {
     <div className="grid grid-cols-2 gap-3">
       {(["You", "Voter"] as const).map((who, i) => (
         <div key={who}>
-          <p className="mb-1 text-[10px] tracking-wider text-slate-400 uppercase">{who}</p>
+          <p className="mb-1 text-xs tracking-wider text-slate-400 uppercase">{who}</p>
           <div className="flex h-6 items-end gap-[3px]">
             {Array.from({ length: 14 }).map((_, b) => (
               <span key={b} className={cn("w-full rounded-sm transition-[height] duration-75", levels[i] * 14 > b ? (b > 10 ? "bg-gold" : "bg-[#34c77b]") : "bg-white/10")}
@@ -73,7 +73,7 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
         <div className="pointer-events-none absolute -top-16 -right-10 size-48 rounded-full bg-ocean/25 blur-3xl" />
         <div className="relative flex items-center justify-between">
           <p className="flex items-center gap-2 text-sm font-semibold"><Signal className="size-4 text-gold" /> Softphone</p>
-          <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold", status.cls)}>{status.text}</span>
+          <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", status.cls)}>{status.text}</span>
         </div>
       </div>
 
@@ -90,7 +90,7 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
               {phone.state === "dialing" ? "Dialling…" : phone.state === "ringing" ? "Ringing…" : phone.state === "ended" ? "Call ended" : mmss(phone.elapsed)}
             </p>
             {phone.recording && (
-              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold tracking-wider text-red-300 uppercase">
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-2.5 py-1 text-xs font-bold tracking-wider text-red-300 uppercase">
                 <span className="size-2 animate-pulse rounded-full bg-red-500" /> Recording
               </span>
             )}
@@ -126,7 +126,7 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
         </div>
       )}
       {phone.consent === "declined" && inCall && (
-        <p className="mx-5 mt-3 rounded-xl bg-white/5 px-3 py-2 text-center text-[11px] text-slate-300">Recording stopped and discarded at the voter&apos;s request.</p>
+        <p className="mx-5 mt-3 rounded-xl bg-white/5 px-3 py-2 text-center text-xs text-slate-300">Recording stopped and discarded at the voter&apos;s request.</p>
       )}
 
       {/* Keypad */}
@@ -134,9 +134,9 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
         <div className="grid grid-cols-3 gap-2.5 px-5 pt-4">
           {KEYS.map(([k, sub]) => (
             <button key={k} onClick={() => press(k)}
-              className="flex h-14 flex-col items-center justify-center rounded-2xl bg-white/[.05] ring-1 ring-white/[.06] transition hover:bg-white/10 active:scale-95">
+              className="flex h-16 flex-col items-center justify-center rounded-2xl bg-white/[.05] ring-1 ring-white/[.06] transition hover:bg-white/10 active:scale-95">
               <span className="font-display text-xl font-semibold leading-none">{k}</span>
-              {sub && <span className="mt-0.5 text-[8px] tracking-[.18em] text-slate-500">{sub}</span>}
+              {sub && <span className="mt-0.5 text-xs leading-none tracking-[.14em] text-slate-500">{sub}</span>}
             </button>
           ))}
         </div>
@@ -149,7 +149,7 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
             <Ctl on={!!l?.muted} onClick={() => phone.mute(!l?.muted)} label={l?.muted ? "Unmute" : "Mute"} icon={l?.muted ? MicOff : Mic} disabled={phone.state !== "in_call"} />
             <Ctl on={!!l?.held} onClick={() => void phone.hold(!l?.held)} label={l?.held ? "Resume" : "Hold"} icon={l?.held ? Play : Pause} disabled={phone.state !== "in_call"} />
             <Ctl on={keypad} onClick={() => setKeypad((k) => !k)} label="Keypad" icon={Grid3x3} />
-            <button onClick={() => void phone.hangup()} className="flex flex-col items-center gap-1 rounded-2xl bg-kenya-red py-2.5 text-[10px] font-semibold shadow-lg shadow-kenya-red/30 hover:brightness-110 active:scale-95" aria-label="Hang up">
+            <button onClick={() => void phone.hangup()} className="flex flex-col items-center gap-1 rounded-2xl bg-kenya-red py-2.5 text-xs font-semibold shadow-lg shadow-kenya-red/30 hover:brightness-110 active:scale-95" aria-label="Hang up">
               <PhoneOff className="size-5" /> End
             </button>
           </div>
@@ -160,7 +160,7 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
             <Phone className="size-5" /> Call
           </button>
         ) : null}
-        <p className="mt-3 text-center text-[10px] text-slate-500">
+        <p className="mt-3 text-center text-xs text-slate-500">
           Calls are recorded after the disclosure, encrypted, and kept {phone.config?.recording_retention_days ?? 90} days.
         </p>
       </div>
@@ -171,7 +171,7 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
 function Ctl({ on, onClick, label, icon: Icon, disabled }: { on: boolean; onClick: () => void; label: string; icon: typeof Mic; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className={cn("flex flex-col items-center gap-1 rounded-2xl py-2.5 text-[10px] font-semibold ring-1 transition active:scale-95 disabled:opacity-40",
+      className={cn("flex flex-col items-center gap-1 rounded-2xl py-2.5 text-xs font-semibold ring-1 transition active:scale-95 disabled:opacity-40",
         on ? "bg-white text-navy-950 ring-white" : "bg-white/[.06] text-slate-200 ring-white/[.08] hover:bg-white/10")}>
       <Icon className="size-5" /> {label}
     </button>

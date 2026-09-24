@@ -16,6 +16,16 @@ export interface User {
   last_login_at: string | null;
   created_at: string;
   totp_enabled?: boolean;
+  status?: "active" | "invited" | "disabled";
+  has_photo?: boolean;
+  invite_expires_at?: string | null;
+}
+
+export interface InviteInfo {
+  url: string;
+  expires_at: string;
+  sent_via: string[];
+  qr_svg: string;
 }
 
 export interface Ward {
@@ -333,7 +343,11 @@ export interface MapWard {
 export interface MapOverview {
   wards: MapWard[];
   stations: { id: string; name: string; code: string; ward_id: string; lat: number; lng: number; registered_voters: number | null; captured: number }[];
-  visits: { id: string; title: string; venue: string; status: VisitStatus; scheduled_at: string; ward_id: string; lat: number | null; lng: number | null }[];
+  visits: {
+    id: string; title: string; venue: string; status: VisitStatus; scheduled_at: string; ward_id: string; ward: string;
+    lat: number | null; lng: number | null; exact: boolean; checkin_at: string | null; checkin_by: string | null;
+    completed_at: string | null; attendance: number | null;
+  }[];
 }
 
 export interface Activity {

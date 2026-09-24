@@ -10,7 +10,7 @@ import { usePortalGeo, usePortalStations } from "@/features/geo/api";
 import { LocationPicker, type LocationValue } from "@/features/geo/LocationPicker";
 import { SuccessPanel } from "@/features/voters/components/SuccessPanel";
 import { api, ApiError } from "@/lib/api";
-import { CAMPAIGN_NAME, CAMPAIGN_TAGLINE } from "@/lib/config";
+import { CAMPAIGN_NAME, CANDIDATE_NAME } from "@/lib/config";
 import type { Gender } from "@/lib/types";
 
 type Form = { full_name: string; phone: string; national_id: string; voter_card_no: string; gender: Gender | ""; birth_year: string; loc: LocationValue; consent: boolean; website: string };
@@ -72,7 +72,7 @@ export default function JoinPage() {
         <div className="relative mx-auto max-w-2xl px-5 pt-8">
           <div className="flex items-center gap-3">
             <BrandMark className="size-10" />
-            <div><p className="font-display font-bold">{CAMPAIGN_NAME}</p><p className="text-xs text-slate-400">{CAMPAIGN_TAGLINE}</p></div>
+            <div><p className="font-display font-bold">{CAMPAIGN_NAME}</p><p className="text-xs text-slate-400">Supporter sign-up · {CANDIDATE_NAME} for Mombasa</p></div>
           </div>
           <h1 className="mt-10 text-4xl leading-tight font-extrabold sm:text-5xl">Join the movement, <span className="text-gold">Mombasa.</span></h1>
           <p className="mt-3 max-w-lg text-slate-300">Leave your details and we&apos;ll keep you updated when the team is visiting your ward. We&apos;ll also remind you on voting day.</p>

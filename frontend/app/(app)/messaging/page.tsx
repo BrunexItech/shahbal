@@ -49,7 +49,7 @@ export default function MessagingPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-slate-50/70 text-left text-[11px] font-semibold tracking-wider text-muted uppercase">
+                <tr className="border-b border-line bg-slate-50/70 text-left text-xs font-semibold tracking-wider text-muted uppercase">
                   <th className="px-5 py-3">Campaign</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Recipients</th>
                   <th className="px-3 py-3 text-right">Delivered</th><th className="px-3 py-3">Send time</th><th className="px-5 py-3">Created by</th>
                 </tr>

@@ -43,10 +43,10 @@ backend/app/
     calls/     call-centre queues (claim with SKIP LOCKED), outcomes
     election/  settings, turnout marking, rosters, GOTV reminder plan
     mapping/   coverage map read model, GIS exports, GeoLibre project, CSV export
-    dashboard/ war-room aggregates   audit/  audit trail
+    dashboard/ Command Centre aggregates   audit/  audit trail
   worker.py    message dispatch process
 frontend/
-  app/(app)/   war room, map, targets, GIS Lab, capture, registry, verification, messaging,
+  app/(app)/   command centre, analytics, map, targets, GIS Lab, capture, registry, verification, messaging,
                visits, calls, election, stations, team, audit, account
   app/join     public portal       lib/outbox.ts  offline capture queue (IndexedDB)
 deploy/        nginx gateway, encrypted backup script
@@ -62,6 +62,15 @@ deploy/        nginx gateway, encrypted backup script
   - The server decides which roles each portal admits and ties every session to its portal.
   - Signing in at the wrong portal looks exactly like a wrong password, and the attempt is flagged in the audit trail (`PORTAL_DENIED`).
   - In production, `/command` can additionally be IP-restricted or put behind Cloudflare Access.
+- **Supporters never touch staff sign-in:**
+  - The public sign-up page, `/join`, is completely separate and links to no staff portal.
+  - It creates supporter records only, never accounts.
+- **Invitation-only team onboarding:** there are no self-created staff accounts.
+  - HQ adds a person and gets a one-time link, which is emailed or texted and also shown as a QR code.
+  - The link is tied to that person's email. It expires in `INVITE_HOURS` (72), only its hash is stored, and it locks after 5 wrong emails.
+  - At `/invite/<token>` the person confirms their email, sets their own password and takes a profile photo. The photo is required for field and call-centre staff.
+  - Photos are re-encoded to 512 px JPEG with all EXIF/GPS removed, stored AES-GCM encrypted, and viewable only by HQ or the person themselves.
+  - *Reset access* issues a fresh link and signs the person out everywhere.
 - **Passkeys:** sign-in with a fingerprint, face or phone PIN (WebAuthn), or a hardware security key.
   - Biometrics never leave the device; the server stores only a public key. That keeps the campaign clear of the Data Protection Act's rules on biometric data.
   - Passkeys can't be phished: they only work on the real domain.
@@ -121,6 +130,9 @@ cd ../frontend && npm install && npm run dev   # :3000
 ```
 
 Demo logins (password `DemoPass2027`): `agent.0001@demo.campaign.co.ke` (field agent) and `calls1@demo.campaign.co.ke` (call centre).
+
+**GeoLibre GIS Lab (local):** run `docker compose -f docker-compose.dev.yml up -d gislab` to serve GeoLibre on `http://localhost:8081`, and set `NEXT_PUBLIC_GIS_URL=http://localhost:8081/` in `frontend/.env.local`.
+- *GIS Lab → Open* creates a single-use link, valid for 120 s, to the aggregated Mombasa project and opens it in GeoLibre. The link returns `410 Gone` if it is reused.
 
 Tests: `cd backend && .venv/bin/pytest`. This needs a `shahbal_test` database on the compose Postgres.
 

@@ -49,7 +49,7 @@ export default function VotersPage() {
           <div className={`overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-slate-50/70 text-left text-[11px] font-semibold tracking-wider text-muted uppercase">
+                <tr className="border-b border-line bg-slate-50/70 text-left text-xs font-semibold tracking-wider text-muted uppercase">
                   <th className="px-5 py-3">Voter</th>
                   <th className="px-3 py-3">National ID</th>
                   <th className="px-3 py-3">Ward / station</th>

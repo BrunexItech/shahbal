@@ -27,7 +27,7 @@ export function ActivityFeed() {
             <p className="min-w-0 flex-1 truncate">
               <b className="text-navy-900">{a.actor}</b> <Badge tone={tone}>{verb}</Badge> <span className="text-muted">{a.entity}</span>
             </p>
-            <span className="text-[11px] whitespace-nowrap text-muted">{timeAgo(a.at)}</span>
+            <span className="text-xs whitespace-nowrap text-muted">{timeAgo(a.at)}</span>
           </li>
         );
       })}

@@ -3,7 +3,7 @@ import { forwardRef, useId } from "react";
 import { cn } from "@/lib/cn";
 
 const control =
-  "w-full rounded-xl border border-line bg-white px-3.5 text-sm text-ink placeholder:text-slate-400 transition " +
+  "w-full rounded-xl border border-line bg-white px-3.5 text-base text-ink placeholder:text-slate-400 transition " +
   "focus:border-ocean focus:outline-none focus:ring-4 focus:ring-ocean/10 disabled:bg-slate-50 disabled:text-slate-400 " +
   "aria-[invalid=true]:border-kenya-red aria-[invalid=true]:ring-red-500/10";
 
@@ -13,7 +13,7 @@ function FieldWrap({ id, label, hint, error, required, className, children }: Wr
   return (
     <div className={cn("space-y-1.5", className)}>
       {label && (
-        <label htmlFor={id} className="block text-[13px] font-semibold text-navy-900">
+        <label htmlFor={id} className="block text-sm font-semibold text-navy-900">
           {label} {required && <span className="text-kenya-red">*</span>}
         </label>
       )}
@@ -72,7 +72,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttrib
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T | ""; onChange: (v: T) => void; options: { value: T; label: string }[]; label?: string }) {
   return (
     <div className="space-y-1.5">
-      {label && <p className="text-[13px] font-semibold text-navy-900">{label}</p>}
+      {label && <p className="text-sm font-semibold text-navy-900">{label}</p>}
       <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
         {options.map((o) => (
           <button

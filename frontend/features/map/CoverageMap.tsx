@@ -27,12 +27,14 @@ const FILL = [
 
 export type Layers = { wards: boolean; visited: boolean; stations: boolean; visits: boolean; labels: boolean };
 
-export function CoverageMap({ data, boundaries, layers, selected, onSelect }: {
+export function CoverageMap({ data, boundaries, layers, selected, onSelect, focus }: {
   data: MapOverview;
   boundaries: FeatureCollection;
   layers: Layers;
   selected: string | null;
   onSelect: (wardId: string | null) => void;
+  /** Fly to this point (e.g. an exact visit location) when it changes. */
+  focus?: { lng: number; lat: number; key: string } | null;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
@@ -71,7 +73,10 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect }: {
     type: "FeatureCollection",
     features: data.visits.filter((v) => v.lat != null && v.lng != null).map((v) => ({
       type: "Feature",
-      properties: { title: v.title, status: v.status, when: v.scheduled_at },
+      properties: {
+        title: v.title, status: v.status, when: v.scheduled_at, exact: v.exact, ward: v.ward, venue: v.venue,
+        by: v.checkin_by ?? "", checkin: v.checkin_at ?? "", attendance: v.attendance ?? -1,
+      },
       geometry: { type: "Point", coordinates: [v.lng!, v.lat!] },
     })),
   }), [data.visits]);
@@ -113,12 +118,18 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect }: {
           "circle-color": "#0b1f3a", "circle-opacity": 0.85, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
         },
       });
+      // Exact GPS check-ins get a halo; planned/approximate locations are hollow.
+      m.addLayer({
+        id: "visits-halo", type: "circle", source: "visits", filter: ["==", ["get", "exact"], true],
+        paint: { "circle-radius": 16, "circle-color": ["match", ["get", "status"], "completed", "#006b3f", "in_progress", "#0b7fa6", "#c9a227"], "circle-opacity": 0.22 },
+      });
       m.addLayer({
         id: "visits", type: "circle", source: "visits",
         paint: {
-          "circle-radius": 7,
-          "circle-color": ["match", ["get", "status"], "completed", "#006b3f", "in_progress", "#0b7fa6", "#c9a227"],
-          "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.5,
+          "circle-radius": ["case", ["get", "exact"], 7.5, 6],
+          "circle-color": ["case", ["get", "exact"], ["match", ["get", "status"], "completed", "#006b3f", "in_progress", "#0b7fa6", "#c9a227"], "#ffffff"],
+          "circle-stroke-color": ["case", ["get", "exact"], "#ffffff", ["match", ["get", "status"], "completed", "#006b3f", "in_progress", "#0b7fa6", "#c9a227"]],
+          "circle-stroke-width": ["case", ["get", "exact"], 2.5, 3],
         },
       });
 
@@ -154,14 +165,34 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect }: {
           const at = (f.geometry as Point).coordinates as [number, number];
           m.getCanvas().style.cursor = "pointer";
           if (layer === "stations") show(at, p.name, `${p.code} · ${Number(p.captured).toLocaleString()} captured`);
-          else show(at, p.title, `${p.status.replace("_", " ")} · ${new Date(p.when).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Nairobi" })}`);
+          else show(at, p.title, visitLine(p));
         });
         m.on("mouseleave", layer, () => {
           m.getCanvas().style.cursor = "";
           popup.remove();
         });
       }
-      m.on("click", "ward-fill", (e) => onSelectRef.current(String(e.features?.[0]?.properties?.ward_id ?? "") || null));
+      m.on("click", "ward-fill", (e) => {
+        if (m.queryRenderedFeatures(e.point, { layers: ["visits"] }).length) return; // a visit pin was clicked
+        onSelectRef.current(String(e.features?.[0]?.properties?.ward_id ?? "") || null);
+      });
+      // Click a visit: pinned details card (who, when, attendance, exact vs approximate).
+      const pin = new maplibregl.Popup({ closeButton: true, offset: 14, className: "chq-popup", maxWidth: "280px" });
+      m.on("click", "visits", (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        popup.remove();
+        pin.setLngLat((f.geometry as Point).coordinates as [number, number]).setDOMContent(visitCard(f.properties as Record<string, unknown>)).addTo(m);
+      });
+
+      // Keep the map on Mombasa County: no drifting off to the rest of Kenya.
+      const b = new maplibregl.LngLatBounds();
+      for (const f of boundaries.features) for (const poly of (f.geometry as MultiPolygon).coordinates) for (const [x, y] of poly[0]) b.extend([x, y]);
+      if (!b.isEmpty()) {
+        const pad = 0.12;
+        m.setMaxBounds([[b.getWest() - pad, b.getSouth() - pad], [b.getEast() + pad, b.getNorth() + pad]]);
+        m.setMinZoom(9.4);
+      }
       setLoaded(true);
     });
     map.current = m;
@@ -200,6 +231,7 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect }: {
     m.setLayoutProperty("ward-visited", "visibility", vis(layers.visited));
     m.setLayoutProperty("stations", "visibility", vis(layers.stations));
     m.setLayoutProperty("visits", "visibility", vis(layers.visits));
+    m.setLayoutProperty("visits-halo", "visibility", vis(layers.visits));
     m.setLayoutProperty("ward-label", "visibility", vis(layers.labels));
   }, [loaded, layers]);
 
@@ -208,6 +240,12 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect }: {
     if (!loaded || !m) return;
     m.setFilter("ward-selected", ["==", ["get", "ward_id"], selected ?? ""]);
   }, [loaded, selected]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!loaded || !m || !focus) return;
+    m.flyTo({ center: [focus.lng, focus.lat], zoom: 16, speed: 1.4 });
+  }, [loaded, focus]);
 
   // MapLibre's (unlayered) CSS forces `position: relative` on its container, which beats
   // Tailwind's layered utilities, so the positioning lives on a wrapper.
@@ -218,14 +256,50 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect }: {
   );
 }
 
+const fmt = (iso: string) => new Date(iso).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Nairobi" });
+
+function visitLine(p: Record<string, unknown>) {
+  const status = String(p.status).replace("_", " ");
+  return p.exact ? `${status} · exact GPS check-in · click for details` : `${status} · ${fmt(String(p.when))} · planned location`;
+}
+
+/** Pinned visit details, built from DOM nodes (textContent only). */
+function visitCard(p: Record<string, unknown>) {
+  const wrap = document.createElement("div");
+  const rows: [string, string][] = [
+    ["Ward", `${p.ward}`],
+    ["Venue", `${p.venue}`],
+    ["Status", String(p.status).replace("_", " ")],
+    ["Location", p.exact ? "Exact GPS at check-in" : "Planned (polling station)"],
+  ];
+  if (p.by) rows.push(["Checked in by", String(p.by)]);
+  if (p.checkin) rows.push(["Checked in", fmt(String(p.checkin))]);
+  else rows.push(["Scheduled", fmt(String(p.when))]);
+  if (Number(p.attendance) >= 0) rows.push(["Attendance", Number(p.attendance).toLocaleString()]);
+  const t = document.createElement("p");
+  t.className = "mb-1.5 text-sm font-semibold text-white";
+  t.textContent = String(p.title);
+  wrap.append(t);
+  for (const [k, v] of rows) {
+    const r = document.createElement("p");
+    r.className = "text-xs leading-5 text-slate-300";
+    const b = document.createElement("span");
+    b.className = "text-slate-500";
+    b.textContent = `${k}: `;
+    r.append(b, document.createTextNode(v));
+    wrap.append(r);
+  }
+  return wrap;
+}
+
 /** Tooltip built from DOM nodes with textContent, never from HTML strings. */
 function tooltip(title: string, sub: string) {
   const wrap = document.createElement("div");
   const t = document.createElement("p");
-  t.className = "text-[13px] font-semibold text-white";
+  t.className = "text-sm font-semibold text-white";
   t.textContent = title;
   const s = document.createElement("p");
-  s.className = "text-[11px] text-slate-300";
+  s.className = "text-xs text-slate-300";
   s.textContent = sub;
   wrap.append(t, s);
   return wrap;

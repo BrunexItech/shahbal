@@ -1,0 +1,14 @@
+# Local development helpers (not for production).
+#   docker compose -f docker-compose.dev.yml up -d
+# GeoLibre GIS Lab on http://localhost:8081, loading projects through one-time
+# signed links from the local API (http://localhost:8000).
+services:
+  gislab:
+    image: ghcr.io/opengeos/geolibre:v3.0.0
+    environment:
+      GEOLIBRE_SHARE_URL: "off"
+      GEOLIBRE_GEOLENS_URL: "off"
+      GEOLIBRE_DISABLE_SIDECAR: "1"
+    ports:
+      - "127.0.0.1:8081:80"
+    restart: unless-stopped

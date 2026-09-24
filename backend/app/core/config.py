@@ -19,6 +19,17 @@ class Settings(BaseSettings):
     pii_pepper: str = "change-me-pepper"
 
     cors_origins: list[str] = ["http://localhost:3000"]
+    # Public address of the web app: invitation links point here.
+    app_url: str = "http://localhost:3000"
+    # Where the GIS Lab (GeoLibre) runs. Its origin may fetch one-time project links.
+    gis_origin: str = "http://localhost:8081"
+    invite_hours: int = 72
+    # Outgoing email for invitations (unset = links are shown to the inviter instead).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
     # How to find the real client IP (rate limits + audit). X-Forwarded-For's
     # leftmost value is client-controlled, so we only trust hops appended by our
     # own proxies: set TRUSTED_PROXIES to how many sit in front of the API
@@ -67,7 +78,7 @@ class Settings(BaseSettings):
     sip_domain: str = ""  # e.g. sip.provider.co.ke
     sip_caller_id: str = ""  # number shown to voters
     stun_servers: list[str] = ["stun:stun.l.google.com:19302"]
-    recordings_dir: str = "./data/recordings"  # a persistent volume in production
+    recordings_dir: str = "./data/recordings"  # a persistent volume in production (photos live in a sibling folder)
     recording_retention_days: int = 90
     recording_max_mb: int = 50
     messaging_quiet_start: int = 21  # no sends 21:00–07:59 EAT (courtesy + compliance)

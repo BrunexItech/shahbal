@@ -204,7 +204,7 @@ export function LoginScreen({ portal }: { portal: Portal }) {
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[.03] shadow-2xl backdrop-blur-xl">
             <FlagStripe />
             <div className="p-8">{form}</div>
-            <div className="flex items-center gap-2 border-t border-white/10 bg-black/20 px-8 py-4 text-[11px] text-slate-400">
+            <div className="flex items-center gap-2 border-t border-white/10 bg-black/20 px-8 py-4 text-xs text-slate-400">
               <ShieldCheck className="size-4 text-gold" /> Every sign-in is recorded. Unauthorised access is an offence.
             </div>
           </div>
@@ -237,9 +237,6 @@ export function LoginScreen({ portal }: { portal: Portal }) {
       </header>
       <main className="relative mx-auto -mt-16 w-full max-w-md flex-1 px-4 pb-10">
         <div className="animate-fade-up rounded-3xl bg-white p-7 shadow-xl ring-1 ring-line">{form}</div>
-        <p className="mt-6 text-center text-sm text-muted">
-          Are you a voter? <Link href="/join" className="font-semibold text-kenya-green hover:underline">Join the movement →</Link>
-        </p>
       </main>
     </div>
   );

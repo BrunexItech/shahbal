@@ -9,6 +9,7 @@ import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import select, text  # noqa: E402
 
+from app.core.clock import utcnow  # noqa: E402
 from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.core.roles import Role  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
@@ -35,12 +36,13 @@ async def clean():
     async with engine.begin() as conn:
         # DELETE, not TRUNCATE: tiny tables, and TRUNCATE's file rewrite + fsync is slow per test.
         for table in ("audit_logs", "call_recordings", "sip_accounts", "agent_presence", "messages", "call_logs", "visits", "message_campaigns", "election_settings", "voters",
-                      "auth_challenges", "known_devices", "passkeys", "user_sessions", "users", "polling_stations",
+                      "auth_challenges", "known_devices", "passkeys", "user_invites", "user_sessions", "users", "polling_stations",
                       "wards", "constituencies"):
             await conn.execute(text(f"DELETE FROM {table}"))
     async with SessionLocal() as s:
         await seed_geography(s)
-        s.add(User(full_name="Test Admin", email=ADMIN[0], password_hash=hash_password(ADMIN[1]), role=Role.super_admin))
+        s.add(User(full_name="Test Admin", email=ADMIN[0], password_hash=hash_password(ADMIN[1]), role=Role.super_admin,
+                   activated_at=utcnow()))
         await s.commit()
     from app.modules.auth import router as auth_router
     from app.modules.portal import router as portal_router
@@ -49,6 +51,9 @@ async def clean():
     auth_router._mfa_limiter._hits.clear()
     auth_router._passkey_limiter._hits.clear()
     portal_router._limiter._hits.clear()
+    from app.modules.users import router as users_router
+
+    users_router._invite_limiter._hits.clear()
 
 
 @pytest.fixture
@@ -94,15 +99,41 @@ async def wards():
         return {w.name: w for w in (await s.execute(select(Ward))).scalars()}
 
 
-async def make_user(client, admin_headers, role: str, ward=None, constituency_id=None, email=None) -> dict:
+def photo_bytes(size: int = 320, color=(0, 107, 63)) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (size, size), color).save(buf, "PNG")
+    return buf.getvalue()
+
+
+async def accept(client, created: dict, password: str = "Password!1", email: str | None = None, photo: bool = True):
+    token = created["invite"]["url"].rsplit("/invite/", 1)[1]
+    files = {"photo": ("me.png", photo_bytes(), "image/png")} if photo else None
+    return await client.post(f"/api/v1/invites/{token}/accept", data={"email": email or created["user"]["email"], "password": password}, files=files)
+
+
+async def invite(client, admin_headers, body: dict) -> dict:
+    r = await client.post("/api/v1/users", json=body, headers=admin_headers)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+async def make_user(client, admin_headers, role: str, ward=None, constituency_id=None, email=None, phone=None) -> dict:
+    """The real onboarding path: invite → accept (email, password, photo) → sign in."""
     email = email or f"{role}-{ward.code if ward else constituency_id or 'x'}@campaign.co.ke"
-    body = {"full_name": f"{role.replace('_', ' ').title()} User", "email": email, "password": "Password!1", "role": role}
+    body = {"full_name": f"{role.replace('_', ' ').title()} User", "email": email, "role": role}
     if ward:
         body["ward_id"] = ward.id
     if constituency_id:
         body["constituency_id"] = constituency_id
-    r = await client.post("/api/v1/users", json=body, headers=admin_headers)
-    assert r.status_code == 201, r.text
+    if phone:
+        body["phone"] = phone
+    created = await invite(client, admin_headers, body)
+    r = await accept(client, created)
+    assert r.status_code == 200, r.text
     return await login(client, email, "Password!1")
 
 

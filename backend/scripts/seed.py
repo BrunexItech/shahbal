@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app import models  # noqa: F401
 from app.core.db import SessionLocal
+from app.core.clock import utcnow
 from app.core.roles import Role
 from app.core.security import hash_password
 from app.modules.geo.service import seed_geography, seed_stations
@@ -25,7 +26,7 @@ async def main(email: str | None, password: str | None, name: str) -> None:
             if (await session.execute(select(User).where(User.email == email.lower()))).scalar_one_or_none():
                 print(f"admin {email} already exists")
             else:
-                session.add(User(full_name=name, email=email.lower(), password_hash=hash_password(password), role=Role.super_admin))
+                session.add(User(full_name=name, email=email.lower(), password_hash=hash_password(password), role=Role.super_admin, activated_at=utcnow()))
                 await session.commit()
                 print(f"admin {email} created")
 

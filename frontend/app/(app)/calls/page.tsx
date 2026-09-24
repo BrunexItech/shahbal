@@ -92,7 +92,7 @@ function Console({ phone, canManualDial }: { phone: Softphone; canManualDial: bo
               className={cn("rounded-2xl p-4 text-left ring-1 transition disabled:opacity-60", queue === q.id ? "bg-navy-950 text-white ring-navy-950" : "bg-white ring-line hover:ring-slate-300")}>
               <p className={cn("text-xs font-semibold", queue === q.id ? "text-gold" : "text-muted")}>{q.label}</p>
               <p className="mt-1 font-display text-2xl font-bold tabular-nums">{counts.data ? num(counts.data[q.id]) : "–"}</p>
-              <p className={cn("mt-1 text-[11px]", queue === q.id ? "text-slate-400" : "text-muted")}>{q.hint}</p>
+              <p className={cn("mt-1 text-xs", queue === q.id ? "text-slate-400" : "text-muted")}>{q.hint}</p>
             </button>
           ))}
         </div>
@@ -124,7 +124,7 @@ function Console({ phone, canManualDial }: { phone: Softphone; canManualDial: bo
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-navy-900">{a.agent_name}</p>
-                    <p className="text-[11px] text-muted">{num(a.answered)} answered · {num(a.verified)} verified</p>
+                    <p className="text-xs text-muted">{num(a.answered)} answered · {num(a.verified)} verified</p>
                   </div>
                   <span className="font-display text-lg font-bold text-navy-900 tabular-nums">{num(a.calls)}</span>
                 </li>
@@ -230,7 +230,7 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
       <div className="grid gap-6 p-5 lg:grid-cols-[1fr_260px]">
         <div className="space-y-5">
           <div>
-            <p className="mb-2 text-[13px] font-semibold text-navy-900">How did it go?</p>
+            <p className="mb-2 text-sm font-semibold text-navy-900">How did it go?</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {OUTCOMES.map((o) => (
                 <button key={o.id} onClick={() => setOutcome(o.id)}
@@ -243,7 +243,7 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
           {outcome === "answered" && (
             <div className="animate-fade-up space-y-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-line">
               <div>
-                <p className="mb-2 text-[13px] font-semibold text-navy-900">Support level after the call</p>
+                <p className="mb-2 text-sm font-semibold text-navy-900">Support level after the call</p>
                 <div className="flex flex-wrap gap-2">
                   {(Object.keys(SUPPORT) as Support[]).map((s) => (
                     <button key={s} onClick={() => setSupport(s)}
@@ -275,7 +275,7 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
           </div>
         </div>
         <div>
-          <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-navy-900"><History className="size-4" /> Previous calls</p>
+          <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-navy-900"><History className="size-4" /> Previous calls</p>
           {claim.history.length ? (
             <ol className="space-y-3">
               {claim.history.map((h) => (
@@ -287,7 +287,7 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
               ))}
             </ol>
           ) : <p className="text-xs text-muted">First contact with this voter.</p>}
-          <p className="mt-4 text-[11px] text-muted">Reserved for you until {dateTime(claim.locked_until)} · {num(claim.remaining)} left in queue</p>
+          <p className="mt-4 text-xs text-muted">Reserved for you until {dateTime(claim.locked_until)} · {num(claim.remaining)} left in queue</p>
         </div>
       </div>
     </Card>

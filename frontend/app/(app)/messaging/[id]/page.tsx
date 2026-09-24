@@ -90,7 +90,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="border-b border-line bg-slate-50/70 text-left text-[11px] font-semibold tracking-wider text-muted uppercase">
+                  <thead><tr className="border-b border-line bg-slate-50/70 text-left text-xs font-semibold tracking-wider text-muted uppercase">
                     <th className="px-5 py-2.5">Voter</th><th className="px-3 py-2.5">Phone</th><th className="px-3 py-2.5">Status</th><th className="px-5 py-2.5">Sent</th>
                   </tr></thead>
                   <tbody className="divide-y divide-line">

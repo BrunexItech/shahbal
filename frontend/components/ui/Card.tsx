@@ -12,7 +12,7 @@ export function CardHeader({ title, subtitle, action, className }: { title: Reac
   return (
     <div className={cn("flex items-start justify-between gap-4 border-b border-line px-5 py-4", className)}>
       <div>
-        <h3 className="text-[15px] font-semibold text-navy-900">{title}</h3>
+        <h3 className="text-base font-semibold text-navy-900">{title}</h3>
         {subtitle && <p className="mt-0.5 text-xs text-muted">{subtitle}</p>}
       </div>
       {action}

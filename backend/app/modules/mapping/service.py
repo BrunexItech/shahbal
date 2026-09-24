@@ -8,11 +8,13 @@ from functools import lru_cache
 from pathlib import Path
 
 from sqlalchemy import case, func, select
+from sqlalchemy.orm import aliased
 
 from app.core.clock import local_midnight, utcnow
 from app.core.deps import Ctx
 from app.core.scope import voter_scope, ward_scope
 from app.modules.geo.models import Constituency, PollingStation, Ward
+from app.modules.users.models import User
 from app.modules.visits.models import Visit, VisitStatus
 from app.modules.voters.models import Status, Support, Voter
 
@@ -72,10 +74,14 @@ class MapService:
             .where(PollingStation.latitude.is_not(None), PollingStation.is_active.is_(True), PollingStation.ward_id.in_(allowed))
             .group_by(PollingStation.id)
         )).all()
+        checker = aliased(User)
         visits = (await self.s.execute(
             select(Visit.id, Visit.title, Visit.venue, Visit.status, Visit.scheduled_at, Visit.ward_id,
-                   func.coalesce(Visit.checkin_lat, PollingStation.latitude), func.coalesce(Visit.checkin_lng, PollingStation.longitude))
+                   func.coalesce(Visit.checkin_lat, PollingStation.latitude), func.coalesce(Visit.checkin_lng, PollingStation.longitude),
+                   Visit.checkin_lat.is_not(None), Visit.checkin_at, checker.full_name, Visit.completed_at, Visit.attendance, Ward.name)
             .outerjoin(PollingStation, PollingStation.id == Visit.station_id)
+            .outerjoin(checker, checker.id == Visit.checkin_by_id)
+            .join(Ward, Ward.id == Visit.ward_id)
             .where(Visit.ward_id.in_(allowed), Visit.status != VisitStatus.cancelled, Visit.scheduled_at >= local_midnight(60))
             .order_by(Visit.scheduled_at)
         )).all()
@@ -83,8 +89,11 @@ class MapService:
             "wards": wards,
             "stations": [{"id": i, "name": n, "code": c, "ward_id": w, "lat": la, "lng": lo, "registered_voters": r, "captured": k}
                          for i, n, c, w, la, lo, r, k in stations],
-            "visits": [{"id": i, "title": t, "venue": v, "status": s.value, "scheduled_at": at.isoformat(), "ward_id": w, "lat": la, "lng": lo}
-                       for i, t, v, s, at, w, la, lo in visits],
+            # `exact` = the team's own GPS at check-in; otherwise the planned polling station.
+            "visits": [{"id": i, "title": t, "venue": v, "status": s.value, "scheduled_at": at.isoformat(), "ward_id": w, "ward": wn,
+                        "lat": la, "lng": lo, "exact": bool(ex), "checkin_at": ca.isoformat() if ca else None, "checkin_by": cb,
+                        "completed_at": co.isoformat() if co else None, "attendance": att}
+                       for i, t, v, s, at, w, la, lo, ex, ca, cb, co, att, wn in visits],
         }
 
     # ---- GIS Lab exports (aggregates only) ----------------------------------------

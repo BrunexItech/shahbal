@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   CircleDot,
   Headphones,
-  Info,
   PhoneCall,
   Radio,
   UserPlus,
@@ -47,7 +46,7 @@ export function MissionHero({ d, pulse, connected }: { d: DashboardSummary; puls
       <div className="relative grid gap-8 p-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:p-8">
         <Ring percent={o.percent ?? 0} size={176} stroke={14}>
           <p className="font-display text-4xl font-extrabold"><CountUp value={o.percent ?? 0} format={(n) => `${n.toFixed(n >= 10 ? 0 : 1)}%`} /></p>
-          <p className="text-[11px] tracking-wider text-slate-400 uppercase">of target</p>
+          <p className="text-xs tracking-wider text-slate-400 uppercase">of target</p>
         </Ring>
 
         <div className="min-w-0">
@@ -69,7 +68,7 @@ export function MissionHero({ d, pulse, connected }: { d: DashboardSummary; puls
                 )}
                 <div className="absolute -top-1.5 h-6 w-0.5 bg-gold shadow-[0_0_10px_#c9a227]" style={{ left: at(o.target) }} />
               </div>
-              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-400">
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-400">
                 <span className="inline-flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm bg-kenya-green" /> Reached today</span>
                 {i.projected != null && <span className="inline-flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm border border-dashed border-white/50" /> Projected by election day: {num(i.projected)}</span>}
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-0.5 bg-gold" /> Target {num(o.target)}</span>
@@ -80,18 +79,18 @@ export function MissionHero({ d, pulse, connected }: { d: DashboardSummary; puls
 
         <div className="grid grid-cols-2 gap-3 lg:w-[300px]">
           {[
-            { icon: UserPlus, label: "Captured today", value: pulse?.captures_today ?? d.totals.today },
-            { icon: PhoneCall, label: "Calls today", value: pulse?.calls_today ?? d.ops.calls_today },
-            { icon: Radio, label: "In the field now", value: pulse?.online_field ?? 0 },
-            { icon: Vote, label: "Marked voted", value: pulse?.voted ?? d.ops.voted },
-          ].map(({ icon: Icon, label, value }) => (
-            <div key={label} className="rounded-2xl border border-white/[.08] bg-white/[.04] p-3.5 backdrop-blur">
-              <Icon className="size-4 text-gold" />
-              <p className="mt-2 font-display text-2xl font-bold"><CountUp value={value} /></p>
-              <p className="text-[11px] text-slate-400">{label}</p>
+            { rule: "bg-white", label: "Captured today", value: pulse?.captures_today ?? d.totals.today },
+            { rule: "bg-kenya-red", label: "Calls today", value: pulse?.calls_today ?? d.ops.calls_today },
+            { rule: "bg-[#34c77b]", label: "In the field now", value: pulse?.online_field ?? 0 },
+            { rule: "bg-gold", label: "Marked voted", value: pulse?.voted ?? d.ops.voted },
+          ].map(({ rule, label, value }) => (
+            <div key={label} className="relative overflow-hidden rounded-2xl border border-white/[.08] bg-white/[.04] p-3.5 pt-4 backdrop-blur">
+              <span className={cn("absolute inset-x-3.5 top-0 h-[3px] rounded-b-full", rule)} />
+              <p className="font-display text-2xl font-bold"><CountUp value={value} /></p>
+              <p className="text-xs text-slate-400">{label}</p>
             </div>
           ))}
-          <p className="col-span-2 flex items-center justify-end gap-2 text-[11px] text-slate-400">
+          <p className="col-span-2 flex items-center justify-end gap-2 text-xs text-slate-400">
             <LiveDot on={connected} className="size-2" /> {connected ? "Streaming live" : "Reconnecting…"}
           </p>
         </div>
@@ -100,12 +99,12 @@ export function MissionHero({ d, pulse, connected }: { d: DashboardSummary; puls
   );
 }
 
-// ---- insight cards -----------------------------------------------------------------
-const TONE: Record<InsightCard["tone"], { icon: typeof Info; ring: string; iconCls: string }> = {
-  good: { icon: CheckCircle2, ring: "border-kenya-green/20 bg-gradient-to-br from-kenya-green-50 to-white", iconCls: "bg-kenya-green text-white" },
-  warn: { icon: AlertTriangle, ring: "border-amber-200 bg-gradient-to-br from-amber-50 to-white", iconCls: "bg-amber-500 text-white" },
-  bad: { icon: AlertTriangle, ring: "border-red-200 bg-gradient-to-br from-red-50 to-white", iconCls: "bg-kenya-red text-white" },
-  info: { icon: Info, ring: "border-ocean/20 bg-gradient-to-br from-ocean-50 to-white", iconCls: "bg-ocean text-white" },
+// ---- insight cards ---------------------------------------------------------------
+const TONE: Record<InsightCard["tone"], { key: string; spine: string; wash: string; chip: string }> = {
+  bad: { key: "Act now", spine: "bg-kenya-red", wash: "from-kenya-red/[.07]", chip: "bg-kenya-red text-white" },
+  warn: { key: "Watch", spine: "bg-gold", wash: "from-gold/[.12]", chip: "bg-gold text-navy-950" },
+  good: { key: "Good news", spine: "bg-kenya-green", wash: "from-kenya-green/[.08]", chip: "bg-kenya-green text-white" },
+  info: { key: "Note", spine: "bg-ocean", wash: "from-ocean/[.08]", chip: "bg-ocean text-white" },
 };
 
 export function InsightCards({ cards }: { cards: InsightCard[] }) {
@@ -114,15 +113,16 @@ export function InsightCards({ cards }: { cards: InsightCard[] }) {
       {cards.map((c, idx) => {
         const t = TONE[c.tone];
         return (
-          <div key={c.title} className={cn("animate-fade-up rounded-2xl border p-4", t.ring)} style={{ animationDelay: `${idx * 60}ms` }}>
-            <div className="flex gap-3">
-              <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl shadow-sm", t.iconCls)}><t.icon className="size-[18px]" /></span>
-              <div className="min-w-0">
-                <p className="font-semibold leading-snug text-navy-900">{c.title}</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{c.detail}</p>
-              </div>
+          <article key={c.title} style={{ animationDelay: `${idx * 70}ms` }}
+            className={cn("relative animate-fade-up overflow-hidden rounded-2xl border border-line bg-gradient-to-br to-white to-60% p-5 pl-7 shadow-[0_1px_2px_rgba(11,31,58,.04)]", t.wash)}>
+            <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1.5", t.spine)} />
+            <div className="flex items-center justify-between gap-3">
+              <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold tracking-wide uppercase", t.chip)}>{t.key}</span>
+              <span className="font-mono text-xs font-semibold tracking-widest text-slate-400">#{String(idx + 1).padStart(2, "0")}</span>
             </div>
-          </div>
+            <h3 className="mt-3 font-display text-lg leading-snug font-bold text-navy-900">{c.title}</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{c.detail}</p>
+          </article>
         );
       })}
     </div>
@@ -143,10 +143,15 @@ export function Delta({ now, before, suffix = "" }: { now: number; before: numbe
   );
 }
 
-export function KpiTile({ label, value, foot, spark, sparkColor, href }: { label: string; value: number | string; foot: React.ReactNode; spark?: number[]; sparkColor?: string; href?: string }) {
+const CAP = { black: "bg-kenya-black", red: "bg-kenya-red", green: "bg-kenya-green", gold: "bg-gold", ocean: "bg-ocean" } as const;
+
+export function KpiTile({ label, value, foot, spark, sparkColor, href, cap = "green" }: {
+  label: string; value: number | string; foot: React.ReactNode; spark?: number[]; sparkColor?: string; href?: string; cap?: keyof typeof CAP;
+}) {
   const body = (
-    <div className="group h-full animate-fade-up rounded-2xl border border-line bg-white p-4 shadow-[0_1px_2px_rgba(11,31,58,.04)] transition hover:-translate-y-0.5 hover:shadow-lg">
-      <p className="text-[12px] font-medium text-muted">{label}</p>
+    <div className="group relative h-full animate-fade-up overflow-hidden rounded-2xl border border-line bg-white p-4 pt-5 shadow-[0_1px_2px_rgba(11,31,58,.04)] transition hover:-translate-y-0.5 hover:shadow-lg">
+      <span aria-hidden className={cn("absolute inset-x-0 top-0 h-1", CAP[cap])} />
+      <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">{label}</p>
       <p className="mt-1 font-display text-[28px] leading-tight font-bold text-navy-900">{typeof value === "number" ? <CountUp value={value} /> : value}</p>
       {spark && <Sparkline data={spark} color={sparkColor} className="mt-1" />}
       <div className="mt-1.5">{foot}</div>
@@ -181,7 +186,7 @@ export function ConstituencyLeague({ rows }: { rows: DashboardSummary["insights"
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
                 <div className={cn("h-full rounded-full transition-[width] duration-1000", h.dot)} style={{ width: `${Math.min(c.percent ?? 0, 100)}%` }} />
               </div>
-              <p className="mt-1 text-[11px] text-muted">
+              <p className="mt-1 text-xs text-muted">
                 {num(c.achieved)} / {c.target ? num(c.target) : "—"} · {num(Math.round(c.pace))}/day · <b className="text-navy-900">+{num(c.today)}</b> today
                 {c.projected_percent != null && <> · projected <b className="text-navy-900">{pct(c.projected_percent)}</b></>}
               </p>
@@ -219,7 +224,7 @@ export function LiveActivity({ events }: { events: LiveEvent[] }) {
           <li key={e.id} className="flex animate-fade-up items-center gap-3 px-5 py-2.5 text-sm">
             <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", cfg.cls)}><cfg.icon className="size-4" /></span>
             <p className="min-w-0 flex-1 truncate"><b className="text-navy-900">{e.actor}</b> <span className="text-slate-600">{cfg.verb}{source === "portal" ? " (portal)" : ""}</span></p>
-            <span className="text-[11px] whitespace-nowrap text-muted">{timeAgo(e.at)}</span>
+            <span className="text-xs whitespace-nowrap text-muted">{timeAgo(e.at)}</span>
           </li>
         );
       })}
@@ -249,7 +254,7 @@ export function CallWall({ calls }: { calls: LiveCall[] | null }) {
         <li key={c.agent_id} className="rounded-xl border border-line bg-white p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="truncate text-sm font-semibold text-navy-900">{c.agent}</p>
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", CALL_STATUS[c.status].cls)}>{CALL_STATUS[c.status].label}</span>
+            <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold", CALL_STATUS[c.status].cls)}>{CALL_STATUS[c.status].label}</span>
           </div>
           <p className="mt-1 truncate text-xs text-muted">
             {c.voter ? <>with <b className="text-navy-900">{c.voter}</b></> : "Waiting for next voter"} · {timeAgo(c.since)}

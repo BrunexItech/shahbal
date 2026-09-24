@@ -34,7 +34,7 @@ export function WardTable({ wards }: { wards: WardProgress[] }) {
     <div className="max-h-[480px] overflow-auto">
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10 bg-white">
-          <tr className="border-b border-line text-left text-[11px] font-semibold tracking-wider text-muted uppercase">
+          <tr className="border-b border-line text-left text-xs font-semibold tracking-wider text-muted uppercase">
             {th("name", "Ward", "pl-5")}
             {th("achieved", "Achieved", "text-right")}
             <th className="px-3 py-3 text-right">Target</th>
@@ -47,7 +47,7 @@ export function WardTable({ wards }: { wards: WardProgress[] }) {
             <tr key={w.id} className="hover:bg-slate-50/70">
               <td className="py-2.5 pr-3 pl-5">
                 <p className="font-semibold text-navy-900">{w.name}</p>
-                <p className="text-[11px] text-muted">{w.constituency}</p>
+                <p className="text-xs text-muted">{w.constituency}</p>
               </td>
               <td className="px-3 py-2.5 text-right font-medium tabular-nums">{num(w.achieved)}</td>
               <td className="px-3 py-2.5 text-right text-muted tabular-nums">{w.target ? num(w.target) : "—"}</td>

@@ -77,14 +77,14 @@ async def main():
             email = f"agent.{w.code}@demo.campaign.co.ke"
             u = (await s.execute(select(User).where(User.email == email))).scalar_one_or_none() or User(
                 full_name=f"{rnd.choice(FIRST)} {rnd.choice(LAST)}", email=email, password_hash=hash_password("DemoPass2027"),
-                role=Role.field_agent, ward_id=w.id, constituency_id=w.constituency_id)
+                role=Role.field_agent, ward_id=w.id, constituency_id=w.constituency_id, activated_at=utcnow())
             s.add(u)
             agents.append(u)
         for i in (1, 2):
             email = f"calls{i}@demo.campaign.co.ke"
             u = (await s.execute(select(User).where(User.email == email))).scalar_one_or_none() or User(
                 full_name=f"{rnd.choice(FIRST)} {rnd.choice(LAST)}", email=email, password_hash=hash_password("DemoPass2027"),
-                role=Role.call_agent)
+                role=Role.call_agent, activated_at=utcnow())
             s.add(u)
             callers.append(u)
         await s.commit()

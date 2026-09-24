@@ -7,7 +7,7 @@ import { SOURCE_LABEL, SUPPORT } from "@/components/ui";
 import type { VoterFilters } from "@/features/voters/api";
 import type { Constituency, Source, Support } from "@/lib/types";
 
-const pill = "h-10 rounded-xl border border-line bg-white px-3 text-sm text-navy-900 focus:border-ocean focus:outline-none focus:ring-4 focus:ring-ocean/10";
+const pill = "h-10 rounded-xl border border-line bg-white px-3 text-base text-navy-900 focus:border-ocean focus:outline-none focus:ring-4 focus:ring-ocean/10";
 
 export function VoterFiltersBar({ value, onChange, tree, hideStatus }: {
   value: VoterFilters;

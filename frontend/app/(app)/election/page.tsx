@@ -167,7 +167,7 @@ function Roster({ wardId, setWardId, stationsTurnout }: { wardId: string; setWar
               <li key={r.id} className="flex items-center gap-3 px-5 py-2.5">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-navy-900">{r.full_name}</p>
-                  <p className="text-[11px] text-muted">{r.reference} · <a href={`tel:${r.phone}`} className="text-ocean hover:underline">{r.phone}</a></p>
+                  <p className="text-xs text-muted">{r.reference} · <a href={`tel:${r.phone}`} className="text-ocean hover:underline">{r.phone}</a></p>
                 </div>
                 <SupportBadge support={r.support} />
                 {can.markVoted(user.role) && (

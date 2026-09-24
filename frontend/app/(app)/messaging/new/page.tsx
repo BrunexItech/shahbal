@@ -144,7 +144,7 @@ export default function ComposeMessagePage() {
                   <span className="mr-1 text-xs text-muted">Insert:</span>
                   {PLACEHOLDERS.map(([token, label]) => (
                     <button key={token} type="button" onClick={() => insert(token)}
-                      className="rounded-lg bg-ocean-50 px-2 py-1 text-[11px] font-semibold text-ocean ring-1 ring-ocean/15 hover:bg-ocean/10">{label}</button>
+                      className="rounded-lg bg-ocean-50 px-2 py-1 text-xs font-semibold text-ocean ring-1 ring-ocean/15 hover:bg-ocean/10">{label}</button>
                   ))}
                 </div>
                 <Textarea ref={bodyRef} label="Text" required rows={5} maxLength={1000} value={body} error={errors.body} onChange={(e) => setBody(e.target.value)} />

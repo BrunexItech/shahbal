@@ -21,7 +21,7 @@ export function Stepper({ steps, current }: { steps: string[]; current: number }
               >
                 {done ? <Check className="size-4" strokeWidth={3} /> : i + 1}
               </span>
-              <span className={cn("text-[11px] font-semibold whitespace-nowrap max-sm:hidden", active ? "text-navy-900" : "text-muted")}>{label}</span>
+              <span className={cn("text-xs font-semibold whitespace-nowrap max-sm:hidden", active ? "text-navy-900" : "text-muted")}>{label}</span>
             </div>
             {i < steps.length - 1 && (
               <div className="mx-2 mb-5 h-0.5 flex-1 overflow-hidden rounded-full bg-slate-100 max-sm:mb-0">

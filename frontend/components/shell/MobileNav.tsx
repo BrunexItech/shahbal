@@ -18,7 +18,7 @@ export function MobileNav({ role }: { role: Role }) {
           const active = isActive(pathname, href);
           const primary = href === "/voters/new";
           return (
-            <Link key={href} href={href} className={cn("flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-medium", active ? "text-gold" : "text-slate-400")}>
+            <Link key={href} href={href} className={cn("flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium", active ? "text-gold" : "text-slate-400")}>
               <span className={cn("grid place-items-center", primary && "-mt-5 size-12 rounded-2xl bg-kenya-green text-white shadow-lg shadow-kenya-green/40")}>
                 <Icon className="size-5" />
               </span>

@@ -10,7 +10,7 @@ class Role(str, enum.Enum):
     ward_coordinator = "ward_coordinator"  # one ward
     field_agent = "field_agent"  # captures in one ward, sees own captures
     call_agent = "call_agent"  # county-wide queue, masked PII
-    viewer = "viewer"  # read-only war room
+    viewer = "viewer"  # read-only Command Centre
 
 
 ADMINS = {Role.super_admin}
@@ -28,3 +28,13 @@ PORTAL_ROLES: dict[str, set[Role]] = {
 
 def portal_for(role: Role) -> str:
     return next(p for p, roles in PORTAL_ROLES.items() if role in roles)
+
+
+ROLE_LABELS: dict[Role, str] = {
+    Role.super_admin: "HQ Administrator",
+    Role.coordinator: "Constituency Coordinator",
+    Role.ward_coordinator: "Ward Coordinator",
+    Role.field_agent: "Field Agent",
+    Role.call_agent: "Call Centre Agent",
+    Role.viewer: "Observer",
+}

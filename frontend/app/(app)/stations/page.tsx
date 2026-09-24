@@ -50,8 +50,8 @@ export default function StationsPage() {
       <Card className="overflow-hidden">
         <div className="flex flex-wrap gap-2 border-b border-line p-4">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or code"
-            className="h-10 min-w-60 flex-1 rounded-xl border border-line px-3 text-sm focus:border-ocean focus:outline-none focus:ring-4 focus:ring-ocean/10" />
-          <select value={wardId} onChange={(e) => setWardId(e.target.value)} className="h-10 rounded-xl border border-line bg-white px-3 text-sm">
+            className="h-10 min-w-60 flex-1 rounded-xl border border-line px-3 text-base focus:border-ocean focus:outline-none focus:ring-4 focus:ring-ocean/10" />
+          <select value={wardId} onChange={(e) => setWardId(e.target.value)} className="h-10 rounded-xl border border-line bg-white px-3 text-base">
             <option value="">All wards</option>
             {tree?.map((c) => (
               <optgroup key={c.id} label={c.name}>{c.wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</optgroup>
@@ -64,7 +64,7 @@ export default function StationsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-slate-50/70 text-left text-[11px] font-semibold tracking-wider text-muted uppercase">
+                <tr className="border-b border-line bg-slate-50/70 text-left text-xs font-semibold tracking-wider text-muted uppercase">
                   <th className="px-5 py-3">Station</th><th className="px-3 py-3">Code</th><th className="px-3 py-3">Ward</th>
                   <th className="px-3 py-3 text-right">Streams</th><th className="px-3 py-3 text-right">Registered</th><th className="px-3 py-3">GPS</th><th className="px-5 py-3">Status</th>
                 </tr>
@@ -75,7 +75,7 @@ export default function StationsPage() {
                     onClick={() => can.manageStations(user.role) && setEditing(s)}>
                     <td className="px-5 py-3 font-semibold text-navy-900">{s.name}</td>
                     <td className="px-3 py-3 font-mono text-xs">{s.code}</td>
-                    <td className="px-3 py-3">{wards.get(s.ward_id)?.name}<p className="text-[11px] text-muted">{wards.get(s.ward_id)?.constituency}</p></td>
+                    <td className="px-3 py-3">{wards.get(s.ward_id)?.name}<p className="text-xs text-muted">{wards.get(s.ward_id)?.constituency}</p></td>
                     <td className="px-3 py-3 text-right tabular-nums">{s.streams}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{num(s.registered_voters)}</td>
                     <td className="px-3 py-3 text-xs">{s.latitude != null ? <span className="font-semibold text-kenya-green">Mapped</span> : <span className="text-muted">Needs pin</span>}</td>

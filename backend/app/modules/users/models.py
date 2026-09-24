@@ -31,6 +31,13 @@ class User(Base):
     # Denormalised so the per-request MFA-policy check needs no extra query.
     passkey_count: Mapped[int] = mapped_column(default=0)
 
+    # Invitation-only onboarding: an account works only after its invite is accepted.
+    activated_at: Mapped[datetime | None]
+    # Profile photo (encrypted in the vault; required for data collectors).
+    photo_path: Mapped[str | None] = mapped_column(String(80))
+    photo_sha256: Mapped[str | None] = mapped_column(String(64))
+    photo_updated_at: Mapped[datetime | None]
+
     @property
     def has_second_factor(self) -> bool:
         return self.totp_enabled or self.passkey_count > 0
@@ -52,3 +59,18 @@ class UserSession(Base):
     portal: Mapped[str] = mapped_column(String(10), default="command")  # command | field
     # Re-confirmed ("step-up") until: sensitive actions require this to be in the future.
     elevated_until: Mapped[datetime | None]
+
+
+class UserInvite(Base):
+    """Single-use, expiring invitation link bound to one account (and its email).
+    Only a SHA-256 of the token is stored, so a database leak yields no usable links."""
+
+    __tablename__ = "user_invites"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime]
+    used_at: Mapped[datetime | None]
+    revoked_at: Mapped[datetime | None]
+    failed_attempts: Mapped[int] = mapped_column(default=0)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

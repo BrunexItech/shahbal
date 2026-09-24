@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.core import crypto
 from app.core.db import SessionLocal
 from app.modules.users.models import User
-from tests.conftest import ADMIN, login, make_user, session_headers, voter_payload
+from tests.conftest import ADMIN, accept, invite, login, make_user, session_headers, voter_payload
 
 
 async def test_session_cookie_is_hardened(client):
@@ -46,9 +46,9 @@ async def test_unknown_email_and_wrong_password_look_identical(client):
 
 
 async def test_password_policy(client, admin, wards):
-    body = {"full_name": "Weak Pass", "email": "weak@campaign.co.ke", "role": "field_agent", "ward_id": wards["Tudor"].id}
+    created = await invite(client, admin, {"full_name": "Weak Pass", "email": "weak@campaign.co.ke", "role": "field_agent", "ward_id": wards["Tudor"].id})
     for pw in ("short1", "onlyletterslong", "password123", "weak12345678"):
-        r = await client.post("/api/v1/users", json={**body, "password": pw}, headers=admin)
+        r = await accept(client, created, password=pw)
         assert r.status_code == 422, pw
 
 

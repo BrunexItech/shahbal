@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from app.core.db import SessionLocal
 from app.modules.audit.models import AuditLog
-from tests.conftest import ADMIN, elevate, make_user, session_headers, voter_payload
+from tests.conftest import ADMIN, accept, elevate, invite, make_user, session_headers, voter_payload
 from tests.soft_authenticator import SoftAuthenticator
 
 
@@ -120,7 +120,7 @@ async def test_passkey_cannot_satisfy_another_accounts_second_factor(client, adm
 async def test_step_up_gates_sensitive_actions(client, admin, wards):
     tudor = wards["Tudor"]
     coord = await make_user(client, admin, "coordinator", constituency_id=tudor.constituency_id, email="c2@campaign.co.ke")
-    body = {"full_name": "New Agent", "email": "na@campaign.co.ke", "password": "Password!1", "role": "field_agent", "ward_id": tudor.id}
+    body = {"full_name": "New Agent", "email": "na@campaign.co.ke", "role": "field_agent", "ward_id": tudor.id}
     assert (await client.post("/api/v1/users", json=body, headers=coord)).status_code == 428
     bad = await client.post("/api/v1/auth/step-up/verify", json={"method": "password", "password": "nope-nope-1"}, headers=coord)
     assert bad.status_code == 401
@@ -165,8 +165,9 @@ async def test_new_device_alert(client, admin, wards, monkeypatch):
         sent.append((phone, text))
 
     monkeypatch.setattr("app.modules.auth.devices.send_system_sms", fake_sms)
-    await client.post("/api/v1/users", headers=admin, json={"full_name": "Alert Agent", "email": "alert@campaign.co.ke", "phone": "+254712000111",
-                                                             "password": "Password!1", "role": "field_agent", "ward_id": wards["Tudor"].id})
+    created = await invite(client, admin, {"full_name": "Alert Agent", "email": "alert@campaign.co.ke", "phone": "+254712000111",
+                                           "role": "field_agent", "ward_id": wards["Tudor"].id})
+    assert (await accept(client, created)).status_code == 200
     first = await client.post("/api/v1/auth/login", json={"email": "alert@campaign.co.ke", "password": "Password!1", "portal": "field"},
                               headers={"User-Agent": "Mozilla/5.0 (Linux; Android 14) Chrome/130.0"})
     device = first.cookies.get("chq_device")
@@ -200,8 +201,8 @@ async def test_portals_are_separate(client, admin, wards):
     """HQ and field staff can't sign in through each other's portal, and the
     wrong door looks exactly like a wrong password."""
     agent_email = "portal.agent@campaign.co.ke"
-    await client.post("/api/v1/users", headers=admin, json={"full_name": "Portal Agent", "email": agent_email,
-                                                             "password": "Password!1", "role": "field_agent", "ward_id": wards["Tudor"].id})
+    created = await invite(client, admin, {"full_name": "Portal Agent", "email": agent_email, "role": "field_agent", "ward_id": wards["Tudor"].id})
+    assert (await accept(client, created)).status_code == 200
     wrong = await client.post("/api/v1/auth/login", json={"email": agent_email, "password": "Password!1", "portal": "command"})
     bad_pw = await client.post("/api/v1/auth/login", json={"email": agent_email, "password": "Wrong-pass1", "portal": "field"})
     assert wrong.status_code == bad_pw.status_code == 401 and wrong.json() == bad_pw.json()

@@ -1,15 +1,23 @@
 import csv
 import io
+import secrets
+from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import select
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core import audit
+from app.core.clock import utcnow
+from app.core.db import get_session
 from app.core.deps import Ctx, any_user, require, require_step_up
+from app.core.ratelimit import client_ip
 from app.core.roles import ADMINS
 from app.core.scope import voter_scope
 from app.modules.audit.models import AuditLog
+from app.modules.auth.models import AuthChallenge, ChallengePurpose
 from app.modules.geo.models import Constituency, PollingStation, Ward
 from app.modules.mapping.project import build_project
 from app.modules.mapping.service import MapService, ward_boundaries
@@ -72,15 +80,48 @@ async def export_stations(ctx: Ctx = Depends(exporters)):
     return _geojson("polling-stations", await MapService(ctx).export_stations())
 
 
-@router.get("/export/project.geolibre.json")
-async def export_project(mode: str = Query("workspace", pattern="^(workspace|briefing)$"), ctx: Ctx = Depends(exporters)):
-    """One-click GIS Lab project: styled layers, popups and charts; `mode=briefing`
-    adds the per-constituency story map and opens as a presentation."""
+async def _project_response(ctx: Ctx, mode: str, via: str) -> JSONResponse:
     svc = MapService(ctx)
     project = build_project(await svc.export_wards(), await svc.export_grid(), await svc.export_stations(), briefing=mode == "briefing")
-    audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id=f"project:{mode}", ip=ctx.ip)
+    audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id=f"project:{mode}", ip=ctx.ip, via=via)
     await ctx.session.commit()
-    return JSONResponse(project, headers={"Content-Disposition": 'inline; filename="mombasa-campaign.geolibre.json"'})
+    return JSONResponse(project, headers={"Content-Disposition": 'inline; filename="mombasa-campaign.geolibre.json"', "Cache-Control": "no-store"})
+
+
+@router.get("/export/project.geolibre.json")
+async def export_project(mode: str = Query("workspace", pattern="^(workspace|briefing)$"), ctx: Ctx = Depends(exporters)):
+    """One-click GIS Lab project (same-origin, cookie session): styled layers, popups,
+    charts; `mode=briefing` adds the story map and opens as a presentation."""
+    return await _project_response(ctx, mode, "session")
+
+
+LINK_TTL_SECONDS = 120
+
+
+@router.post("/export/project-link")
+async def project_link(mode: str = Query("workspace", pattern="^(workspace|briefing)$"), ctx: Ctx = Depends(exporters)):
+    """A one-time, 2-minute link the GIS Lab can fetch from its own origin. Minting it
+    needs re-confirmation; the link dies on first use or expiry, whichever is first."""
+    token = secrets.token_urlsafe(32)
+    ctx.session.add(AuthChallenge(purpose=ChallengePurpose.gis_link, challenge=token.encode(), user_id=ctx.user.id,
+                                  meta={"mode": mode}, expires_at=utcnow() + timedelta(seconds=LINK_TTL_SECONDS)))
+    await ctx.session.commit()
+    return {"url": f"/map/export/linked/{token}.geolibre.json", "expires_in": LINK_TTL_SECONDS}
+
+
+@router.get("/export/linked/{token}.geolibre.json", include_in_schema=False)
+async def linked_project(token: str, request: Request, session: AsyncSession = Depends(get_session)):
+    ch = (await session.execute(select(AuthChallenge).where(AuthChallenge.challenge == token.encode(),
+                                                            AuthChallenge.purpose == ChallengePurpose.gis_link).with_for_update())).scalar_one_or_none()
+    if ch is None or ch.used_at is not None or ch.expires_at <= utcnow():
+        raise HTTPException(410, "This GIS Lab link has expired. Open the lab again from Campaign HQ.")
+    ch.used_at = utcnow()
+    user = await session.get(User, ch.user_id)
+    if user is None or not user.is_active or user.role not in ADMINS:
+        await session.commit()
+        raise HTTPException(403, "Not allowed")
+    ctx = Ctx(session=session, user=user, ip=client_ip(request))
+    return await _project_response(ctx, (ch.meta or {}).get("mode", "workspace"), "one-time-link")
 
 
 @router.get("/export/voters.csv")

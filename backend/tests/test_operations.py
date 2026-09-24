@@ -265,3 +265,18 @@ async def test_gis_project_is_aggregate_and_admin_only(client, admin, wards):
     assert (await client.get("/api/v1/auth/gis-access", headers=admin)).status_code == 204
     assert (await client.get("/api/v1/auth/gis-access", headers=agent)).status_code == 403
     assert (await client.get("/api/v1/auth/gis-access")).status_code == 401
+
+
+async def test_gis_one_time_link(client, admin, wards):
+    from app.core.config import settings
+
+    link = (await client.post("/api/v1/map/export/project-link", params={"mode": "briefing"}, headers=admin)).json()
+    assert link["expires_in"] == 120
+    client.cookies.clear()
+    # The lab fetches it from its own origin, with no session cookie.
+    r = await client.get(f"/api/v1{link['url']}", headers={"Origin": settings.gis_origin})
+    assert r.status_code == 200 and r.json()["storymap"]["chapters"]
+    assert r.headers["access-control-allow-origin"] == settings.gis_origin
+    assert (await client.get(f"/api/v1{link['url']}")).status_code == 410  # single use
+    agent = await make_user(client, admin, "field_agent", ward=wards["Tudor"])
+    assert (await client.post("/api/v1/map/export/project-link", headers=agent)).status_code == 403

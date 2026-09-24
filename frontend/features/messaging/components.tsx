@@ -29,8 +29,8 @@ export function ChipGroup<T extends string>({ options, value, onChange, label, e
   return (
     <div>
       <div className="mb-2 flex items-baseline justify-between">
-        <p className="text-[13px] font-semibold text-navy-900">{label}</p>
-        <p className="text-[11px] text-muted">{value.length ? `${value.length} selected` : empty ?? "All"}</p>
+        <p className="text-sm font-semibold text-navy-900">{label}</p>
+        <p className="text-xs text-muted">{value.length ? `${value.length} selected` : empty ?? "All"}</p>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {options.map((o) => {
@@ -62,7 +62,7 @@ export function PhonePreview({ text, channel, sender }: { text: string | null; c
         </div>
         <div className="min-h-[300px] px-3 py-4">
           {text ? (
-            <div className={cn("max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap shadow-sm",
+            <div className={cn("max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap shadow-sm",
               wa ? "rounded-tl-sm bg-white text-slate-900" : "rounded-bl-sm bg-slate-200 text-slate-900")}>
               {text}
             </div>

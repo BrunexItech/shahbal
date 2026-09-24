@@ -1,4 +1,4 @@
-"""War-room aggregates. Everything is computed in SQL and scoped to the caller's
+"""Command Centre aggregates. Everything is computed in SQL and scoped to the caller's
 area, so the same endpoint powers the county HQ screen and a ward coordinator's phone.
 
 Definitions (shown in the UI too):

@@ -60,7 +60,7 @@ async def test_coordinator_sees_only_constituency(client, admin, wards):
     # cannot promote someone to coordinator (even after re-confirming identity)
     await elevate(client, coord, "Password!1")
     r = await client.post("/api/v1/users", headers=coord, json={
-        "full_name": "Nope Nope", "email": "n@campaign.co.ke", "password": "Password!1",
+        "full_name": "Nope Nope", "email": "n@campaign.co.ke",
         "role": "coordinator", "constituency_id": tudor.constituency_id})
     assert r.status_code == 403
 

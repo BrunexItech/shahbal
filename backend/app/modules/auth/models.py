@@ -31,6 +31,7 @@ class ChallengePurpose(str, enum.Enum):
     login = "login"
     second_factor = "second_factor"
     step_up = "step_up"
+    gis_link = "gis_link"  # one-time signed GIS Lab project link
 
 
 class AuthChallenge(Base):

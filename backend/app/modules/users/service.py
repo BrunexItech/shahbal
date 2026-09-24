@@ -6,9 +6,9 @@ from app.core import audit
 from app.core.deps import Ctx
 from app.core.roles import Role
 from app.core.clock import utcnow
-from app.core.security import hash_password, password_problems
+from app.modules.users import onboarding
 from app.modules.geo.models import Ward
-from app.modules.users.models import User, UserSession
+from app.modules.users.models import User, UserInvite, UserSession
 from app.modules.users.schemas import UserCreate, UserUpdate
 
 async def revoke_all_sessions(session: AsyncSession, user_id: str, except_id: str | None = None) -> None:
@@ -73,10 +73,8 @@ class UserService:
         if role not in GRANTABLE.get(self.ctx.user.role, set()):
             raise HTTPException(403, f"You cannot assign the {role.value} role")
 
-    async def create(self, data: UserCreate) -> User:
+    async def create(self, data: UserCreate) -> tuple[User, str, UserInvite]:
         self._check_grant(data.role)
-        if problem := password_problems(data.password, data.email):
-            raise HTTPException(422, problem)
         exists = await self.s.execute(select(User.id).where(func.lower(User.email) == data.email.lower()))
         if exists.first():
             raise HTTPException(409, "A user with this email already exists")
@@ -85,16 +83,52 @@ class UserService:
             full_name=data.full_name.strip(),
             email=data.email.lower(),
             phone=data.phone,
-            password_hash=hash_password(data.password),
+            password_hash=onboarding.unusable_password(),
             role=data.role,
             constituency_id=constituency_id,
             ward_id=ward_id,
         )
         self.s.add(user)
         await self.s.flush()
-        audit.record(self.s, actor_id=self.ctx.user.id, action="CREATE", entity="user", entity_id=user.id,
+        token, inv = await onboarding.issue_invite(self.s, user, self.ctx.user)
+        audit.record(self.s, actor_id=self.ctx.user.id, action="INVITE", entity="user", entity_id=user.id,
                      ip=self.ctx.ip, role=data.role.value)
         await self.s.commit()
+        return user, token, inv
+
+    async def reinvite(self, user_id: str) -> tuple[User, str, UserInvite]:
+        """Resend the invitation, or reset access for an active account: the old
+        password stops working and every session ends until they accept again."""
+        user = (await self.s.execute(select(User).where(User.id == user_id, self._visible()))).scalar_one_or_none()
+        if user is None:
+            raise HTTPException(404, "User not found")
+        if user.id == self.ctx.user.id:
+            raise HTTPException(400, "Use My Account to change your own password")
+        self._check_grant(user.role)
+        if user.activated_at is not None:
+            user.password_hash = onboarding.unusable_password()
+            user.activated_at = None
+            await revoke_all_sessions(self.s, user.id)
+        token, inv = await onboarding.issue_invite(self.s, user, self.ctx.user)
+        audit.record(self.s, actor_id=self.ctx.user.id, action="INVITE", entity="user", entity_id=user.id, ip=self.ctx.ip, resend=True)
+        await self.s.commit()
+        return user, token, inv
+
+    async def revoke_invite(self, user_id: str) -> None:
+        user = (await self.s.execute(select(User).where(User.id == user_id, self._visible()))).scalar_one_or_none()
+        if user is None:
+            raise HTTPException(404, "User not found")
+        self._check_grant(user.role)
+        await onboarding.revoke_invites(self.s, user.id)
+        audit.record(self.s, actor_id=self.ctx.user.id, action="INVITE_REVOKE", entity="user", entity_id=user.id, ip=self.ctx.ip)
+        await self.s.commit()
+
+    async def visible_user(self, user_id: str) -> User:
+        if user_id in ("me", self.ctx.user.id):
+            return self.ctx.user
+        user = (await self.s.execute(select(User).where(User.id == user_id, self._visible()))).scalar_one_or_none()
+        if user is None:
+            raise HTTPException(404, "User not found")
         return user
 
     async def update(self, user_id: str, data: UserUpdate) -> User:
@@ -116,11 +150,7 @@ class UserService:
         for key in ("full_name", "phone", "is_active"):
             if key in fields:
                 setattr(user, key, fields[key])
-        if data.password:
-            if problem := password_problems(data.password, user.email):
-                raise HTTPException(422, problem)
-            user.password_hash = hash_password(data.password)
-        if data.password or data.is_active is False or "role" in fields:
+        if data.is_active is False or "role" in fields:
             # Access changed: force re-authentication everywhere.
             await revoke_all_sessions(self.s, user.id)
         audit.record(self.s, actor_id=self.ctx.user.id, action="UPDATE", entity="user", entity_id=user.id,

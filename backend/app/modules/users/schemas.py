@@ -19,13 +19,17 @@ class UserOut(BaseModel):
     last_login_at: datetime | None
     created_at: datetime
     totp_enabled: bool = False
+    status: str = "active"  # active | invited | disabled
+    has_photo: bool = False
+    invite_expires_at: datetime | None = None
 
 
 class UserCreate(BaseModel):
+    """No password: the person sets their own when they accept the invitation."""
+
     full_name: str = Field(min_length=3, max_length=120)
     email: EmailStr
     phone: str | None = None
-    password: str = Field(min_length=10, max_length=200)
     role: Role
     constituency_id: str | None = None
     ward_id: str | None = None
@@ -38,4 +42,24 @@ class UserUpdate(BaseModel):
     constituency_id: str | None = None
     ward_id: str | None = None
     is_active: bool | None = None
-    password: str | None = Field(default=None, min_length=10, max_length=200)
+
+
+class InviteOut(BaseModel):
+    url: str
+    expires_at: datetime
+    sent_via: list[str]
+    qr_svg: str  # scan on the new person's own phone during in-person onboarding
+
+
+class UserCreatedOut(BaseModel):
+    user: UserOut
+    invite: InviteOut
+
+
+class InvitePreview(BaseModel):
+    first_name: str
+    email_hint: str
+    role_label: str
+    photo_required: bool
+    expires_at: datetime
+    portal: str

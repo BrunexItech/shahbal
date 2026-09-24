@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Layers as LayersIcon, X } from "lucide-react";
+import { ArrowRight, Crosshair, Layers as LayersIcon, MapPinned, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -31,6 +31,12 @@ export default function MapPage() {
   const boundaries = useBoundaries();
   const [layers, setLayers] = useState<Layers>({ wards: true, visited: true, stations: true, visits: true, labels: true });
   const [selected, setSelected] = useState<string | null>(null);
+  const [focus, setFocus] = useState<{ lng: number; lat: number; key: string } | null>(null);
+  const recentVisits = useMemo(
+    () => [...(overview.data?.visits ?? [])].filter((v) => v.exact && v.lat != null)
+      .sort((a, b) => (b.checkin_at ?? "").localeCompare(a.checkin_at ?? "")).slice(0, 6),
+    [overview.data],
+  );
 
   const ward = overview.data?.wards.find((w) => w.id === selected) ?? null;
   const behind = useMemo(
@@ -42,14 +48,14 @@ export default function MapPage() {
   return (
     <>
       <PageHeader eyebrow="Command" title="Coverage map"
-        subtitle="Where the campaign is strong, where it has been, and where it needs to go next. Updates every 30 seconds." />
+        subtitle="Mombasa County: where the campaign is strong, exactly where the team has been, and where it needs to go next." />
       {overview.error || boundaries.error ? (
         <Card><ErrorState error={overview.error ?? boundaries.error} onRetry={() => { overview.refetch(); boundaries.refetch(); }} /></Card>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
-          <Card className="relative h-[calc(100vh-230px)] min-h-[520px] overflow-hidden">
+          <Card className="relative h-[62vh] min-h-[380px] overflow-hidden xl:h-[calc(100vh-230px)] xl:min-h-[520px]">
             {overview.data && boundaries.data ? (
-              <CoverageMap data={overview.data} boundaries={boundaries.data} layers={layers} selected={selected} onSelect={setSelected} />
+              <CoverageMap data={overview.data} boundaries={boundaries.data} layers={layers} selected={selected} onSelect={setSelected} focus={focus} />
             ) : (
               <Skeleton className="absolute inset-0 rounded-none" />
             )}
@@ -66,7 +72,7 @@ export default function MapPage() {
               <Card className="animate-fade-up overflow-hidden">
                 <div className="flex items-start justify-between gap-3 bg-navy-950 px-5 py-4 text-white">
                   <div>
-                    <p className="text-[11px] font-semibold tracking-wider text-gold uppercase">{ward.constituency}</p>
+                    <p className="text-xs font-semibold tracking-wider text-gold uppercase">{ward.constituency}</p>
                     <p className="font-display text-xl font-bold">{ward.name}</p>
                   </div>
                   <button onClick={() => setSelected(null)} className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white" aria-label="Close ward details">
@@ -91,7 +97,7 @@ export default function MapPage() {
                       ["Visits planned", num(ward.visits_upcoming)],
                     ].map(([k, v]) => (
                       <div key={k} className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-line">
-                        <dt className="text-[11px] text-muted">{k}</dt>
+                        <dt className="text-xs text-muted">{k}</dt>
                         <dd className="font-display text-lg font-bold text-navy-900 tabular-nums">{v}</dd>
                       </div>
                     ))}
@@ -107,7 +113,7 @@ export default function MapPage() {
               <Card>
                 <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
                   <p className="text-sm font-semibold text-navy-900">Furthest behind target</p>
-                  <span className="text-[11px] text-muted">Click to focus</span>
+                  <span className="text-xs text-muted">Click to focus</span>
                 </div>
                 <ul className="divide-y divide-line">
                   {behind.map((w) => (
@@ -127,6 +133,28 @@ export default function MapPage() {
               </Card>
             )}
 
+            <Card>
+              <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+                <p className="flex items-center gap-2 text-sm font-semibold text-navy-900"><MapPinned className="size-4" /> Where the team has been</p>
+                <span className="text-xs text-muted">Exact GPS</span>
+              </div>
+              {recentVisits.length ? (
+                <ul className="divide-y divide-line">
+                  {recentVisits.map((v) => (
+                    <li key={v.id}>
+                      <button onClick={() => setFocus({ lng: v.lng!, lat: v.lat!, key: `${v.id}-${Date.now()}` })} className="flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-slate-50">
+                        <Crosshair className="size-4 shrink-0 text-kenya-green" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-navy-900">{v.title}</p>
+                          <p className="truncate text-xs text-muted">{v.ward} · {v.checkin_by ?? "team"} · {v.checkin_at ? dateTime(v.checkin_at) : ""}</p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="px-5 py-5 text-sm text-muted">No GPS check-ins yet. When the team checks in to a visit, its exact location appears here.</p>}
+            </Card>
+
             <Card className="p-5">
               <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-navy-900"><LayersIcon className="size-4" /> Layers</p>
               <div className="space-y-2">
@@ -141,19 +169,19 @@ export default function MapPage() {
                 ))}
               </div>
 
-              <p className="mt-5 mb-2 text-[11px] font-semibold tracking-wider text-muted uppercase">Progress to target</p>
+              <p className="mt-5 mb-2 text-xs font-semibold tracking-wider text-muted uppercase">Progress to target</p>
               <div className="flex h-2.5 overflow-hidden rounded-full">
                 {RAMP.map(([stop, color]) => <span key={stop} className="flex-1" style={{ background: color }} />)}
               </div>
-              <div className="mt-1 flex justify-between text-[10px] text-muted tabular-nums"><span>0%</span><span>50%</span><span>100%+</span></div>
+              <div className="mt-1 flex justify-between text-xs text-muted tabular-nums"><span>0%</span><span>50%</span><span>100%+</span></div>
               <ul className="mt-4 space-y-1.5 text-xs text-slate-700">
                 <li className="flex items-center gap-2"><span className="h-2.5 w-5 rounded-sm bg-slate-200" /> No target set</li>
                 <li className="flex items-center gap-2"><span className="h-0 w-5 border-t-[3px] border-gold" /> Ward visited by the team</li>
                 <li className="flex items-center gap-2"><span className="size-3 rounded-full bg-navy-900 ring-2 ring-white" /> Polling station (size = captures)</li>
-                <li className="flex items-center gap-2"><span className="size-3 rounded-full bg-gold ring-2 ring-white" /> Upcoming visit</li>
-                <li className="flex items-center gap-2"><span className="size-3 rounded-full bg-kenya-green ring-2 ring-white" /> Completed visit</li>
+                <li className="flex items-center gap-2"><span className="size-3 rounded-full bg-kenya-green ring-4 ring-kenya-green/25" /> Visit, exact GPS where the team checked in</li>
+                <li className="flex items-center gap-2"><span className="size-3 rounded-full border-[3px] border-gold bg-white" /> Visit, planned location (not yet checked in)</li>
               </ul>
-              <p className="mt-4 text-[10px] leading-relaxed text-muted">Ward boundaries: IEBC. Base map © OpenFreeMap, © OpenStreetMap contributors.</p>
+              <p className="mt-4 text-xs leading-relaxed text-muted">Ward boundaries: IEBC. Base map © OpenFreeMap, © OpenStreetMap contributors.</p>
             </Card>
           </div>
         </div>
