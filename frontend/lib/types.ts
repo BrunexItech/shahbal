@@ -340,8 +340,15 @@ export interface MapWard {
   last_visit_at: string | null;
 }
 
+/** A place the team has actually been (all time); repeat visits within ≈110 m add up. */
+export interface VisitedPlace {
+  ward_id: string; ward: string; venue: string; lat: number; lng: number; count: number;
+  exact: boolean; last_at: string | null; attendance: number; titles: string[];
+}
+
 export interface MapOverview {
   wards: MapWard[];
+  places: VisitedPlace[];
   stations: { id: string; name: string; code: string; ward_id: string; lat: number; lng: number; registered_voters: number | null; captured: number }[];
   visits: {
     id: string; title: string; venue: string; status: VisitStatus; scheduled_at: string; ward_id: string; ward: string;
@@ -367,4 +374,23 @@ export interface SessionInfo {
   created_at: string;
   last_seen_at: string | null;
   current: boolean;
+}
+
+// ---- captures by area (Targets page) ---------------------------------------------
+export interface AreaMetrics {
+  captured: number; verified: number; supporters: number; today: number; week: number; prev_week: number;
+  target: number; gap: number; percent: number | null;
+}
+export interface StationBreakdown extends AreaMetrics { id: string; code: string; name: string; registered_voters: number | null }
+export interface WardBreakdown extends AreaMetrics {
+  id: string; code: string; name: string; registered_voters: number | null;
+  visits_done: number; visits_planned: number; last_visit_at: string | null;
+  stations: StationBreakdown[]; no_station: number;
+}
+export interface ConstituencyBreakdown extends AreaMetrics {
+  id: string; code: string; name: string; wards: WardBreakdown[]; stations: number; visited_wards: number; visits_done: number;
+}
+export interface Breakdown {
+  county: AreaMetrics & { wards: number; stations: number; visited_wards: number; visits_done: number; visits_planned: number };
+  constituencies: ConstituencyBreakdown[];
 }

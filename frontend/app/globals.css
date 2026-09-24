@@ -105,3 +105,7 @@ html { font-size: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; 
 /* MapLibre controls follow the 12px floor. */
 .maplibregl-ctrl-scale { font-size: 12px !important; }
 .maplibregl-ctrl-attrib { font-size: 12px !important; }
+
+/* Horizontal chip rails (section navigator): scrollable by touch/trackpad, no visible bar. */
+.scroll-thin { scrollbar-width: none; }
+.scroll-thin::-webkit-scrollbar { display: none; }

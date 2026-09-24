@@ -126,6 +126,12 @@ async def test_visit_checkin_complete_and_scope(client, admin, wards):
     assert r.json()["status"] == "completed" and r.json()["attendance"] == 240
     wards_map = {w["name"]: w for w in (await client.get("/api/v1/map/overview", headers=admin)).json()["wards"]}
     assert wards_map["Tudor"]["visits_completed"] == 1 and wards_map["Bamburi"]["visits_completed"] == 0
+    # A second visit ~20 m away counts as the same place, visited twice.
+    v2 = (await client.post("/api/v1/visits", headers=admin, json={
+        "title": "Follow-up", "ward_id": tudor.id, "venue": "Tudor estate", "scheduled_at": when, "announce": False})).json()
+    await client.post(f"/api/v1/visits/{v2['id']}/checkin", json={"latitude": -4.0501, "longitude": 39.6701}, headers=agent)
+    places = (await client.get("/api/v1/map/overview", headers=admin)).json()["places"]
+    assert len(places) == 1 and places[0]["count"] == 2 and places[0]["exact"] and places[0]["attendance"] == 240
     past = (await client.post("/api/v1/visits", headers=admin, json={
         "title": "Past", "ward_id": tudor.id, "venue": "x1", "scheduled_at": "2020-01-01T10:00:00+03:00"}))
     assert past.status_code == 422
@@ -212,6 +218,22 @@ async def test_gis_exports_are_aggregate_and_suppress_small_cells(client, admin,
     assert sum(f["properties"]["wards"] for f in c["features"]) == 30
     agent = await make_user(client, admin, "field_agent", ward=wards["Tudor"])
     assert (await client.get("/api/v1/map/export/wards.geojson", headers=agent)).status_code == 403
+
+
+async def test_area_breakdown_rolls_up_and_is_scoped(client, admin, wards):
+    tudor = wards["Tudor"]
+    await client.patch(f"/api/v1/geo/wards/{tudor.id}", json={"target": 10}, headers=admin)
+    await client.post("/api/v1/voters", headers=admin, json=voter_payload(tudor, national_id="30000001", support="supporter"))
+    await client.post("/api/v1/voters", headers=admin, json=voter_payload(wards["Bamburi"], national_id="30000002", phone="0712000002"))
+    b = (await client.get("/api/v1/dashboard/breakdown", headers=admin)).json()
+    assert b["county"]["captured"] == 2 and b["county"]["wards"] == 30 and len(b["constituencies"]) == 6
+    mvita = next(c for c in b["constituencies"] if c["name"] == "Mvita")
+    t = next(w for w in mvita["wards"] if w["name"] == "Tudor")
+    assert (t["captured"], t["supporters"], t["today"], t["target"], t["gap"], t["percent"]) == (1, 1, 1, 10, 9, 10.0)
+    assert t["no_station"] == 1 and mvita["captured"] == 1
+    agent = await make_user(client, admin, "field_agent", ward=tudor)
+    mine = (await client.get("/api/v1/dashboard/breakdown", headers=agent)).json()
+    assert [w["name"] for c in mine["constituencies"] for w in c["wards"]] == ["Tudor"] and mine["county"]["captured"] == 0
 
 
 async def test_csv_export_masks_ids_and_defuses_formulas(client, admin, wards):

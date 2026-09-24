@@ -1,10 +1,12 @@
 "use client";
 
-import { Trophy } from "lucide-react";
+import { ArrowRight, Trophy } from "lucide-react";
+import Link from "next/link";
 
 import { Skeleton } from "@/components/loaders";
 import { Card, CardHeader, EmptyState, ErrorState, PageHeader, SOURCE_LABEL, SUPPORT } from "@/components/ui";
 import { LiveDot } from "@/components/ui/Motion";
+import { SectionNav, SectionTitle } from "@/components/ui/SectionNav";
 import { Avatar } from "@/components/ui/Avatar";
 import { useDashboard } from "@/features/dashboard/api";
 import { BarList } from "@/features/dashboard/components/BarList";
@@ -17,7 +19,14 @@ import { useLive } from "@/lib/live";
 import { can } from "@/lib/roles";
 import type { Source, Support } from "@/lib/types";
 
-const SECTIONS = [["trends", "Trends"], ["insights", "Insights"], ["wards", "Wards"], ["supporters", "Supporters"], ["team", "Field team"], ["activity", "Live"]] as const;
+const SECTIONS = [
+  { id: "trends", label: "Trends", hint: "Headline numbers and daily captures" },
+  { id: "insights", label: "Insights", hint: "What the numbers mean, in plain language" },
+  { id: "wards", label: "Wards", hint: "Targets and gaps for every ward" },
+  { id: "supporters", label: "Supporters", hint: "Support mix and capture channels" },
+  { id: "team", label: "Field team", hint: "Top agents this week" },
+  { id: "activity", label: "Live", hint: "Activity feed and call wall" },
+] as const;
 
 export default function AnalyticsPage() {
   const user = useUser();
@@ -33,14 +42,11 @@ export default function AnalyticsPage() {
   return (
     <>
       <PageHeader eyebrow="Command" title="Analytics" subtitle="The detail behind the Command Centre. Every figure is live from the campaign database." />
-      <nav className="sticky top-16 z-10 -mx-4 mb-6 flex gap-1 overflow-x-auto border-b border-line bg-canvas/90 px-4 py-2 backdrop-blur sm:mx-0 sm:rounded-xl sm:border sm:bg-white/90 sm:px-2">
-        {SECTIONS.map(([id, label]) => (
-          <a key={id} href={`#${id}`} className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-navy-900">{label}</a>
-        ))}
-      </nav>
+      <SectionNav sections={SECTIONS} label="Analytics" />
 
-      <div className="space-y-8">
-        <section id="trends" className="scroll-mt-32 space-y-4">
+      <div className="space-y-12">
+        <section id="trends" className="scroll-mt-36 space-y-4">
+          <SectionTitle n={1} title="Trends" hint="Headline numbers and the last 14 days of captures." />
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <KpiTile cap="green" label="Verified supporters" value={d.totals.verified} foot={<span className="text-xs text-muted">{pct(d.totals.achieved ? (d.totals.verified / d.totals.achieved) * 100 : null)} of live records</span>} />
             <KpiTile cap="ocean" label="Messages today" value={pulse?.messages_today ?? d.ops.messages_today} foot={<span className="text-xs text-muted">{num(d.ops.delivered_today)} delivered</span>} />
@@ -53,19 +59,23 @@ export default function AnalyticsPage() {
           </Card>
         </section>
 
-        <section id="insights" className="scroll-mt-32">
-          <h2 className="mb-3 text-base font-bold text-navy-900">All insights</h2>
+        <section id="insights" className="scroll-mt-36">
+          <SectionTitle n={2} title="Insights" hint="What the numbers mean, most urgent first." />
           <InsightCards cards={d.insights.cards} />
         </section>
 
-        <section id="wards" className="scroll-mt-32">
+        <section id="wards" className="scroll-mt-36">
+          <SectionTitle n={3} title="Wards" hint="Targets and gaps for all 30 wards."
+            action={<Link href="/targets" className="inline-flex items-center gap-1 text-sm font-semibold text-ocean hover:underline">Full breakdown by polling station <ArrowRight className="size-4" /></Link>} />
           <Card className="overflow-hidden">
             <CardHeader title="Ward targets & gaps" subtitle="Sorted by largest gap. Click a column to re-sort." />
             <WardTable wards={d.wards} />
           </Card>
         </section>
 
-        <section id="supporters" className="grid scroll-mt-32 gap-6 md:grid-cols-2">
+        <section id="supporters" className="scroll-mt-36">
+          <SectionTitle n={4} title="Supporters" hint="How people lean, and how they reached us." />
+          <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader title="Support mix" />
             <div className="p-5"><BarList color="bg-kenya-green" rows={(Object.keys(SUPPORT) as Support[]).map((s) => ({ key: s, label: SUPPORT[s][1], value: d.by_support[s] ?? 0 }))} /></div>
@@ -74,9 +84,11 @@ export default function AnalyticsPage() {
             <CardHeader title="Capture channel" />
             <div className="p-5"><BarList color="bg-ocean" rows={(Object.keys(SOURCE_LABEL) as Source[]).map((s) => ({ key: s, label: SOURCE_LABEL[s], value: d.by_source[s] ?? 0 }))} /></div>
           </Card>
+          </div>
         </section>
 
-        <section id="team" className="scroll-mt-32">
+        <section id="team" className="scroll-mt-36">
+          <SectionTitle n={5} title="Field team" hint="Who captured the most people in the last 7 days." />
           <Card>
             <CardHeader title="Top field agents" subtitle="Captures in the last 7 days" />
             {d.top_agents.length ? (
@@ -98,7 +110,9 @@ export default function AnalyticsPage() {
           </Card>
         </section>
 
-        <section id="activity" className="grid scroll-mt-32 gap-6 xl:grid-cols-2">
+        <section id="activity" className="scroll-mt-36">
+          <SectionTitle n={6} title="Live" hint="Everything happening right now, as it happens." />
+          <div className="grid gap-6 xl:grid-cols-2">
           <Card className="overflow-hidden">
             <CardHeader title="Live activity" action={<LiveDot on={connected} className="mt-1" />} />
             <LiveActivity events={events} />
@@ -107,6 +121,7 @@ export default function AnalyticsPage() {
             <CardHeader title="Call centre, live" subtitle="Who is on a call right now" />
             <CallWall calls={calls} />
           </Card>
+          </div>
         </section>
       </div>
     </>

@@ -93,8 +93,10 @@ class MapService:
             .where(Visit.ward_id.in_(allowed), Visit.status != VisitStatus.cancelled, Visit.scheduled_at >= local_midnight(60))
             .order_by(Visit.scheduled_at)
         )).all()
+        places = await self._places(allowed)
         return {
             "wards": wards,
+            "places": places,
             "stations": [{"id": i, "name": n, "code": c, "ward_id": w, "lat": la, "lng": lo, "registered_voters": r, "captured": k}
                          for i, n, c, w, la, lo, r, k in stations],
             # `exact` = the team's own GPS at check-in; otherwise the planned polling station.
@@ -103,6 +105,37 @@ class MapService:
                         "completed_at": co.isoformat() if co else None, "attendance": att}
                        for i, t, v, s, at, w, la, lo, ex, ca, cb, co, att, wn in visits],
         }
+
+    async def _places(self, allowed: set[str]) -> list[dict]:
+        """Every place the team has actually been (all time), with how many times.
+
+        A visit counts once it is checked in or completed. Its location is the team's
+        GPS at check-in, else the planned polling station. Visits within ≈110 m of each
+        other are one place, so repeat visits to the same market or school add up."""
+        rows = (await self.s.execute(
+            select(Visit.ward_id, Ward.name, Visit.title, Visit.venue, Visit.status,
+                   func.coalesce(Visit.checkin_lat, PollingStation.latitude), func.coalesce(Visit.checkin_lng, PollingStation.longitude),
+                   Visit.checkin_lat.is_not(None), func.coalesce(Visit.completed_at, Visit.checkin_at), Visit.attendance)
+            .outerjoin(PollingStation, PollingStation.id == Visit.station_id)
+            .join(Ward, Ward.id == Visit.ward_id)
+            .where(Visit.ward_id.in_(allowed), Visit.status.in_((VisitStatus.completed, VisitStatus.in_progress)))
+            .order_by(func.coalesce(Visit.completed_at, Visit.checkin_at).desc())
+        )).all()
+        places: dict[tuple, dict] = {}
+        for wid, wname, title, venue, status, lat, lng, exact, at, att in rows:
+            if lat is None or lng is None:
+                continue
+            key = (wid, round(lat, 3), round(lng, 3))
+            p = places.get(key)
+            if p is None:  # rows are newest first, so the first one names the place
+                p = places[key] = {"ward_id": wid, "ward": wname, "venue": venue, "lat": lat, "lng": lng, "count": 0,
+                                   "exact": False, "last_at": at.isoformat() if at else None, "attendance": 0, "titles": []}
+            p["count"] += 1
+            p["exact"] = p["exact"] or bool(exact)
+            p["attendance"] += att or 0
+            if len(p["titles"]) < 3:
+                p["titles"].append(title)
+        return sorted(places.values(), key=lambda p: -p["count"])
 
     # ---- GIS Lab exports (aggregates only) ----------------------------------------
     async def export_wards(self) -> dict:

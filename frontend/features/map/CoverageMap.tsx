@@ -25,10 +25,25 @@ const FILL = [
   ["interpolate", ["linear"], ["min", ["get", "percent"], 100], ...RAMP.flat()],
 ] as unknown as ExpressionSpecification;
 
+/** Sequential ocean ramp for how many times the team has been to a ward (0 = neutral, never visited). */
+export const VISIT_STEPS: [number, string, string][] = [
+  [0, "#f4f5f7", "Never"],
+  [1, "#9dd2e8", "1"],
+  [2, "#4fb0d4", "2"],
+  [3, "#1587b3", "3–4"],
+  [5, "#07506b", "5+"],
+];
+
+const VISIT_FILL = [
+  "step", ["get", "visits"], VISIT_STEPS[0][1], ...VISIT_STEPS.slice(1).flatMap(([v, c]) => [v, c]),
+] as unknown as ExpressionSpecification;
+
+export type MapMode = "visits" | "progress";
 export type Layers = { wards: boolean; visited: boolean; stations: boolean; visits: boolean; labels: boolean };
 
-export function CoverageMap({ data, boundaries, layers, selected, onSelect, focus }: {
+export function CoverageMap({ data, boundaries, layers, selected, onSelect, focus, mode = "visits" }: {
   data: MapOverview;
+  mode?: MapMode;
   boundaries: FeatureCollection;
   layers: Layers;
   selected: string | null;
@@ -55,7 +70,10 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
         return {
           ...f,
           id: i,
-          properties: { ...f.properties, ward_id: w.id, percent: w.target ? w.percent : null, achieved: w.achieved, target: w.target, visited: w.visits_completed > 0 },
+          properties: {
+            ...f.properties, ward_id: w.id, percent: w.target ? w.percent : null, achieved: w.achieved, target: w.target,
+            visited: w.visits_completed > 0, visits: w.visits_completed, last_visit: w.last_visit_at ?? "",
+          },
         };
       }),
   }), [boundaries, byCode]);
@@ -71,7 +89,7 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
 
   const visitFc = useMemo<FeatureCollection>(() => ({
     type: "FeatureCollection",
-    features: data.visits.filter((v) => v.lat != null && v.lng != null).map((v) => ({
+    features: data.visits.filter((v) => v.lat != null && v.lng != null && v.status === "scheduled").map((v) => ({
       type: "Feature",
       properties: {
         title: v.title, status: v.status, when: v.scheduled_at, exact: v.exact, ward: v.ward, venue: v.venue,
@@ -80,6 +98,15 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
       geometry: { type: "Point", coordinates: [v.lng!, v.lat!] },
     })),
   }), [data.visits]);
+
+  const placeFc = useMemo<FeatureCollection>(() => ({
+    type: "FeatureCollection",
+    features: data.places.map((p) => ({
+      type: "Feature",
+      properties: { venue: p.venue, ward: p.ward, count: p.count, exact: p.exact, last: p.last_at ?? "", attendance: p.attendance, titles: p.titles.join(" · ") },
+      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+    })),
+  }), [data.places]);
 
   // Create the map once.
   useEffect(() => {
@@ -99,11 +126,17 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
       m.addSource("wards", { type: "geojson", data: empty });
       m.addSource("stations", { type: "geojson", data: empty });
       m.addSource("visits", { type: "geojson", data: empty });
+      m.addSource("places", { type: "geojson", data: empty });
       m.addLayer({
         id: "ward-fill", type: "fill", source: "wards",
         paint: { "fill-color": FILL, "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.92, 0.78] },
       });
       m.addLayer({ id: "ward-line", type: "line", source: "wards", paint: { "line-color": "#ffffff", "line-width": 1.5 } });
+      // Visits view: wards nobody has been to yet get a dashed red outline, so gaps jump out.
+      m.addLayer({
+        id: "ward-never", type: "line", source: "wards", filter: ["==", ["get", "visits"], 0],
+        paint: { "line-color": "#bb1e10", "line-width": 1.6, "line-dasharray": [2, 1.5], "line-opacity": 0.8 },
+      });
       m.addLayer({ id: "ward-visited", type: "line", source: "wards", filter: ["==", ["get", "visited"], true], paint: { "line-color": "#c9a227", "line-width": 3 } });
       m.addLayer({ id: "ward-selected", type: "line", source: "wards", filter: ["==", ["get", "ward_id"], ""], paint: { "line-color": "#0b1f3a", "line-width": 3.5 } });
       m.addLayer({
@@ -118,11 +151,25 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
           "circle-color": "#0b1f3a", "circle-opacity": 0.85, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
         },
       });
-      // Exact GPS check-ins get a halo; planned/approximate locations are hollow.
+      // Places the team has been: size and number = how many times.
       m.addLayer({
-        id: "visits-halo", type: "circle", source: "visits", filter: ["==", ["get", "exact"], true],
-        paint: { "circle-radius": 16, "circle-color": ["match", ["get", "status"], "completed", "#006b3f", "in_progress", "#0b7fa6", "#c9a227"], "circle-opacity": 0.22 },
+        id: "places-halo", type: "circle", source: "places",
+        paint: { "circle-radius": ["+", 10, ["*", 4, ["sqrt", ["get", "count"]]]], "circle-color": "#006b3f", "circle-opacity": 0.18 },
       });
+      m.addLayer({
+        id: "places", type: "circle", source: "places",
+        paint: {
+          "circle-radius": ["+", 6, ["*", 3, ["sqrt", ["get", "count"]]]],
+          "circle-color": ["case", ["get", "exact"], "#006b3f", "#7a8a99"],
+          "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.5,
+        },
+      });
+      m.addLayer({
+        id: "places-count", type: "symbol", source: "places",
+        layout: { "text-field": ["to-string", ["get", "count"]], "text-size": 12, "text-font": ["Noto Sans Bold"], "text-allow-overlap": true },
+        paint: { "text-color": "#ffffff" },
+      });
+      // Planned visits: hollow pins at the planned location.
       m.addLayer({
         id: "visits", type: "circle", source: "visits",
         paint: {
@@ -146,14 +193,27 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
         hovered = f.id;
         if (hovered !== undefined) m.setFeatureState({ source: "wards", id: hovered }, { hover: true });
         m.getCanvas().style.cursor = "pointer";
-        const p = f.properties as { name: string; percent: number | null; achieved: number; target: number };
+        const p = f.properties as { name: string; percent: number | null; achieved: number; target: number; visits: number };
+        const visits = p.visits ? `visited ${p.visits} ${p.visits === 1 ? "time" : "times"}` : "not visited yet";
         show(e.lngLat, p.name, p.target
-          ? `${p.achieved.toLocaleString()} of ${p.target.toLocaleString()} · ${p.percent ?? 0}%`
-          : `${p.achieved.toLocaleString()} captured · no target set`);
+          ? `${visits} · ${p.achieved.toLocaleString()} of ${p.target.toLocaleString()} captured (${p.percent ?? 0}%)`
+          : `${visits} · ${p.achieved.toLocaleString()} captured`);
       });
       m.on("mouseleave", "ward-fill", () => {
         if (hovered !== undefined) m.setFeatureState({ source: "wards", id: hovered }, { hover: false });
         hovered = undefined;
+        m.getCanvas().style.cursor = "";
+        popup.remove();
+      });
+      m.on("mouseenter", "places", (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const p = f.properties as { venue: string; ward: string; count: number; last: string; exact: boolean };
+        m.getCanvas().style.cursor = "pointer";
+        show((f.geometry as Point).coordinates as [number, number], p.venue,
+          `${p.ward} · visited ${p.count} ${Number(p.count) === 1 ? "time" : "times"}${p.last ? ` · last ${fmt(p.last)}` : ""}`);
+      });
+      m.on("mouseleave", "places", () => {
         m.getCanvas().style.cursor = "";
         popup.remove();
       });
@@ -173,11 +233,17 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
         });
       }
       m.on("click", "ward-fill", (e) => {
-        if (m.queryRenderedFeatures(e.point, { layers: ["visits"] }).length) return; // a visit pin was clicked
+        if (m.queryRenderedFeatures(e.point, { layers: ["visits", "places"] }).length) return; // a pin was clicked
         onSelectRef.current(String(e.features?.[0]?.properties?.ward_id ?? "") || null);
       });
       // Click a visit: pinned details card (who, when, attendance, exact vs approximate).
       const pin = new maplibregl.Popup({ closeButton: true, offset: 14, className: "chq-popup", maxWidth: "280px" });
+      m.on("click", "places", (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        popup.remove();
+        pin.setLngLat((f.geometry as Point).coordinates as [number, number]).setDOMContent(placeCard(f.properties as Record<string, unknown>)).addTo(m);
+      });
       m.on("click", "visits", (e) => {
         const f = e.features?.[0];
         if (!f) return;
@@ -208,7 +274,8 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
     (m.getSource("wards") as GeoJSONSource).setData(wardFc);
     (m.getSource("stations") as GeoJSONSource).setData(stationFc);
     (m.getSource("visits") as GeoJSONSource).setData(visitFc);
-  }, [loaded, wardFc, stationFc, visitFc]);
+    (m.getSource("places") as GeoJSONSource).setData(placeFc);
+  }, [loaded, wardFc, stationFc, visitFc, placeFc]);
 
   // Fit to what the viewer can see: a ward coordinator gets their ward, HQ the whole county.
   const fitted = useRef(false);
@@ -231,9 +298,17 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
     m.setLayoutProperty("ward-visited", "visibility", vis(layers.visited));
     m.setLayoutProperty("stations", "visibility", vis(layers.stations));
     m.setLayoutProperty("visits", "visibility", vis(layers.visits));
-    m.setLayoutProperty("visits-halo", "visibility", vis(layers.visits));
+    for (const id of ["places", "places-halo", "places-count"]) m.setLayoutProperty(id, "visibility", vis(layers.visits));
     m.setLayoutProperty("ward-label", "visibility", vis(layers.labels));
   }, [loaded, layers]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!loaded || !m) return;
+    m.setPaintProperty("ward-fill", "fill-color", mode === "visits" ? VISIT_FILL : FILL);
+    m.setLayoutProperty("ward-visited", "visibility", mode === "progress" && layers.visited ? "visible" : "none");
+    m.setLayoutProperty("ward-never", "visibility", mode === "visits" && layers.wards ? "visible" : "none");
+  }, [loaded, mode, layers.visited, layers.wards]);
 
   useEffect(() => {
     const m = map.current;
@@ -261,6 +336,37 @@ const fmt = (iso: string) => new Date(iso).toLocaleString("en-KE", { dateStyle: 
 function visitLine(p: Record<string, unknown>) {
   const status = String(p.status).replace("_", " ");
   return p.exact ? `${status} · exact GPS check-in · click for details` : `${status} · ${fmt(String(p.when))} · planned location`;
+}
+
+/** Pinned place details: how many times the team has been here, and what happened. */
+function placeCard(p: Record<string, unknown>) {
+  const rows: [string, string][] = [
+    ["Ward", String(p.ward)],
+    ["Times visited", String(p.count)],
+    ["Last visit", p.last ? fmt(String(p.last)) : "—"],
+    ["Total attendance", Number(p.attendance) ? Number(p.attendance).toLocaleString() : "not recorded"],
+    ["Location", p.exact ? "Exact GPS at check-in" : "Planned polling station"],
+    ["Recent visits", String(p.titles)],
+  ];
+  return detailCard(String(p.venue), rows);
+}
+
+function detailCard(title: string, rows: [string, string][]) {
+  const wrap = document.createElement("div");
+  const t = document.createElement("p");
+  t.className = "mb-1.5 text-sm font-semibold text-white";
+  t.textContent = title;
+  wrap.append(t);
+  for (const [k, v] of rows) {
+    const r = document.createElement("p");
+    r.className = "text-xs leading-5 text-slate-300";
+    const b = document.createElement("span");
+    b.className = "text-slate-500";
+    b.textContent = `${k}: `;
+    r.append(b, document.createTextNode(v));
+    wrap.append(r);
+  }
+  return wrap;
 }
 
 /** Pinned visit details, built from DOM nodes (textContent only). */
