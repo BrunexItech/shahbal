@@ -255,7 +255,9 @@ async def test_gis_project_is_aggregate_and_admin_only(client, admin, wards):
     wl = p["layers"][1]
     assert wl["style"]["vectorStyleMode"] == "graduated" and wl["style"]["vectorStyleProperty"] == "percent"
     assert len(wl["geojson"]["features"]) == 30 and wl["capabilities"]["update"] is False
-    assert len(p["storymap"]["chapters"]) == 7  # county + 6 constituencies
+    assert "storymap" not in p  # workspace mode opens straight into analysis
+    brief = (await client.get("/api/v1/map/export/project.geolibre.json", params={"mode": "briefing"}, headers=admin)).json()
+    assert len(brief["storymap"]["chapters"]) == 7  # county + 6 constituencies
     text = str(p)
     assert "Amina" not in text and "+2547" not in text and "61234567" not in text
     agent = await make_user(client, admin, "field_agent", ward=wards["Tudor"])

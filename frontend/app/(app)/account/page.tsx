@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { SkeletonRows, Spinner } from "@/components/loaders";
 import { Badge, Button, Card, CardHeader, Input, PageHeader } from "@/components/ui";
 import { changePassword, disableTotp, enableTotp, startTotp, useRevokeOthers, useSessions } from "@/features/account/api";
+import { PasskeysCard } from "@/features/account/PasskeysCard";
 import { useAuth, useUser } from "@/lib/auth";
 import { dateTime, timeAgo } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/roles";
@@ -19,10 +20,11 @@ export default function AccountPage() {
       {user.mfa_setup_required && (
         <div className="mb-6 flex gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
           <ShieldAlert className="mt-0.5 size-5 shrink-0" />
-          <p><b>Two-step verification is required for your role.</b> Set it up below to unlock the rest of the system.</p>
+          <p><b>Two-step verification is required for your role.</b> Add a passkey (fingerprint or face) or an authenticator app below to unlock the rest of the system.</p>
         </div>
       )}
       <div className="grid gap-6 xl:grid-cols-2">
+        <PasskeysCard />
         <TwoFactorCard />
         <PasswordCard />
         <SessionsCard />
@@ -54,7 +56,7 @@ function TwoFactorCard() {
   const enabled = !!user.totp_enabled;
   return (
     <Card>
-      <CardHeader title="Two-step verification" subtitle="A 6-digit code from an authenticator app (Google Authenticator, Microsoft Authenticator, Authy) on every sign-in."
+      <CardHeader title="Authenticator app" subtitle="A 6-digit code from Google Authenticator, Microsoft Authenticator or Authy: a backup for when a passkey isn't available."
         action={<Badge tone={enabled ? "green" : "amber"} dot>{enabled ? "On" : "Off"}</Badge>} />
       <div className="space-y-4 p-5">
         {enabled && !disabling && (
@@ -75,7 +77,7 @@ function TwoFactorCard() {
         )}
         {!enabled && !setup && (
           <Button icon={<Smartphone className="size-4" />} loading={busy} onClick={() => run(async () => setSetup(await startTotp()))}>
-            Set up two-step verification
+            Set up authenticator app
           </Button>
         )}
         {!enabled && setup && (

@@ -41,12 +41,17 @@ async function toError(res: Response): Promise<ApiError> {
 let onUnauthorized: () => void = () => {};
 export const setUnauthorizedHandler = (fn: () => void) => (onUnauthorized = fn);
 
+/** Sensitive actions answer 428 until the user re-confirms (passkey / code). The
+ *  StepUpProvider registers a handler that shows the prompt and resolves true on success. */
+let onStepUp: () => Promise<boolean> = async () => false;
+export const setStepUpHandler = (fn: () => Promise<boolean>) => (onStepUp = fn);
+export const STEP_UP = 428;
+
 export const apiUrl = (path: string, query?: Query) => `${API_URL}${path}${qs(query)}`;
 
-export async function api<T>(
-  path: string,
-  opts: { method?: string; body?: unknown; query?: Query; form?: FormData; silent401?: boolean } = {},
-): Promise<T> {
+type Opts = { method?: string; body?: unknown; query?: Query; form?: FormData; silent401?: boolean; noStepUp?: boolean };
+
+export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   const headers: Record<string, string> = { "X-Requested-With": "fetch" };
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
@@ -62,13 +67,17 @@ export async function api<T>(
     throw new ApiError(0, "Can't reach the server. Check your connection and try again.");
   }
   if (res.status === 401 && !opts.silent401) onUnauthorized();
+  if (res.status === STEP_UP && !opts.noStepUp) {
+    if (await onStepUp()) return api<T>(path, { ...opts, noStepUp: true }); // retry once after re-confirming
+  }
   if (!res.ok) throw await toError(res);
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
 /** Authenticated file download (the cookie rides along; no token in the URL). */
-export async function download(path: string, filename: string, query?: Query) {
+export async function download(path: string, filename: string, query?: Query, retried = false): Promise<void> {
   const res = await fetch(apiUrl(path, query), { credentials: "include", headers: { "X-Requested-With": "fetch" } });
+  if (res.status === STEP_UP && !retried && (await onStepUp())) return download(path, filename, query, true);
   if (!res.ok) throw await toError(res);
   const url = URL.createObjectURL(await res.blob());
   const a = Object.assign(document.createElement("a"), { href: url, download: filename });

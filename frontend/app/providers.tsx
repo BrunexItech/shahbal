@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 
 import { TopLoader } from "@/components/loaders";
 import { ServiceWorker } from "@/components/shell/ServiceWorker";
+import { StepUpProvider } from "@/components/shell/StepUpProvider";
 import { ConfirmProvider } from "@/components/ui/Confirm";
 import { ApiError } from "@/lib/api";
 import { AuthProvider } from "@/lib/auth";
@@ -29,7 +30,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <AuthProvider>
         <TopLoader />
         <ServiceWorker />
-        <ConfirmProvider>{children}</ConfirmProvider>
+        <ConfirmProvider>
+          <StepUpProvider>{children}</StepUpProvider>
+        </ConfirmProvider>
         <Toaster position="top-right" richColors closeButton toastOptions={{ className: "font-sans" }} />
       </AuthProvider>
     </QueryClientProvider>

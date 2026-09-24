@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, Lock, Mail, MapPinned, ShieldCheck, Users } from "lucide-react";
+import { Fingerprint, KeyRound, Lock, Mail, MapPinned, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -8,7 +8,8 @@ import { useEffect, useState } from "react";
 import { BrandLoader, BrandMark } from "@/components/loaders";
 import { FlagStripe } from "@/components/shell/FlagStripe";
 import { Button, Input } from "@/components/ui";
-import { useAuth } from "@/lib/auth";
+import { type MfaMethod, useAuth } from "@/lib/auth";
+import { cancelPasskeyPrompt, passkeyErrorMessage, passkeySupport } from "@/lib/passkeys";
 import { CAMPAIGN_NAME, CAMPAIGN_TAGLINE } from "@/lib/config";
 
 /** Only same-site paths: never let ?next= bounce a user to another host (open redirect). */
@@ -19,46 +20,89 @@ function safeNext(): string {
 }
 
 export default function LoginPage() {
-  const { login, verifyMfa, user, ready } = useAuth();
+  const { login, verifyMfa, loginWithPasskey, user, ready } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"password" | "passkey" | "code" | null>(null);
+  const [mfa, setMfa] = useState<{ token: string; methods: MfaMethod[] } | null>(null);
   const [code, setCode] = useState("");
+  const [support, setSupport] = useState({ webauthn: false, platform: false, autofill: false });
 
   useEffect(() => {
     if (ready && user) router.replace(safeNext());
   }, [ready, user, router]);
 
+  useEffect(() => {
+    void passkeySupport().then(setSupport);
+  }, []);
+
+  // Passkey autofill: the browser offers this site's passkeys right in the email field.
+  useEffect(() => {
+    if (!ready || user || mfa || !support.autofill) return;
+    loginWithPasskey({ autofill: true })
+      .then(() => router.replace(safeNext()))
+      .catch((e) => {
+        const msg = passkeyErrorMessage(e);
+        if (!/Cancelled/.test(msg)) setError(msg);
+      });
+    return () => cancelPasskeyPrompt();
+  }, [ready, user, mfa, support.autofill, loginWithPasskey, router]);
+
   if (!ready || user) return <BrandLoader message={user ? "Opening the war room" : "Checking your session"} />;
 
-  async function submit(e: React.FormEvent) {
+  const fail = (err: unknown) => {
+    const msg = passkeyErrorMessage(err);
+    if (mfa && /expired|start again/i.test(msg)) {
+      setMfa(null);
+      setCode("");
+    }
+    setError(msg);
+    setBusy(null);
+  };
+
+  async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setBusy(true);
+    setBusy("password");
+    cancelPasskeyPrompt(); // stop the autofill ceremony while the password path runs
     try {
-      if (mfaToken) {
-        await verifyMfa(mfaToken, code);
-      } else {
-        const r = await login(email.trim(), password);
-        if (!r.done) {
-          setMfaToken(r.mfaToken);
-          setPassword("");
-          setBusy(false);
-          return;
-        }
+      const r = await login(email.trim(), password);
+      if (!r.done) {
+        setMfa({ token: r.mfaToken, methods: r.methods });
+        setPassword("");
+        setBusy(null);
+        return;
       }
       router.replace(safeNext());
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Sign-in failed";
-      if (mfaToken && /expired|start again/i.test(msg)) {
-        setMfaToken(null);
-        setCode("");
-      }
-      setError(msg);
-      setBusy(false);
+      fail(err);
+    }
+  }
+
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!mfa) return;
+    setError("");
+    setBusy("code");
+    try {
+      await verifyMfa(mfa.token, code);
+      router.replace(safeNext());
+    } catch (err) {
+      fail(err);
+    }
+  }
+
+  async function signInPasskey() {
+    setError("");
+    setBusy("passkey");
+    cancelPasskeyPrompt();
+    try {
+      await loginWithPasskey({ mfaToken: mfa?.token });
+      router.replace(safeNext());
+    } catch (err) {
+      fail(err);
     }
   }
 
@@ -110,48 +154,67 @@ export default function LoginPage() {
       <section className="flex flex-col bg-white">
         <FlagStripe className="lg:hidden" />
         <div className="flex flex-1 items-center justify-center px-6 py-12">
-          <form onSubmit={submit} className="w-full max-w-sm animate-fade-up">
+          <div className="w-full max-w-sm animate-fade-up">
             <BrandMark className="mb-6 size-12 lg:hidden" />
-            {mfaToken ? (
+            {mfa ? (
               <>
-                <h2 className="text-2xl font-bold text-navy-900">Two-step verification</h2>
-                <p className="mt-1 text-sm text-muted">Enter the 6-digit code from your authenticator app.</p>
-                <div className="mt-8">
-                  <Input label="Authentication code" required autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-                    leading={<KeyRound className="size-4" />} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="123 456" className="[&_input]:tracking-[.4em]" />
-                </div>
+                <h2 className="text-2xl font-bold text-navy-900">Confirm it&apos;s you</h2>
+                <p className="mt-1 text-sm text-muted">Your account is protected with two-step verification.</p>
+                {mfa.methods.includes("passkey") && (
+                  <Button size="lg" className="mt-8 w-full" loading={busy === "passkey"} icon={<Fingerprint className="size-5" />} onClick={signInPasskey}>
+                    Use fingerprint, face or security key
+                  </Button>
+                )}
+                {mfa.methods.includes("totp") && (
+                  <form onSubmit={submitCode} className={mfa.methods.includes("passkey") ? "mt-6" : "mt-8"}>
+                    <Input label={mfa.methods.includes("passkey") ? "Or enter an authenticator code" : "Authentication code"} required
+                      autoFocus={!mfa.methods.includes("passkey")} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                      leading={<KeyRound className="size-4" />} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123 456" className="[&_input]:tracking-[.4em]" />
+                    <Button type="submit" variant="gold" size="lg" loading={busy === "code"} disabled={code.length !== 6} className="mt-4 w-full">
+                      Verify & continue
+                    </Button>
+                  </form>
+                )}
+                {error && <p className="mt-4 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm font-medium text-kenya-red ring-1 ring-red-100">{error}</p>}
+                <button type="button" onClick={() => { setMfa(null); setCode(""); setError(""); }}
+                  className="mt-4 w-full text-center text-sm font-medium text-muted hover:text-navy-900">
+                  ← Use a different account
+                </button>
               </>
             ) : (
               <>
                 <h2 className="text-2xl font-bold text-navy-900">Welcome back</h2>
                 <p className="mt-1 text-sm text-muted">Sign in to continue to the war room.</p>
-                <div className="mt-8 space-y-4">
-                  <Input label="Email" type="email" autoComplete="email" required leading={<Mail className="size-4" />}
-                    value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@campaign.co.ke" />
-                  <Input label="Password" type="password" autoComplete="current-password" required leading={<Lock className="size-4" />}
-                    value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
-                </div>
+                {support.webauthn && (
+                  <>
+                    <Button type="button" size="lg" variant="navy" className="mt-8 w-full" loading={busy === "passkey"}
+                      icon={<Fingerprint className="size-5" />} onClick={signInPasskey}>
+                      Sign in with fingerprint or face
+                    </Button>
+                    <div className="my-6 flex items-center gap-3 text-xs text-muted">
+                      <span className="h-px flex-1 bg-line" /> or use your password <span className="h-px flex-1 bg-line" />
+                    </div>
+                  </>
+                )}
+                <form onSubmit={submitPassword} className={support.webauthn ? "" : "mt-8"}>
+                  <div className="space-y-4">
+                    <Input label="Email" type="email" autoComplete="username webauthn" required leading={<Mail className="size-4" />}
+                      value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@campaign.co.ke" />
+                    <Input label="Password" type="password" autoComplete="current-password" required leading={<Lock className="size-4" />}
+                      value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+                  </div>
+                  {error && <p className="mt-4 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm font-medium text-kenya-red ring-1 ring-red-100">{error}</p>}
+                  <Button type="submit" variant="gold" size="lg" loading={busy === "password"} className="mt-6 w-full">Sign in</Button>
+                </form>
               </>
-            )}
-
-            {error && <p className="mt-4 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm font-medium text-kenya-red ring-1 ring-red-100">{error}</p>}
-
-            <Button type="submit" variant="gold" size="lg" loading={busy} disabled={!!mfaToken && code.length !== 6} className="mt-6 w-full">
-              {mfaToken ? "Verify & continue" : "Sign in"}
-            </Button>
-            {mfaToken && (
-              <button type="button" onClick={() => { setMfaToken(null); setCode(""); setError(""); }}
-                className="mt-3 w-full text-center text-sm font-medium text-muted hover:text-navy-900">
-                ← Use a different account
-              </button>
             )}
 
             <div className="mt-8 rounded-2xl bg-slate-50 p-4 text-center text-sm text-muted ring-1 ring-line">
               Are you a voter?{" "}
               <Link href="/join" className="font-semibold text-kenya-green hover:underline">Join the movement →</Link>
             </div>
-          </form>
+          </div>
         </div>
       </section>
     </div>

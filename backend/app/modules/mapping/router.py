@@ -73,11 +73,12 @@ async def export_stations(ctx: Ctx = Depends(exporters)):
 
 
 @router.get("/export/project.geolibre.json")
-async def export_project(ctx: Ctx = Depends(exporters)):
-    """One-click GIS Lab project: styled layers, popups, charts and a story map."""
+async def export_project(mode: str = Query("workspace", pattern="^(workspace|briefing)$"), ctx: Ctx = Depends(exporters)):
+    """One-click GIS Lab project: styled layers, popups and charts; `mode=briefing`
+    adds the per-constituency story map and opens as a presentation."""
     svc = MapService(ctx)
-    project = build_project(await svc.export_wards(), await svc.export_grid(), await svc.export_stations())
-    audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id="project", ip=ctx.ip)
+    project = build_project(await svc.export_wards(), await svc.export_grid(), await svc.export_stations(), briefing=mode == "briefing")
+    audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id=f"project:{mode}", ip=ctx.ip)
     await ctx.session.commit()
     return JSONResponse(project, headers={"Content-Disposition": 'inline; filename="mombasa-campaign.geolibre.json"'})
 

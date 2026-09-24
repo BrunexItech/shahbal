@@ -86,7 +86,9 @@ def _story(wards_fc: dict) -> dict:
             "showMarkers": False, "chapters": chapters}
 
 
-def build_project(wards_fc: dict, grid_fc: dict, stations_fc: dict) -> dict:
+def build_project(wards_fc: dict, grid_fc: dict, stations_fc: dict, *, briefing: bool = False) -> dict:
+    """`briefing=True` adds the story map, which GeoLibre opens in presentation mode;
+    the default opens straight into the analysis workspace."""
     stamp = datetime.now(TZ).strftime("%d %b %Y %H:%M")
     wards = _layer("wards", "Ward coverage (% of target)", wards_fc, {
         "fillColor": "#e8f5ee", "fillOpacity": 0.78, "strokeColor": "#ffffff", "strokeWidth": 1.5, "strokeWidthUnit": "pixels",
@@ -145,6 +147,6 @@ def build_project(wards_fc: dict, grid_fc: dict, stations_fc: dict) -> dict:
             {"id": "w-pct", "layerId": "wards", "type": "histogram", "field": "percent", "bins": 10,
              "title": "Wards by % of target", "color": "#0b7fa6"},
         ],
-        "storymap": _story(wards_fc),
+        **({"storymap": _story(wards_fc)} if briefing else {}),
         "metadata": {"generated": stamp, "privacy": "Aggregates only. No names, phone numbers or ID numbers."},
     }

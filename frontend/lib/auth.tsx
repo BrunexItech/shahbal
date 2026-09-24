@@ -5,17 +5,21 @@ import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { api, ApiError, setUnauthorizedHandler } from "@/lib/api";
+import { signInWithPasskey } from "@/lib/passkeys";
 import type { User } from "@/lib/types";
 
-export type Me = User & { mfa_setup_required?: boolean };
+export type Me = User & { mfa_setup_required?: boolean; passkey_count?: number; session_method?: string; elevated_until?: string | null };
 
-type LoginResult = { done: true } | { done: false; mfaToken: string };
+export type MfaMethod = "passkey" | "totp";
+type LoginResult = { done: true } | { done: false; mfaToken: string; methods: MfaMethod[] };
 
 type AuthState = {
   user: Me | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   verifyMfa: (mfaToken: string, code: string) => Promise<void>;
+  /** Passwordless (no token) or second factor (with the token from the password step). */
+  loginWithPasskey: (opts?: { mfaToken?: string; autofill?: boolean }) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -89,17 +93,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [accept, clearLocal]);
 
   const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
-    const res = await api<{ user: Me | null; mfa_required: boolean; mfa_token: string | null }>("/auth/login", {
+    const res = await api<{ user: Me | null; mfa_required: boolean; mfa_token: string | null; mfa_methods: MfaMethod[] }>("/auth/login", {
       body: { email, password },
       silent401: true,
     });
-    if (res.mfa_required && res.mfa_token) return { done: false, mfaToken: res.mfa_token };
+    if (res.mfa_required && res.mfa_token) return { done: false, mfaToken: res.mfa_token, methods: res.mfa_methods };
     await refresh();
     return { done: true };
   }, [refresh]);
 
   const verifyMfa = useCallback(async (mfaToken: string, code: string) => {
     await api("/auth/mfa", { body: { mfa_token: mfaToken, code }, silent401: true });
+    await refresh();
+  }, [refresh]);
+
+  const loginWithPasskey = useCallback(async (opts: { mfaToken?: string; autofill?: boolean } = {}) => {
+    await signInWithPasskey(opts);
     await refresh();
   }, [refresh]);
 
@@ -111,7 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }, [clearLocal, router]);
 
-  const value = useMemo(() => ({ user, ready, login, verifyMfa, logout, refresh }), [user, ready, login, verifyMfa, logout, refresh]);
+  const value = useMemo(
+    () => ({ user, ready, login, verifyMfa, loginWithPasskey, logout, refresh }),
+    [user, ready, login, verifyMfa, loginWithPasskey, logout, refresh],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

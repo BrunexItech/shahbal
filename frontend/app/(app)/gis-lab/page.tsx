@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Button, Card, CardHeader, PageHeader } from "@/components/ui";
 import { API_URL, GIS_URL } from "@/lib/config";
-import { download } from "@/lib/api";
+import { api, download } from "@/lib/api";
 
 const LAYERS = [
   { icon: Shapes, name: "Ward coverage", file: "wards", desc: "30 IEBC wards with target, reached, gap, supporters, visits and progress %. Opens as a green choropleth." },
@@ -28,9 +28,22 @@ export default function GisLabPage() {
 
   // The project URL must be absolute and on the same origin as the lab so the session cookie rides along.
   const apiBase = API_URL.startsWith("http") ? API_URL : `${origin}${API_URL}`;
-  const projectUrl = `${apiBase}/map/export/project.geolibre.json`;
-  const labUrl = `${GIS_URL}?url=${encodeURIComponent(projectUrl)}&welcome=0`;
-  const sameOrigin = origin && projectUrl.startsWith(origin);
+  const projectUrl = (mode: "workspace" | "briefing") => `${apiBase}/map/export/project.geolibre.json?mode=${mode}`;
+  const labUrl = (mode: "workspace" | "briefing") => `${GIS_URL}?url=${encodeURIComponent(projectUrl(mode))}&welcome=0`;
+  const sameOrigin = origin && apiBase.startsWith(origin);
+
+  // The lab fetches the project itself, so confirm identity first (the export is step-up protected).
+  async function openLab(mode: "workspace" | "briefing") {
+    setBusy(mode);
+    try {
+      await api("/auth/step-up/check", { method: "POST" });
+      window.open(labUrl(mode), "_blank", "noopener,noreferrer");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't open the lab");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function get(file: string) {
     setBusy(file);
@@ -48,9 +61,14 @@ export default function GisLabPage() {
       <PageHeader eyebrow="Command" title="GIS Lab"
         subtitle="Deep spatial analysis for HQ with GeoLibre, a free, open-source GIS that runs in your browser on our own server."
         actions={
-          <a href={labUrl} target="_blank" rel="noopener noreferrer">
-            <Button variant="gold" icon={<ExternalLink className="size-4" />} disabled={!origin}>Open Mombasa project in GIS Lab</Button>
-          </a>
+          <>
+            <Button variant="secondary" icon={<BookOpenText className="size-4" />} disabled={!origin} loading={busy === "briefing"} onClick={() => openLab("briefing")}>
+              Present briefing
+            </Button>
+            <Button variant="gold" icon={<ExternalLink className="size-4" />} disabled={!origin} loading={busy === "workspace"} onClick={() => openLab("workspace")}>
+              Open analysis workspace
+            </Button>
+          </>
         } />
 
       {origin && !sameOrigin && (
@@ -80,7 +98,7 @@ export default function GisLabPage() {
             </li>
             <li className="flex items-start gap-4 px-5 py-4">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-gold-50 text-[#7a5f0c]"><BookOpenText className="size-5" /></span>
-              <div><p className="font-semibold text-navy-900">Story map briefing</p><p className="text-sm text-muted">A scroll-through tour of the county and each constituency with its weakest wards.</p></div>
+              <div><p className="font-semibold text-navy-900">Story map briefing</p><p className="text-sm text-muted">A scroll-through tour of the county and each constituency with its weakest wards. Opens with <b>Present briefing</b>.</p></div>
             </li>
           </ul>
         </Card>

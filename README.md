@@ -58,11 +58,18 @@ deploy/        nginx gateway, encrypted backup script
   - Server-side sessions in an `httpOnly` `SameSite=Strict` cookie, which JavaScript never sees.
   - A CSRF header is required on writes.
   - Logout, disabling a user, a role change or a password change revokes sessions at once.
+- **Passkeys:** sign-in with a fingerprint, face or phone PIN (WebAuthn), or a hardware security key.
+  - Biometrics never leave the device; the server stores only a public key. That keeps the campaign clear of the Data Protection Act's rules on biometric data.
+  - Passkeys can't be phished: they only work on the real domain.
+  - Challenges are single-use and expire in 5 minutes. User verification is required. Sign counters catch cloned authenticators.
+- **Re-confirmation for sensitive actions:** revealing an ID, any export, approving a message, changing the team and importing stations all need a fresh fingerprint or code within the last 5 minutes. An unlocked, unattended laptop can't leak data.
+  - Adding a sign-in method to an account that already has one also needs re-confirmation, so a hijacked session can't plant its own passkey.
+- **New-device alerts:** a sign-in from an unrecognised browser is recorded in the audit trail and texted to the user.
 - **Logins:**
   - Accounts lock after repeated failures.
   - Unknown emails and wrong passwords get identical responses.
   - Passwords need 10+ characters with letters and numbers, and common ones are rejected.
-- **2FA:** TOTP two-factor, mandatory for HQ admins in production. The secret is stored encrypted.
+- **2FA:** in production **every staff role** must enrol a passkey or an authenticator app (TOTP) before using the system. Once a second factor exists, a password alone never gets a session. The TOTP secret is stored encrypted.
 - **Personal data:**
   - National IDs are Fernet-encrypted, with an HMAC blind index used for dedup.
   - Staff see only the last 4 digits. A full reveal is admin-only and audited.
@@ -103,9 +110,10 @@ Tests: `cd backend && .venv/bin/pytest`. This needs a `shahbal_test` database on
 
 1. Copy `backend/.env.example` to `backend/.env` and generate every secret. `PII_KEY` and `PII_PEPPER` can **never** change once real data exists. Set `ENVIRONMENT=production`, `CORS_ORIGINS=["https://your-domain"]`, and `TRUSTED_PROXIES` to the number of proxies in front of the API (gateway = 1, plus 1 for host nginx). Behind Cloudflare, set `CLIENT_IP_HEADER=cf-connecting-ip` instead.
 2. Messaging: set `SMS_PROVIDER=africastalking` with `AT_USERNAME`, `AT_API_KEY` and `AT_SENDER_ID`. Point Africa's Talking's delivery, inbound and opt-out callbacks at `https://your-domain/api/v1/messaging/webhooks/at/{delivery|inbound|optout}?token=<WEBHOOK_SECRET>`. WhatsApp needs a Meta-approved template named in `WA_TEMPLATE`, and must follow Meta's political-content policy.
-3. First sign-in: the HQ admin must enrol 2FA before anything else unlocks.
-4. Backups: run `BACKUP_PASSPHRASE=… ./deploy/backup.sh` nightly from cron. Backups are AES-256 encrypted with 14-day retention. Copy them off-site.
-5. Optional: self-host the base map with a Protomaps extract and point `NEXT_PUBLIC_MAP_STYLE` at it.
+3. Passkeys: set `WEBAUTHN_RP_ID` to the bare domain (e.g. `hq.example.co.ke`) and `WEBAUTHN_ORIGINS` to `["https://hq.example.co.ke"]`. Passkeys need HTTPS and are bound to that domain, so pick the final domain before staff enrol.
+4. First sign-in: every staff member must enrol a passkey or an authenticator app before anything else unlocks. Hand out a hardware security key as a backup for HQ admins.
+5. Backups: run `BACKUP_PASSPHRASE=… ./deploy/backup.sh` nightly from cron. Backups are AES-256 encrypted with 14-day retention. Copy them off-site.
+6. Optional: self-host the base map with a Protomaps extract and point `NEXT_PUBLIC_MAP_STYLE` at it.
 
 ## Geography data
 
