@@ -3,7 +3,7 @@
 import { UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SkeletonRows } from "@/components/loaders";
 import { Button, Card, EmptyState, ErrorState, PageHeader, Pagination, SOURCE_LABEL, StatusBadge, SupportBadge } from "@/components/ui";
@@ -20,6 +20,12 @@ export default function VotersPage() {
   const [filters, setFilters] = useState<VoterFilters>({ page: 1, size: 25 });
   const { data, isLoading, isFetching, error, refetch } = useVoters(filters);
   const { data: tree } = useGeoTree();
+
+  // Deep link from the coverage map: /voters?ward=<id>
+  useEffect(() => {
+    const ward = new URLSearchParams(window.location.search).get("ward");
+    if (ward) setFilters((f) => ({ ...f, ward_id: ward, page: 1 }));
+  }, []);
 
   return (
     <>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock, Mail, MapPinned, ShieldCheck, Users } from "lucide-react";
+import { KeyRound, Lock, Mail, MapPinned, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,12 +12,14 @@ import { useAuth } from "@/lib/auth";
 import { CAMPAIGN_NAME, CAMPAIGN_TAGLINE } from "@/lib/config";
 
 export default function LoginPage() {
-  const { login, user, ready } = useAuth();
+  const { login, verifyMfa, user, ready } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   useEffect(() => {
     if (ready && user) router.replace("/dashboard");
@@ -30,10 +32,25 @@ export default function LoginPage() {
     setError("");
     setBusy(true);
     try {
-      await login(email.trim(), password);
+      if (mfaToken) {
+        await verifyMfa(mfaToken, code);
+      } else {
+        const r = await login(email.trim(), password);
+        if (!r.done) {
+          setMfaToken(r.mfaToken);
+          setPassword("");
+          setBusy(false);
+          return;
+        }
+      }
       router.replace("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed");
+      const msg = err instanceof Error ? err.message : "Sign-in failed";
+      if (mfaToken && /expired|start again/i.test(msg)) {
+        setMfaToken(null);
+        setCode("");
+      }
+      setError(msg);
       setBusy(false);
     }
   }
@@ -88,21 +105,40 @@ export default function LoginPage() {
         <div className="flex flex-1 items-center justify-center px-6 py-12">
           <form onSubmit={submit} className="w-full max-w-sm animate-fade-up">
             <BrandMark className="mb-6 size-12 lg:hidden" />
-            <h2 className="text-2xl font-bold text-navy-900">Welcome back</h2>
-            <p className="mt-1 text-sm text-muted">Sign in to continue to the war room.</p>
-
-            <div className="mt-8 space-y-4">
-              <Input label="Email" type="email" autoComplete="email" required leading={<Mail className="size-4" />}
-                value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@campaign.co.ke" />
-              <Input label="Password" type="password" autoComplete="current-password" required leading={<Lock className="size-4" />}
-                value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
-            </div>
+            {mfaToken ? (
+              <>
+                <h2 className="text-2xl font-bold text-navy-900">Two-step verification</h2>
+                <p className="mt-1 text-sm text-muted">Enter the 6-digit code from your authenticator app.</p>
+                <div className="mt-8">
+                  <Input label="Authentication code" required autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                    leading={<KeyRound className="size-4" />} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="123 456" className="[&_input]:tracking-[.4em]" />
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold text-navy-900">Welcome back</h2>
+                <p className="mt-1 text-sm text-muted">Sign in to continue to the war room.</p>
+                <div className="mt-8 space-y-4">
+                  <Input label="Email" type="email" autoComplete="email" required leading={<Mail className="size-4" />}
+                    value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@campaign.co.ke" />
+                  <Input label="Password" type="password" autoComplete="current-password" required leading={<Lock className="size-4" />}
+                    value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+                </div>
+              </>
+            )}
 
             {error && <p className="mt-4 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm font-medium text-kenya-red ring-1 ring-red-100">{error}</p>}
 
-            <Button type="submit" variant="gold" size="lg" loading={busy} className="mt-6 w-full">
-              Sign in
+            <Button type="submit" variant="gold" size="lg" loading={busy} disabled={!!mfaToken && code.length !== 6} className="mt-6 w-full">
+              {mfaToken ? "Verify & continue" : "Sign in"}
             </Button>
+            {mfaToken && (
+              <button type="button" onClick={() => { setMfaToken(null); setCode(""); setError(""); }}
+                className="mt-3 w-full text-center text-sm font-medium text-muted hover:text-navy-900">
+                ← Use a different account
+              </button>
+            )}
 
             <div className="mt-8 rounded-2xl bg-slate-50 p-4 text-center text-sm text-muted ring-1 ring-line">
               Are you a voter?{" "}

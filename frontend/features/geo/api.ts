@@ -15,23 +15,44 @@ export const geoKeys = {
 /** Geography changes rarely; cache it for the session. */
 const STATIC = { staleTime: 30 * 60_000 };
 
-export const useGeoTree = () => useQuery({ queryKey: geoKeys.tree, queryFn: () => api<Constituency[]>("/geo/tree"), ...STATIC });
+/** Device cache so the capture pickers still work with no signal. Public geography only, no PII. */
+function cached<T>(key: string, fetcher: () => Promise<T>) {
+  return async () => {
+    try {
+      const data = await fetcher();
+      try {
+        window.localStorage.setItem(`chq.geo.${key}`, JSON.stringify(data));
+      } catch {}
+      return data;
+    } catch (e) {
+      try {
+        const raw = window.localStorage.getItem(`chq.geo.${key}`);
+        if (raw) return JSON.parse(raw) as T;
+      } catch {}
+      throw e;
+    }
+  };
+}
+
+export const useGeoTree = () =>
+  useQuery({ queryKey: geoKeys.tree, queryFn: cached("tree", () => api<Constituency[]>("/geo/tree")), ...STATIC });
 
 export const useStations = (wardId?: string, q?: string, enabled = true) =>
   useQuery({
     queryKey: geoKeys.stations(wardId, q),
-    queryFn: () => api<Station[]>("/geo/stations", { query: { ward_id: wardId, q } }),
+    queryFn: q ? () => api<Station[]>("/geo/stations", { query: { ward_id: wardId, q } })
+      : cached(`stations.${wardId ?? "all"}`, () => api<Station[]>("/geo/stations", { query: { ward_id: wardId } })),
     enabled,
     staleTime: 5 * 60_000,
   });
 
 export const usePortalGeo = () =>
-  useQuery({ queryKey: geoKeys.portal, queryFn: () => api<Constituency[]>("/portal/geo", { auth: false }), ...STATIC });
+  useQuery({ queryKey: geoKeys.portal, queryFn: () => api<Constituency[]>("/portal/geo", { silent401: true }), ...STATIC });
 
 export const usePortalStations = (wardId: string) =>
   useQuery({
     queryKey: geoKeys.portalStations(wardId),
-    queryFn: () => api<Station[]>("/portal/stations", { query: { ward_id: wardId }, auth: false }),
+    queryFn: () => api<Station[]>("/portal/stations", { query: { ward_id: wardId }, silent401: true }),
     enabled: !!wardId,
     ...STATIC,
   });

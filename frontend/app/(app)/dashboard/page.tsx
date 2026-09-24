@@ -1,10 +1,12 @@
 "use client";
 
-import { CalendarCheck2, ClipboardCheck, ShieldCheck, Trophy, UsersRound } from "lucide-react";
+import { CalendarCheck2, ClipboardCheck, MessageSquareText, PhoneCall, Route, ShieldCheck, Stamp, Trophy, UsersRound, Vote } from "lucide-react";
+import Link from "next/link";
 
 import { Skeleton, SkeletonCards } from "@/components/loaders";
 import { Card, CardHeader, ErrorState, PageHeader, ProgressBar, SOURCE_LABEL, SUPPORT } from "@/components/ui";
 import { useDashboard } from "@/features/dashboard/api";
+import { ActivityFeed } from "@/features/dashboard/components/ActivityFeed";
 import { BarList } from "@/features/dashboard/components/BarList";
 import { DailyChart } from "@/features/dashboard/components/DailyChart";
 import { LiveFeed } from "@/features/dashboard/components/LiveFeed";
@@ -13,6 +15,7 @@ import { TargetHero } from "@/features/dashboard/components/TargetHero";
 import { WardTable } from "@/features/dashboard/components/WardTable";
 import { useUser } from "@/lib/auth";
 import { num, pct } from "@/lib/format";
+import { can } from "@/lib/roles";
 import type { Source, Support } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -40,6 +43,21 @@ export default function DashboardPage() {
                 sub={`${pct(d.totals.achieved ? (d.totals.verified / d.totals.achieved) * 100 : null)} of live records`} />
               <StatTile label="Awaiting verification" value={num(d.totals.pending)} accent="gold" icon={<ClipboardCheck className="size-[18px]" />} sub="In the call-back queue" />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <OpsTile href="/messaging" icon={<MessageSquareText className="size-[18px]" />} label="Messages today" value={num(d.ops.messages_today)}
+              sub={`${num(d.ops.delivered_today)} delivered`} />
+            <OpsTile href="/calls" icon={<PhoneCall className="size-[18px]" />} label="Calls today" value={num(d.ops.calls_today)}
+              sub={`${num(d.ops.answered_today)} answered`} />
+            <OpsTile href="/visits" icon={<Route className="size-[18px]" />} label="Visits" value={`${num(d.ops.visits_today)} today`}
+              sub={`${num(d.ops.visits_upcoming)} upcoming · ${num(d.ops.wards_visited)}/${d.wards.length} wards visited`} />
+            {can.approveMessages(user.role) && d.ops.approvals_pending > 0 ? (
+              <OpsTile href="/messaging" icon={<Stamp className="size-[18px]" />} label="Awaiting your approval" value={num(d.ops.approvals_pending)}
+                sub="Messages from coordinators" alert />
+            ) : (
+              <OpsTile href="/election" icon={<Vote className="size-[18px]" />} label="Marked as voted" value={num(d.ops.voted)} sub="Election-day turnout" />
+            )}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
@@ -88,7 +106,7 @@ export default function DashboardPage() {
               </div>
             </Card>
             <Card>
-              <CardHeader title="Top agents" subtitle="Last 7 days" />
+              <CardHeader title="Top field agents" subtitle="Last 7 days" />
               {d.top_agents.length ? (
                 <ol className="space-y-3 p-5">
                   {d.top_agents.map((a, i) => (
@@ -104,9 +122,29 @@ export default function DashboardPage() {
               ) : <p className="p-5 text-sm text-muted">No field captures this week yet.</p>}
             </Card>
           </div>
+
+          {can.audit(user.role) && (
+            <Card className="overflow-hidden">
+              <CardHeader title="HQ activity" subtitle="Everything your team is doing, live" />
+              <ActivityFeed />
+            </Card>
+          )}
         </div>
       )}
     </>
+  );
+}
+
+function OpsTile({ href, icon, label, value, sub, alert }: { href: string; icon: React.ReactNode; label: string; value: string; sub: string; alert?: boolean }) {
+  return (
+    <Link href={href} className={`group animate-fade-up rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-lg ${alert ? "border-amber-200 bg-amber-50" : "border-line bg-white"}`}>
+      <div className="flex items-center gap-2 text-[13px] font-medium text-muted">
+        <span className={`grid size-8 place-items-center rounded-lg ${alert ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-navy-800"}`}>{icon}</span>
+        {label}
+      </div>
+      <p className="mt-2 font-display text-2xl font-bold text-navy-900 tabular-nums">{value}</p>
+      <p className="mt-0.5 truncate text-xs text-muted">{sub}</p>
+    </Link>
   );
 }
 

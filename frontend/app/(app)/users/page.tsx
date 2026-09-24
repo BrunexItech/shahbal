@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Users } from "lucide-react";
+import { LogOut, Plus, ShieldCheck, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -8,6 +8,7 @@ import { SkeletonRows } from "@/components/loaders";
 import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, PageHeader, Select } from "@/components/ui";
 import { useGeoTree, wardIndex } from "@/features/geo/api";
 import { useSaveUser, useUsers, type UserInput } from "@/features/users/api";
+import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { useUser } from "@/lib/auth";
 import { dateTime, initials } from "@/lib/format";
@@ -51,7 +52,10 @@ export default function UsersPage() {
                         <div><p className="font-semibold text-navy-900">{u.full_name}</p><p className="text-xs text-muted">{u.email}</p></div>
                       </div>
                     </td>
-                    <td className="px-3 py-3"><Badge tone={u.role === "super_admin" ? "navy" : "blue"}>{ROLE_LABEL[u.role]}</Badge></td>
+                    <td className="px-3 py-3">
+                      <Badge tone={u.role === "super_admin" ? "navy" : "blue"}>{ROLE_LABEL[u.role]}</Badge>
+                      {u.totp_enabled && <ShieldCheck className="ml-1.5 inline size-4 text-kenya-green" aria-label="2FA on" />}
+                    </td>
                     <td className="px-3 py-3 text-slate-700">{area(u)}</td>
                     <td className="px-3 py-3 text-xs text-muted">{dateTime(u.last_login_at)}</td>
                     <td className="px-5 py-3"><Badge tone={u.is_active ? "green" : "slate"} dot>{u.is_active ? "Active" : "Disabled"}</Badge></td>
@@ -98,7 +102,7 @@ function UserModal({ initial, tree, grantable, isSelf, onClose }: {
         <Input label="Phone" value={u.phone ?? ""} onChange={(e) => set("phone", e.target.value)} placeholder="07xx xxx xxx" />
         <Input label="Email" type="email" required disabled={!!u.id} value={u.email ?? ""} error={errors.email} onChange={(e) => set("email", e.target.value)} />
         <Input label={u.id ? "New password" : "Password"} type="password" required={!u.id} value={u.password ?? ""} error={errors.password}
-          hint={u.id ? "Leave blank to keep current" : "At least 8 characters"} onChange={(e) => set("password", e.target.value)} />
+          hint={u.id ? "Leave blank to keep current" : "10+ characters with letters and numbers"} onChange={(e) => set("password", e.target.value)} />
         <Select label="Role" required value={role ?? ""} disabled={isSelf} onChange={(e) => set("role", e.target.value)}>
           {(grantable.includes(role!) ? grantable : [role!, ...grantable]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
         </Select>
@@ -111,6 +115,14 @@ function UserModal({ initial, tree, grantable, isSelf, onClose }: {
           <Select label="Ward" required placeholder="Select" value={u.ward_id ?? ""} error={errors.ward_id} onChange={(e) => set("ward_id", e.target.value)}>
             {tree.map((c) => <optgroup key={c.id} label={c.name}>{c.wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</optgroup>)}
           </Select>
+        )}
+        {u.id && !isSelf && (
+          <div className="sm:col-span-2">
+            <Button type="button" size="sm" variant="secondary" icon={<LogOut className="size-4" />}
+              onClick={() => api(`/users/${u.id}/revoke-sessions`, { method: "POST" }).then(() => toast.success("Signed out on all devices")).catch((e) => toast.error(e.message))}>
+              Force sign-out on all devices
+            </Button>
+          </div>
         )}
         {u.id && !isSelf && (
           <label className="flex items-center gap-2 text-sm font-medium text-navy-900 sm:col-span-2">

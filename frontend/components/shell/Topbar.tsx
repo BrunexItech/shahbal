@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import Link from "next/link";
 
 import { BrandMark } from "@/components/loaders";
+import { SyncStatus } from "@/components/shell/SyncStatus";
 import { useAuth, useUser } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/roles";
@@ -25,6 +26,7 @@ export function Topbar() {
           Live · Mombasa County
         </div>
         <div className="flex items-center gap-3">
+          <SyncStatus />
           <div className="text-right max-sm:hidden">
             <p className="text-sm font-semibold text-navy-900">{user.full_name}</p>
             <p className="text-[11px] text-muted">{ROLE_LABEL[user.role]}</p>
@@ -32,7 +34,7 @@ export function Topbar() {
           <div className="grid size-10 place-items-center rounded-full bg-gradient-to-br from-navy-800 to-navy-950 text-sm font-bold text-gold ring-2 ring-gold/30">
             {initials(user.full_name)}
           </div>
-          <button onClick={logout} className="rounded-lg p-2 text-muted transition hover:bg-slate-100 hover:text-kenya-red" aria-label="Sign out" title="Sign out">
+          <button onClick={() => void logout()} className="rounded-lg p-2 text-muted transition hover:bg-slate-100 hover:text-kenya-red" aria-label="Sign out" title="Sign out">
             <LogOut className="size-[18px]" />
           </button>
         </div>

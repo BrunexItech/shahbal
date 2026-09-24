@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   title: { default: CAMPAIGN_NAME, template: `%s · ${CAMPAIGN_NAME}` },
   description: CAMPAIGN_TAGLINE,
   robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: CAMPAIGN_NAME, statusBarStyle: "black-translucent" },
+  icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = { themeColor: "#0b1f3a", width: "device-width", initialScale: 1 };

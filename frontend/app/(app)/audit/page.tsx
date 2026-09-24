@@ -8,8 +8,13 @@ import { Badge, Card, EmptyState, ErrorState, PageHeader, Pagination, type Tone 
 import { useAudit } from "@/features/audit/api";
 import { dateTime } from "@/lib/format";
 
-const ACTIONS = ["LOGIN", "CREATE", "UPDATE", "VIEW", "VERIFY", "REJECT", "REOPEN", "REVEAL_ID", "IMPORT", "PORTAL_DUPLICATE"];
-const TONE: Record<string, Tone> = { REVEAL_ID: "red", REJECT: "red", VERIFY: "green", CREATE: "blue", IMPORT: "gold", PORTAL_DUPLICATE: "amber" };
+const ACTIONS = ["LOGIN", "LOGOUT", "LOCKOUT", "MFA_ENABLE", "MFA_DISABLE", "MFA_FAIL", "PASSWORD_CHANGE", "SESSIONS_REVOKE", "CREATE", "UPDATE",
+  "VIEW", "VERIFY", "REJECT", "REOPEN", "REVEAL_ID", "EXPORT", "IMPORT", "APPROVE", "CANCEL", "CALL", "CHECKIN", "COMPLETE",
+  "MARK_VOTED", "UNMARK_VOTED", "OPT_OUT", "PORTAL_DUPLICATE"];
+const TONE: Record<string, Tone> = {
+  REVEAL_ID: "red", REJECT: "red", LOCKOUT: "red", MFA_FAIL: "red", EXPORT: "amber", OPT_OUT: "amber", PORTAL_DUPLICATE: "amber",
+  VERIFY: "green", APPROVE: "green", MFA_ENABLE: "green", MARK_VOTED: "green", CREATE: "blue", CALL: "blue", IMPORT: "gold",
+};
 
 export default function AuditPage() {
   const [action, setAction] = useState("");
@@ -23,7 +28,7 @@ export default function AuditPage() {
         <div className="border-b border-line p-4">
           <select value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }} className="h-10 rounded-xl border border-line bg-white px-3 text-sm">
             <option value="">All actions</option>
-            {ACTIONS.map((a) => <option key={a} value={a}>{a.replace("_", " ")}</option>)}
+            {ACTIONS.map((a) => <option key={a} value={a}>{a.replace(/_/g, " ")}</option>)}
           </select>
         </div>
         {isLoading ? <SkeletonRows rows={8} /> : error ? <ErrorState error={error} onRetry={refetch} /> : !data?.items.length ? (
@@ -41,7 +46,7 @@ export default function AuditPage() {
                   <tr key={a.id}>
                     <td className="px-5 py-2.5 text-xs whitespace-nowrap text-slate-600">{dateTime(a.created_at)}</td>
                     <td className="px-3 py-2.5 font-medium text-navy-900">{a.actor_name ?? <span className="text-muted">Public portal</span>}</td>
-                    <td className="px-3 py-2.5"><Badge tone={TONE[a.action] ?? "slate"}>{a.action.replace("_", " ")}</Badge></td>
+                    <td className="px-3 py-2.5"><Badge tone={TONE[a.action] ?? "slate"}>{a.action.replace(/_/g, " ")}</Badge></td>
                     <td className="px-3 py-2.5 text-xs text-slate-600">{a.entity}{a.entity_id && <span className="font-mono text-muted"> · {a.entity_id.slice(0, 8)}</span>}</td>
                     <td className="max-w-72 truncate px-3 py-2.5 font-mono text-[11px] text-muted">{a.meta ? JSON.stringify(a.meta) : "—"}</td>
                     <td className="px-5 py-2.5 font-mono text-xs text-muted">{a.ip ?? "—"}</td>

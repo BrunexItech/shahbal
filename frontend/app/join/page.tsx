@@ -45,7 +45,7 @@ export default function JoinPage() {
     setBusy(true);
     try {
       const r = await api<{ message: string }>("/portal/signup", {
-        auth: false,
+        silent401: true,
         body: {
           full_name: f.full_name, phone: f.phone, national_id: f.national_id,
           voter_card_no: f.voter_card_no || undefined, gender: f.gender || undefined,

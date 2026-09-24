@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { BrandLoader } from "@/components/loaders";
@@ -12,12 +12,16 @@ import { useAuth } from "@/lib/auth";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const mustEnrol = !!user?.mfa_setup_required;
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
-  }, [ready, user, router]);
+    // Production policy: admins must turn on 2FA before touching anything else.
+    else if (mustEnrol && pathname !== "/account") router.replace("/account?enrol=1");
+  }, [ready, user, router, mustEnrol, pathname]);
 
-  if (!ready || !user) return <BrandLoader />;
+  if (!ready || !user || (mustEnrol && pathname !== "/account")) return <BrandLoader />;
 
   return (
     <div className="min-h-screen">

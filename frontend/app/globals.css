@@ -70,3 +70,8 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* MapLibre popups restyled as the dark tooltip used across the app. */
+.chq-popup .maplibregl-popup-content { background: var(--color-navy-950); border-radius: 12px; padding: 8px 12px; box-shadow: 0 12px 32px -8px rgba(7, 20, 39, .45); }
+.chq-popup .maplibregl-popup-tip { display: none; }
+.maplibregl-ctrl-group { border-radius: 12px !important; overflow: hidden; box-shadow: 0 4px 16px -4px rgba(11, 31, 58, .25) !important; }

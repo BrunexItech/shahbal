@@ -13,6 +13,7 @@ import { checkDuplicate, useCreateVoter, type VoterInput } from "@/features/vote
 import { Stepper } from "@/features/voters/components/Stepper";
 import { SuccessPanel } from "@/features/voters/components/SuccessPanel";
 import { ApiError } from "@/lib/api";
+import { newClientRef, outbox } from "@/lib/outbox";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import type { Gender, Support, Voter } from "@/lib/types";
@@ -78,6 +79,9 @@ export function VoterWizard() {
   const [errors, setErrors] = useState<Errors>({});
   const [dup, setDup] = useState<{ checking: boolean; hit?: { reference?: string; full_name?: string; ward_name?: string } }>({ checking: false });
   const [created, setCreated] = useState<Voter | null>(null);
+  const [savedOffline, setSavedOffline] = useState<string | null>(null);
+  // One device-generated id per capture: the API treats replays of it as the same record.
+  const [clientRef, setClientRef] = useState(newClientRef);
   const [locating, setLocating] = useState(false);
   const restored = useRef(false);
   const create = useCreateVoter();
@@ -166,13 +170,22 @@ export function VoterWizard() {
       capture_lat: form.gps?.lat,
       capture_lng: form.gps?.lng,
     };
+    const queueOffline = async () => {
+      await outbox.add({ client_ref: clientRef, body: { ...body }, created_at: Date.now(), attempts: 0 });
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } catch {}
+      setSavedOffline(form.full_name);
+    };
+    if (typeof navigator !== "undefined" && !navigator.onLine) return queueOffline();
     try {
-      const v = await create.mutateAsync(body);
+      const v = await create.mutateAsync({ ...body, client_ref: clientRef });
       try {
         window.localStorage.removeItem(DRAFT_KEY);
       } catch {}
       setCreated(v);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 0) return queueOffline(); // signal dropped mid-submit
       if (err instanceof ApiError && Object.keys(err.fields).length) {
         setErrors(err.fields);
         setStep(err.fields.full_name || err.fields.birth_year ? 0 : err.fields.phone || err.fields.national_id ? 1 : 2);
@@ -183,6 +196,8 @@ export function VoterWizard() {
 
   function reset() {
     setCreated(null);
+    setSavedOffline(null);
+    setClientRef(newClientRef());
     setStep(0);
     setDup({ checking: false });
     setForm((f) => ({ ...EMPTY, loc: lockedWardId ? { ...f.loc, station_id: "" } : EMPTY.loc }));
@@ -206,6 +221,17 @@ export function VoterWizard() {
       ["GPS", form.gps ? `${form.gps.lat}, ${form.gps.lng}` : "Not captured"],
     ];
   }, [form, tree, stations.data]);
+
+  if (savedOffline) {
+    return (
+      <Card className="mx-auto max-w-2xl">
+        <SuccessPanel title="Saved on this phone" actions={<Button size="lg" onClick={reset}>Capture another voter</Button>}>
+          <p>No connection right now, so <b>{savedOffline}</b> is stored safely on this device and will upload automatically when you&apos;re back online.</p>
+          <p className="mt-2 text-xs">Watch the sync indicator at the top of the screen.</p>
+        </SuccessPanel>
+      </Card>
+    );
+  }
 
   if (created) {
     return (

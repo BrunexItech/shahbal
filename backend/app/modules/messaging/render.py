@@ -5,7 +5,7 @@ import re
 PLACEHOLDERS = ("first_name", "name", "ward", "constituency", "station")
 _RX = re.compile(r"\{(\w+)\}")
 GSM7 = set("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà")
-SMS_FOOTER = " STOP: reply STOP"
+SMS_FOOTER = "\nReply STOP to opt out."
 
 
 def unknown_placeholders(body: str) -> list[str]:

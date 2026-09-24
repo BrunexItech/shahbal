@@ -30,6 +30,7 @@ export type VoterInput = {
   consent: boolean;
   capture_lat?: number;
   capture_lng?: number;
+  client_ref?: string;
 };
 
 export const voterKeys = {
@@ -65,7 +66,7 @@ function useVoterMutation<TVars>(fn: (v: TVars) => Promise<Voter>) {
 
 export const useCreateVoter = () => useVoterMutation((body: VoterInput) => api<Voter>("/voters", { body }));
 export const useUpdateVoter = () =>
-  useVoterMutation(({ id, ...body }: Partial<Omit<VoterInput, "national_id" | "consent">> & { id: string; opted_out?: boolean }) =>
+  useVoterMutation(({ id, ...body }: Partial<Omit<VoterInput, "national_id" | "consent">> & { id: string; opted_out?: boolean; do_not_call?: boolean }) =>
     api<Voter>(`/voters/${id}`, { method: "PATCH", body }),
   );
 export const useVerify = () => useVoterMutation((id: string) => api<Voter>(`/voters/${id}/verify`, { method: "POST" }));

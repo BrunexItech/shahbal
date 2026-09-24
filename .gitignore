@@ -6,3 +6,6 @@ node_modules/
 .next/
 *.pyc
 .env.local
+
+# generated from node_modules by scripts/copy-maplibre-worker.mjs
+frontend/public/maplibre/

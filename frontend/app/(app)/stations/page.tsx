@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Plus, Upload } from "lucide-react";
+import { LocateFixed, MapPin, Plus, Upload } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -78,7 +78,7 @@ export default function StationsPage() {
                     <td className="px-3 py-3">{wards.get(s.ward_id)?.name}<p className="text-[11px] text-muted">{wards.get(s.ward_id)?.constituency}</p></td>
                     <td className="px-3 py-3 text-right tabular-nums">{s.streams}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{num(s.registered_voters)}</td>
-                    <td className="px-3 py-3 text-xs text-muted">{s.latitude != null ? "✓ Mapped" : "—"}</td>
+                    <td className="px-3 py-3 text-xs">{s.latitude != null ? <span className="font-semibold text-kenya-green">Mapped</span> : <span className="text-muted">Needs pin</span>}</td>
                     <td className="px-5 py-3"><Badge tone={s.is_active ? "green" : "slate"} dot>{s.is_active ? "Active" : "Inactive"}</Badge></td>
                   </tr>
                 ))}
@@ -96,7 +96,21 @@ function StationModal({ initial, tree, onClose }: { initial: Partial<Station>; t
   const [s, setS] = useState<Partial<Station>>(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const save = useSaveStation();
+  const [locating, setLocating] = useState(false);
   const set = (k: keyof Station, v: unknown) => setS((x) => ({ ...x, [k]: v }));
+  function pinHere() {
+    if (!navigator.geolocation) return toast.error("Location isn't available on this device");
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setS((x) => ({ ...x, latitude: +p.coords.latitude.toFixed(6), longitude: +p.coords.longitude.toFixed(6) }));
+        toast.success(`Pinned (±${Math.round(p.coords.accuracy)} m). Save to keep it.`);
+        setLocating(false);
+      },
+      () => { toast.error("Couldn't get your location"); setLocating(false); },
+      { enableHighAccuracy: true, timeout: 15_000 },
+    );
+  }
   const n = (v: string) => (v === "" ? null : Number(v));
 
   function submit() {
@@ -120,6 +134,11 @@ function StationModal({ initial, tree, onClose }: { initial: Partial<Station>; t
         <Input label="Registered voters" inputMode="numeric" value={s.registered_voters ?? ""} onChange={(e) => set("registered_voters", n(e.target.value))} />
         <Input label="Latitude" inputMode="decimal" value={s.latitude ?? ""} error={errors.latitude} onChange={(e) => set("latitude", n(e.target.value))} placeholder="-4.0435" />
         <Input label="Longitude" inputMode="decimal" value={s.longitude ?? ""} error={errors.longitude} onChange={(e) => set("longitude", n(e.target.value))} placeholder="39.6682" />
+        <div className="sm:col-span-2">
+          <Button type="button" size="sm" variant="secondary" loading={locating} icon={<LocateFixed className="size-4" />} onClick={pinHere}>
+            I&apos;m at this station: pin it from my GPS
+          </Button>
+        </div>
         <label className="flex items-center gap-2 text-sm font-medium text-navy-900 sm:col-span-2">
           <input type="checkbox" className="size-4 accent-kenya-green" checked={s.is_active ?? true} onChange={(e) => set("is_active", e.target.checked)} /> Active
         </label>

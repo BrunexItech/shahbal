@@ -15,6 +15,7 @@ export interface User {
   is_active: boolean;
   last_login_at: string | null;
   created_at: string;
+  totp_enabled?: boolean;
 }
 
 export interface Ward {
@@ -66,6 +67,9 @@ export interface Voter {
   status: VoterStatus;
   rejection_reason: string | null;
   opted_out: boolean;
+  do_not_call: boolean;
+  last_contacted_at: string | null;
+  voted_at: string | null;
   notes: string | null;
   captured_by_name: string | null;
   verified_by_name: string | null;
@@ -99,6 +103,17 @@ export interface WardProgress extends Progress {
 }
 
 export interface DashboardSummary {
+  ops: {
+    messages_today: number;
+    delivered_today: number;
+    calls_today: number;
+    answered_today: number;
+    visits_today: number;
+    visits_upcoming: number;
+    wards_visited: number;
+    approvals_pending: number;
+    voted: number;
+  };
   totals: { total: number; achieved: number; verified: number; pending: number; rejected: number; today: number; opted_out: number };
   overall: Progress;
   constituencies: (Progress & { id: string; name: string; verified: number })[];
@@ -119,4 +134,198 @@ export interface AuditEntry {
   entity_id: string | null;
   meta: Record<string, unknown> | null;
   ip: string | null;
+}
+
+export type Channel = "sms" | "whatsapp";
+export type CampaignStatus = "pending_approval" | "scheduled" | "sending" | "sent" | "cancelled" | "rejected";
+
+export interface Audience {
+  constituency_ids: string[];
+  ward_ids: string[];
+  station_ids: string[];
+  support: Support[];
+  statuses: VoterStatus[];
+  sources: Source[];
+  voted: boolean | null;
+}
+
+export interface Campaign {
+  id: string;
+  name: string;
+  channel: Channel;
+  kind: "broadcast" | "visit" | "gotv";
+  body: string;
+  audience: Partial<Audience>;
+  status: CampaignStatus;
+  scheduled_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  created_by_name: string | null;
+  reviewed_by_name: string | null;
+  review_note: string | null;
+  visit_id: string | null;
+  recipients: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  created_at: string;
+}
+
+export interface CampaignMessage {
+  id: string;
+  phone: string;
+  voter_id: string;
+  voter_name: string | null;
+  status: "queued" | "sent" | "delivered" | "failed";
+  error: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+}
+
+export interface Preview {
+  recipients: number;
+  sample: string | null;
+  chars: number;
+  segments: number;
+  unknown_placeholders: string[];
+}
+
+export type VisitStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
+
+export interface Visit {
+  id: string;
+  title: string;
+  ward_id: string;
+  ward_name: string | null;
+  constituency_name: string | null;
+  station_id: string | null;
+  station_name: string | null;
+  venue: string;
+  scheduled_at: string;
+  status: VisitStatus;
+  lead_id: string | null;
+  lead_name: string | null;
+  notes: string | null;
+  announce: boolean;
+  announce_hours_before: number;
+  announcement_campaign_id: string | null;
+  announcement_status: CampaignStatus | null;
+  announcement_recipients: number | null;
+  checkin_at: string | null;
+  checkin_lat: number | null;
+  checkin_lng: number | null;
+  completed_at: string | null;
+  attendance: number | null;
+  outcome: string | null;
+  created_at: string;
+}
+
+export type CallQueue = "verify" | "persuade" | "gotv" | "follow_up";
+export type CallOutcome = "answered" | "no_answer" | "busy" | "call_back" | "wrong_number" | "do_not_call";
+
+export interface CallLog {
+  id: string;
+  voter_id: string;
+  agent_name: string | null;
+  queue: CallQueue;
+  outcome: CallOutcome;
+  support_after: Support | null;
+  notes: string | null;
+  issue: string | null;
+  duration_seconds: number | null;
+  follow_up_at: string | null;
+  created_at: string;
+}
+
+export interface Claim {
+  voter: Voter;
+  history: CallLog[];
+  locked_until: string;
+  remaining: number;
+}
+
+export type QueueCounts = Record<CallQueue, number>;
+
+export interface AgentStat {
+  agent_id: string;
+  agent_name: string;
+  calls: number;
+  answered: number;
+  verified: number;
+}
+
+export interface ElectionSettings {
+  election_date: string | null;
+  polls_open: string;
+  polls_close: string;
+  candidate_label: string;
+  days_to_go: number | null;
+  is_election_day: boolean;
+}
+
+export interface TurnoutRow {
+  id: string;
+  name: string;
+  parent: string | null;
+  targets: number;
+  voted: number;
+  percent: number | null;
+}
+
+export interface Turnout {
+  overall: TurnoutRow;
+  wards: TurnoutRow[];
+  stations: TurnoutRow[];
+  last_hour: number;
+}
+
+export interface RosterRow {
+  id: string;
+  reference: string;
+  full_name: string;
+  phone: string;
+  support: Support;
+  voted_at: string | null;
+}
+
+export interface MapWard {
+  id: string;
+  code: string;
+  name: string;
+  constituency: string;
+  target: number;
+  registered_voters: number | null;
+  achieved: number;
+  verified: number;
+  supporters: number;
+  percent: number | null;
+  gap: number;
+  visits_completed: number;
+  visits_upcoming: number;
+  last_visit_at: string | null;
+}
+
+export interface MapOverview {
+  wards: MapWard[];
+  stations: { id: string; name: string; code: string; ward_id: string; lat: number; lng: number; registered_voters: number | null; captured: number }[];
+  visits: { id: string; title: string; venue: string; status: VisitStatus; scheduled_at: string; ward_id: string; lat: number | null; lng: number | null }[];
+}
+
+export interface Activity {
+  id: string;
+  at: string;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  meta: Record<string, unknown> | null;
+  actor: string;
+}
+
+export interface SessionInfo {
+  id: string;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+  last_seen_at: string | null;
+  current: boolean;
 }

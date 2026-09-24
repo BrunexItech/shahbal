@@ -22,6 +22,15 @@ export const can = {
   importStations: (r: Role) => r === "super_admin",
   audit: (r: Role) => r === "super_admin",
   revealId: (r: Role) => r === "super_admin",
+  message: (r: Role) => MANAGERS.includes(r),
+  approveMessages: (r: Role) => r === "super_admin",
+  planVisits: (r: Role) => MANAGERS.includes(r),
+  runVisits: (r: Role) => [...MANAGERS, "field_agent"].includes(r),
+  callCentre: (r: Role) => [...MANAGERS, "call_agent"].includes(r),
+  markVoted: (r: Role) => r !== "viewer",
+  electionAdmin: (r: Role) => r === "super_admin",
+  gisLab: (r: Role) => r === "super_admin",
+  exportData: (r: Role) => r === "super_admin",
 };
 
 export const GRANTABLE: Record<Role, Role[]> = {

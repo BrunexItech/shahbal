@@ -8,3 +8,4 @@ export { PageHeader } from "./PageHeader";
 export { Pagination } from "./Pagination";
 export { ProgressBar, progressTone } from "./Progress";
 export { EmptyState, ErrorState } from "./States";
+export { ConfirmProvider, useConfirm } from "./Confirm";

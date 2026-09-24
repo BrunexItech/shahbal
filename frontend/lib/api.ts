@@ -1,28 +1,10 @@
 import { API_URL } from "@/lib/config";
 
-const TOKEN_KEY = "chq.token";
-
-// Storage can throw (private mode, blocked site data); auth must degrade, not crash.
-function read(key: string) {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function write(key: string, value: string | null) {
-  try {
-    if (value === null) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, value);
-  } catch {}
-}
-
-export const tokenStore = {
-  get: () => read(TOKEN_KEY),
-  set: (t: string) => write(TOKEN_KEY, t),
-  clear: () => write(TOKEN_KEY, null),
-};
-
+/**
+ * Auth lives in an httpOnly, SameSite=Strict cookie that JavaScript can't read,
+ * so an XSS bug can't steal a session. Every request carries the CSRF header
+ * the API requires for cookie-authenticated writes.
+ */
 export class ApiError extends Error {
   constructor(public status: number, message: string, public fields: Record<string, string> = {}) {
     super(message);
@@ -39,7 +21,7 @@ function qs(params?: Query) {
   return out ? `?${out}` : "";
 }
 
-/** FastAPI errors are either {detail: string} or {detail: [{loc, msg}]} — flatten both. */
+/** FastAPI errors are either {detail: string} or {detail: [{loc, msg}]}; flatten both. */
 async function toError(res: Response): Promise<ApiError> {
   let body: { detail?: unknown } = {};
   try {
@@ -59,26 +41,37 @@ async function toError(res: Response): Promise<ApiError> {
 let onUnauthorized: () => void = () => {};
 export const setUnauthorizedHandler = (fn: () => void) => (onUnauthorized = fn);
 
+export const apiUrl = (path: string, query?: Query) => `${API_URL}${path}${qs(query)}`;
+
 export async function api<T>(
   path: string,
-  opts: { method?: string; body?: unknown; query?: Query; form?: FormData; auth?: boolean } = {},
+  opts: { method?: string; body?: unknown; query?: Query; form?: FormData; silent401?: boolean } = {},
 ): Promise<T> {
-  const headers: Record<string, string> = {};
-  const token = opts.auth === false ? null : tokenStore.get();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers: Record<string, string> = { "X-Requested-With": "fetch" };
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}${qs(opts.query)}`, {
-      method: opts.method ?? (opts.body || opts.form ? "POST" : "GET"),
+    res = await fetch(apiUrl(path, opts.query), {
+      method: opts.method ?? (opts.body !== undefined || opts.form ? "POST" : "GET"),
       headers,
+      credentials: "include",
       body: opts.form ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
     });
   } catch {
     throw new ApiError(0, "Can't reach the server. Check your connection and try again.");
   }
-  if (res.status === 401 && token) onUnauthorized();
+  if (res.status === 401 && !opts.silent401) onUnauthorized();
   if (!res.ok) throw await toError(res);
   return res.status === 204 ? (undefined as T) : res.json();
+}
+
+/** Authenticated file download (the cookie rides along; no token in the URL). */
+export async function download(path: string, filename: string, query?: Query) {
+  const res = await fetch(apiUrl(path, query), { credentials: "include", headers: { "X-Requested-With": "fetch" } });
+  if (!res.ok) throw await toError(res);
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  a.click();
+  URL.revokeObjectURL(url);
 }

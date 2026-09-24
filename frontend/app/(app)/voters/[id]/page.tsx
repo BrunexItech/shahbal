@@ -1,17 +1,19 @@
 "use client";
 
-import { ArrowLeft, Eye, MapPin, Phone, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, Eye, MapPin, Phone, PhoneCall, ShieldCheck, UserRound, Vote } from "lucide-react";
 import Link from "next/link";
 import { use, useState } from "react";
 import { toast } from "sonner";
 
 import { Skeleton } from "@/components/loaders";
 import { Badge, Button, Card, CardHeader, ErrorState, SOURCE_LABEL, StatusBadge, SUPPORT, SupportBadge } from "@/components/ui";
+import { useVoterCalls } from "@/features/calls/api";
+import { useMarkVoted } from "@/features/election/api";
 import { revealNationalId, useUpdateVoter, useVoter } from "@/features/voters/api";
 import { VerifyActions } from "@/features/voters/components/VerifyActions";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
-import { dateTime, initials } from "@/lib/format";
+import { dateTime, initials, timeAgo } from "@/lib/format";
 import { can } from "@/lib/roles";
 import type { Support } from "@/lib/types";
 
@@ -22,6 +24,8 @@ export default function VoterProfilePage({ params }: { params: Promise<{ id: str
   const update = useUpdateVoter();
   const [revealed, setRevealed] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
+  const calls = useVoterCalls(id);
+  const markVoted = useMarkVoted();
 
   if (isLoading) return <ProfileSkeleton />;
   if (error || !v) return <Card><ErrorState error={error} onRetry={refetch} /></Card>;
@@ -134,6 +138,47 @@ export default function VoterProfilePage({ params }: { params: Promise<{ id: str
               )}
             </ol>
             {v.notes && <p className="mx-5 mb-5 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-line">{v.notes}</p>}
+          </Card>
+          <Card>
+            <CardHeader title="Contact preferences" subtitle="Honoured by messaging and the call centre automatically." />
+            <div className="space-y-3 p-5">
+              {([["opted_out", "Receive campaign messages", !v.opted_out], ["do_not_call", "Can be called", !v.do_not_call]] as const).map(([key, label, on]) => (
+                <label key={key} className="flex items-center justify-between text-sm text-navy-900">
+                  {label}
+                  <button type="button" role="switch" aria-checked={on} disabled={!can.edit(user.role) || update.isPending}
+                    onClick={() => update.mutate({ id, [key]: on }, { onSuccess: () => toast.success("Preference updated"), onError: (e) => toast.error(e.message) })}
+                    className={cn("relative h-5 w-9 rounded-full transition disabled:opacity-50", on ? "bg-kenya-green" : "bg-slate-300")}>
+                    <span className={cn("absolute top-0.5 size-4 rounded-full bg-white shadow transition-all", on ? "left-[18px]" : "left-0.5")} />
+                  </button>
+                </label>
+              ))}
+              <div className="flex items-center justify-between border-t border-line pt-3 text-sm text-navy-900">
+                <span className="inline-flex items-center gap-2"><Vote className="size-4 text-muted" />{v.voted_at ? `Voted · ${dateTime(v.voted_at)}` : "Not marked as voted"}</span>
+                {can.markVoted(user.role) && (
+                  <Button size="sm" variant={v.voted_at ? "ghost" : "secondary"} loading={markVoted.isPending}
+                    onClick={() => markVoted.mutate({ id, voted: !v.voted_at }, { onSuccess: () => refetch(), onError: (e) => toast.error(e.message) })}>
+                    {v.voted_at ? "Undo" : "Mark voted"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+          <Card>
+            <CardHeader title="Calls" subtitle={v.last_contacted_at ? `Last contacted ${timeAgo(v.last_contacted_at)}` : "Never called"} />
+            {calls.data?.length ? (
+              <ol className="space-y-3 p-5">
+                {calls.data.map((c) => (
+                  <li key={c.id} className="flex gap-3 text-sm">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-ocean-50 text-ocean"><PhoneCall className="size-3.5" /></span>
+                    <div>
+                      <p className="font-semibold text-navy-900 capitalize">{c.outcome.replace(/_/g, " ")}{c.issue && <span className="font-normal text-muted"> · {c.issue}</span>}</p>
+                      <p className="text-xs text-muted">{c.agent_name} · {dateTime(c.created_at)}</p>
+                      {c.notes && <p className="mt-1 text-xs text-slate-700">{c.notes}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="p-5 text-sm text-muted">No calls logged yet.</p>}
           </Card>
           <div className="flex items-center gap-2 text-xs text-muted"><SupportBadge support={v.support} /> current classification</div>
         </div>

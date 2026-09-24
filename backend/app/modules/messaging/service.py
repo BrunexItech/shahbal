@@ -28,6 +28,7 @@ def as_utc(dt: datetime | None) -> datetime:
 
 
 def final_body(channel: Channel, body: str) -> str:
+    body = body.rstrip()
     return body + SMS_FOOTER if channel == Channel.sms else body
 
 
