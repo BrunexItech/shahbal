@@ -11,6 +11,7 @@ from app.core.clock import utcnow
 from app.core.config import settings
 from app.core.db import get_session
 from app.core.deps import Ctx, mfa_setup_pending, require
+from app.core.roles import Role
 from app.core.ratelimit import RateLimiter, client_ip
 from app.core.security import (
     burn_password_check,
@@ -213,3 +214,9 @@ async def revoke_others(ctx: Ctx = Depends(me_dep)):
     await revoke_all_sessions(ctx.session, ctx.user.id, except_id=ctx.session_id)
     audit.record(ctx.session, actor_id=ctx.user.id, action="SESSIONS_REVOKE", entity="user", entity_id=ctx.user.id, ip=ctx.ip)
     await ctx.session.commit()
+
+
+@router.get("/gis-access", status_code=204, include_in_schema=False)
+async def gis_access(ctx: Ctx = Depends(require(Role.super_admin))):
+    """nginx `auth_request` target guarding /gis/: 204 lets the request through,
+    401/403 stop it. The GIS Lab has no accounts of its own; ours decide."""

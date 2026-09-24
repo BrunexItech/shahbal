@@ -11,6 +11,7 @@ from app.core.roles import ADMINS
 from app.core.scope import voter_scope
 from app.modules.audit.models import AuditLog
 from app.modules.geo.models import Constituency, PollingStation, Ward
+from app.modules.mapping.project import build_project
 from app.modules.mapping.service import MapService, ward_boundaries
 from app.modules.users.models import User
 from app.modules.voters.models import Voter
@@ -67,6 +68,16 @@ async def export_stations(ctx: Ctx = Depends(admins)):
     audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id="stations", ip=ctx.ip)
     await ctx.session.commit()
     return _geojson("polling-stations", await MapService(ctx).export_stations())
+
+
+@router.get("/export/project.geolibre.json")
+async def export_project(ctx: Ctx = Depends(admins)):
+    """One-click GIS Lab project: styled layers, popups, charts and a story map."""
+    svc = MapService(ctx)
+    project = build_project(await svc.export_wards(), await svc.export_grid(), await svc.export_stations())
+    audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id="project", ip=ctx.ip)
+    await ctx.session.commit()
+    return JSONResponse(project, headers={"Content-Disposition": 'inline; filename="mombasa-campaign.geolibre.json"'})
 
 
 @router.get("/export/voters.csv")

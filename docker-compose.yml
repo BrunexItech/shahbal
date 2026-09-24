@@ -1,12 +1,15 @@
+# Full stack on one origin (http://localhost:8090 → put TLS in front in production).
+#   docker compose up -d --build
+# Secrets come from backend/.env (see backend/.env.example); never commit it.
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: shahbal
-      POSTGRES_PASSWORD: shahbal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shahbal}
       POSTGRES_DB: shahbal
     ports:
-      - "5436:5432"
+      - "127.0.0.1:5436:5432"   # loopback only: never expose the database
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -14,6 +17,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -21,23 +25,60 @@ services:
       - path: ./backend/.env
         required: false
     environment:
-      DATABASE_URL: postgresql+asyncpg://shahbal:shahbal@postgres:5432/shahbal
+      DATABASE_URL: postgresql+asyncpg://shahbal:${POSTGRES_PASSWORD:-shahbal}@postgres:5432/shahbal
+      CORS_ORIGINS: '["http://localhost:8090"]'
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "8000:8000"
-    command: sh -c "alembic upgrade head && python -m scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "alembic upgrade head && python -m scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shahbal:${POSTGRES_PASSWORD:-shahbal}@postgres:5432/shahbal
+    depends_on:
+      - backend
+    command: python -m app.worker
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_API_URL: /api/v1        # same origin via the gateway
+        NEXT_PUBLIC_GIS_URL: /gis/
     depends_on:
       - backend
+    restart: unless-stopped
+
+  # GeoLibre (MIT, opengeos) built from a pinned release with the /gis/ base path.
+  gislab:
+    build:
+      context: https://github.com/opengeos/GeoLibre.git#v3.0.0
+      args:
+        GEOLIBRE_APP_BASE: /gis/
+        VITE_WELCOME_DISABLED: "1"
+    environment:
+      GEOLIBRE_SHARE_URL: "off"          # no publishing to share.geolibre.app, ever
+      GEOLIBRE_GEOLENS_URL: "off"
+      GEOLIBRE_DISABLE_SIDECAR: "1"      # browser-only: no server-side file/DB access
+    restart: unless-stopped
+
+  gateway:
+    image: nginx:1.27-alpine
+    depends_on:
+      - frontend
+      - backend
+      - gislab
     ports:
-      - "3000:3000"
+      - "127.0.0.1:8090:80"
+    volumes:
+      - ./deploy/nginx/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
 
 volumes:
   pgdata:

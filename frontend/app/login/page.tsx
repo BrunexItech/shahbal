@@ -11,6 +11,13 @@ import { Button, Input } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { CAMPAIGN_NAME, CAMPAIGN_TAGLINE } from "@/lib/config";
 
+/** Only same-site paths: never let ?next= bounce a user to another host (open redirect). */
+function safeNext(): string {
+  if (typeof window === "undefined") return "/dashboard";
+  const n = new URLSearchParams(window.location.search).get("next") ?? "";
+  return n.startsWith("/") && !n.startsWith("//") && !n.startsWith("/\\") ? n : "/dashboard";
+}
+
 export default function LoginPage() {
   const { login, verifyMfa, user, ready } = useAuth();
   const router = useRouter();
@@ -22,7 +29,7 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
 
   useEffect(() => {
-    if (ready && user) router.replace("/dashboard");
+    if (ready && user) router.replace(safeNext());
   }, [ready, user, router]);
 
   if (!ready || user) return <BrandLoader message={user ? "Opening the war room" : "Checking your session"} />;
@@ -43,7 +50,7 @@ export default function LoginPage() {
           return;
         }
       }
-      router.replace("/dashboard");
+      router.replace(safeNext());
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sign-in failed";
       if (mfaToken && /expired|start again/i.test(msg)) {

@@ -245,3 +245,21 @@ async def test_bundled_station_seed_and_official_reimport(client, admin):
     assert r == {"created": 0, "updated": 1, "errors": []}
     bomu = [x for x in (await client.get("/api/v1/geo/stations", params={"q": "Bomu"}, headers=admin)).json()]
     assert len(bomu) == 1 and bomu[0]["code"] == "001001000101" and bomu[0]["registered_voters"] == 4200
+
+
+async def test_gis_project_is_aggregate_and_admin_only(client, admin, wards):
+    await client.patch(f"/api/v1/geo/wards/{wards['Tudor'].id}", json={"target": 100}, headers=admin)
+    await client.post("/api/v1/voters", headers=admin, json=voter_payload(wards["Tudor"], national_id="61234567"))
+    p = (await client.get("/api/v1/map/export/project.geolibre.json", headers=admin)).json()
+    assert p["version"] == "0.1.0" and [l["id"] for l in p["layers"]] == ["density", "wards", "stations"]
+    wl = p["layers"][1]
+    assert wl["style"]["vectorStyleMode"] == "graduated" and wl["style"]["vectorStyleProperty"] == "percent"
+    assert len(wl["geojson"]["features"]) == 30 and wl["capabilities"]["update"] is False
+    assert len(p["storymap"]["chapters"]) == 7  # county + 6 constituencies
+    text = str(p)
+    assert "Amina" not in text and "+2547" not in text and "61234567" not in text
+    agent = await make_user(client, admin, "field_agent", ward=wards["Tudor"])
+    assert (await client.get("/api/v1/map/export/project.geolibre.json", headers=agent)).status_code == 403
+    assert (await client.get("/api/v1/auth/gis-access", headers=admin)).status_code == 204
+    assert (await client.get("/api/v1/auth/gis-access", headers=agent)).status_code == 403
+    assert (await client.get("/api/v1/auth/gis-access")).status_code == 401

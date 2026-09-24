@@ -1,6 +1,7 @@
 import {
   ClipboardCheck,
   Flag,
+  Globe2,
   History,
   LayoutDashboard,
   Map,
@@ -33,6 +34,7 @@ export const NAV: NavItem[] = [
   { section: "Outreach", href: "/visits", label: "Campaign Visits", short: "Visits", icon: Route, show: () => true },
   { section: "Outreach", href: "/calls", label: "Call Centre", icon: PhoneCall, show: can.callCentre },
   { section: "Election", href: "/election", label: "Election Day", short: "Election", icon: Flag, show: () => true },
+  { section: "Command", href: "/gis-lab", label: "GIS Lab", icon: Globe2, show: can.gisLab },
   { section: "Setup", href: "/stations", label: "Polling Stations", icon: MapPin, show: () => true },
   { section: "Setup", href: "/users", label: "Team & Roles", icon: Users, show: can.manageUsers },
   { section: "Setup", href: "/audit", label: "Audit Trail", icon: History, show: can.audit },
