@@ -16,6 +16,8 @@ from app.modules.calls.models import CallLog
 from app.modules.live.models import AgentPresence, AgentStatus
 from app.modules.messaging.models import Message, MessageStatus
 from app.modules.users.models import User, UserSession
+from app.modules.geo.models import Constituency, Ward
+from app.modules.visits.models import Visit
 from app.modules.voters.models import Status, Voter
 
 COUNTY_WIDE = {Role.super_admin, Role.viewer}
@@ -54,12 +56,24 @@ async def feed(session, user: User, since) -> list[dict]:
     if user.role not in COUNTY_WIDE:
         return []
     rows = (await session.execute(
-        select(AuditLog.id, AuditLog.created_at, AuditLog.action, AuditLog.entity, AuditLog.meta, User.full_name)
+        select(AuditLog.id, AuditLog.created_at, AuditLog.action, AuditLog.entity, AuditLog.entity_id, AuditLog.meta, User.full_name)
         .outerjoin(User, User.id == AuditLog.actor_id)
         .where(AuditLog.created_at > since, AuditLog.action.in_(FEED_ACTIONS))
         .order_by(AuditLog.created_at.desc()).limit(20)
     )).all()
-    return [{"id": i, "at": at.isoformat(), "action": a, "entity": e, "meta": m, "actor": n or "Public portal"} for i, at, a, e, m, n in rows]
+    # Where it happened (ward + constituency), so the Command Centre map can pulse there.
+    ids = {e: [r.entity_id for r in rows if r.entity == e and r.entity_id] for e in ("voter", "visit")}
+    where: dict[str, tuple[str, str]] = {}
+    for model, key in ((Voter, "voter"), (Visit, "visit")):
+        if ids[key]:
+            where.update({i: (w, c) for i, w, c in (await session.execute(
+                select(model.id, Ward.name, Constituency.name).join(Ward, Ward.id == model.ward_id)
+                .join(Constituency, Constituency.id == Ward.constituency_id).where(model.id.in_(ids[key]))
+            )).all()})
+    return [{"id": r.id, "at": r.created_at.isoformat(), "action": r.action, "entity": r.entity, "meta": r.meta,
+             "actor": r.full_name or "Public portal",
+             "ward": where.get(r.entity_id, (None, None))[0], "constituency": where.get(r.entity_id, (None, None))[1]}
+            for r in rows]
 
 
 async def call_wall(session) -> list[dict]:

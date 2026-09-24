@@ -7,7 +7,10 @@ import { Skeleton } from "@/components/loaders";
 import { Card, CardHeader, ErrorState } from "@/components/ui";
 import { LiveDot } from "@/components/ui/Motion";
 import { useDashboard } from "@/features/dashboard/api";
-import { ConstituencyLeague, Delta, InsightCards, KpiTile, LiveActivity, MissionHero } from "@/features/dashboard/components/Mission";
+import { CommandStage } from "@/features/dashboard/components/command/CommandStage";
+import { Heartbeat } from "@/features/dashboard/components/command/Heartbeat";
+import { RaceLanes } from "@/features/dashboard/components/command/RaceLanes";
+import { InsightCards, LiveActivity } from "@/features/dashboard/components/Mission";
 import { useUser } from "@/lib/auth";
 import { num } from "@/lib/format";
 import { useLive } from "@/lib/live";
@@ -45,8 +48,8 @@ export default function CommandCentrePage() {
         </span>
       </header>
 
-      {/* 1 · Are we winning? */}
-      <MissionHero d={d} pulse={pulse} connected={connected} />
+      {/* 1 · Are we winning, how fast, and where? */}
+      <CommandStage d={d} pulse={pulse} events={events} connected={connected} />
 
       {/* 2 · What needs attention now? */}
       <section aria-labelledby="attention">
@@ -57,21 +60,17 @@ export default function CommandCentrePage() {
         <InsightCards cards={attention} />
       </section>
 
-      {/* Key numbers */}
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiTile cap="green" label="Captured today" value={pulse?.captures_today ?? i.today} spark={i.hourly} foot={<Delta now={i.today} before={i.yesterday_same_time} suffix=" vs yesterday" />} />
-        <KpiTile cap="black" label="This week" value={i.last7} spark={d.daily.slice(-7).map((x) => x.count)} sparkColor="#0b7fa6" foot={<Delta now={i.last7} before={i.prev7} suffix=" vs last week" />} />
-        <KpiTile cap="red" label="Awaiting verification" value={d.totals.pending} href="/verification"
-          foot={<span className="text-xs text-muted">{i.backlog_days != null && i.backlog_days <= 60 ? `About ${Math.round(i.backlog_days)} days to clear` : "Needs call-centre focus"}</span>} />
-        <KpiTile cap="gold" label="Calls today" value={pulse?.calls_today ?? d.ops.calls_today} href="/calls"
-          foot={<span className="text-xs text-muted">{num(pulse?.on_call ?? 0)} on a call now</span>} />
-      </section>
+      {/* 3 · Who is winning the race? */}
+      <Card className="overflow-hidden">
+        <CardHeader title="The race to target" subtitle="Each constituency's runner shows where it is now, and the hollow marker where today's pace takes it by election day." />
+        <RaceLanes rows={i.constituencies} />
+      </Card>
 
-      {/* 3 · Where?  4 · What's happening right now? */}
+      {/* 4 · What's happening right now? */}
       <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
         <Card className="overflow-hidden">
-          <CardHeader title="Constituencies" subtitle="Green is on track at today's pace; amber at risk; red critical." />
-          <ConstituencyLeague rows={i.constituencies} />
+          <CardHeader title="Today's heartbeat" subtitle="Captures per hour, today against yesterday" />
+          <Heartbeat today={i.hourly} yesterday={i.hourly_yesterday} />
         </Card>
         {hq ? (
           <Card className="overflow-hidden">
@@ -102,7 +101,7 @@ function CommandSkeleton() {
   return (
     <div className="space-y-6">
       <Skeleton className="h-10 w-64" />
-      <Skeleton className="h-64 rounded-3xl" />
+      <Skeleton className="h-[520px] rounded-3xl" />
       <div className="grid gap-4 md:grid-cols-3">{Array.from({ length: 3 }).map((_, n) => <Skeleton key={n} className="h-28 rounded-2xl" />)}</div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, n) => <Skeleton key={n} className="h-36 rounded-2xl" />)}</div>
     </div>

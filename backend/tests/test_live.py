@@ -22,6 +22,8 @@ async def test_live_pulse_is_scoped(client, admin, wards):
     await client.post("/api/v1/voters", json=voter_payload(wards["Bamburi"], national_id="87651234"), headers=admin)
     hq = await read_first_pulse(client, admin)
     assert hq["pulse"]["captures_today"] == 2 and hq["pulse"]["online_command"] >= 1 and hq["events"]
+    captured = {(e["ward"], e["constituency"]) for e in hq["events"] if e["action"] == "CREATE"}
+    assert ("Tudor", "Mvita") in captured  # events say where they happened (for the map)
     coord = await make_user(client, admin, "coordinator", constituency_id=wards["Tudor"].constituency_id)
     scoped = await read_first_pulse(client, coord)
     assert scoped["pulse"]["captures_today"] == 1 and scoped["events"] == []  # coordinators: their area only, no county feed

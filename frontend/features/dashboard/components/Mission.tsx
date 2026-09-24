@@ -223,7 +223,7 @@ export function LiveActivity({ events }: { events: LiveEvent[] }) {
         return (
           <li key={e.id} className="flex animate-fade-up items-center gap-3 px-5 py-2.5 text-sm">
             <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", cfg.cls)}><cfg.icon className="size-4" /></span>
-            <p className="min-w-0 flex-1 truncate"><b className="text-navy-900">{e.actor}</b> <span className="text-slate-600">{cfg.verb}{source === "portal" ? " (portal)" : ""}</span></p>
+            <p className="min-w-0 flex-1 truncate"><b className="text-navy-900">{e.actor}</b> <span className="text-slate-600">{cfg.verb}{source === "portal" ? " (portal)" : ""}</span>{e.ward && <span className="text-slate-600"> in <b className="font-semibold text-navy-900">{e.ward}</b></span>}</p>
             <span className="text-xs whitespace-nowrap text-muted">{timeAgo(e.at)}</span>
           </li>
         );

@@ -109,3 +109,14 @@ html { font-size: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; 
 /* Horizontal chip rails (section navigator): scrollable by touch/trackpad, no visible bar. */
 .scroll-thin { scrollbar-width: none; }
 .scroll-thin::-webkit-scrollbar { display: none; }
+
+/* ---- Command Centre stage ------------------------------------------------------- */
+@keyframes map-ping { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(4.2); opacity: 0; } }
+@keyframes radar-sweep { to { transform: rotate(360deg); } }
+@keyframes runner-glow { 0%, 100% { box-shadow: 0 0 0 0 var(--glow); } 50% { box-shadow: 0 0 0 7px transparent; } }
+.map-ping { transform-box: fill-box; transform-origin: center; animation: map-ping 2.4s cubic-bezier(0.2, 0.7, 0.3, 1) infinite; }
+.radar-sweep { transform-origin: center; animation: radar-sweep 9s linear infinite; }
+.runner { animation: runner-glow 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .map-ping, .radar-sweep, .runner { animation: none; }
+}

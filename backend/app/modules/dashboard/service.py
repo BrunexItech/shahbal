@@ -203,6 +203,10 @@ async def insights(session, user, summary: dict) -> dict:
     hourly_rows = dict((await session.execute(
         select(hour, func.count(Voter.id)).where(vs, live, Voter.created_at >= today).group_by(hour))).all())
     hourly = [int(hourly_rows.get(h, 0)) for h in range(24)]
+    yday_rows = dict((await session.execute(
+        select(hour, func.count(Voter.id)).where(vs, live, Voter.created_at >= local_midnight(1), Voter.created_at < today)
+        .group_by(hour))).all())
+    hourly_yesterday = [int(yday_rows.get(h, 0)) for h in range(24)]
 
     st = await load_settings(session)
     days_left = None
@@ -275,5 +279,5 @@ async def insights(session, user, summary: dict) -> dict:
     return {
         "today": today_n, "yesterday_same_time": yday_to_now, "last7": last7, "prev7": prev7, "pace": pace,
         "days_left": days_left, "projected": round(projected) if projected is not None else None, "required_pace": required,
-        "hourly": hourly, "backlog_days": backlog_days, "constituencies": constituencies, "cards": cards[:6],
+        "hourly": hourly, "hourly_yesterday": hourly_yesterday, "backlog_days": backlog_days, "constituencies": constituencies, "cards": cards[:6],
     }

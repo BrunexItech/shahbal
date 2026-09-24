@@ -18,7 +18,10 @@ export type Pulse = {
   on_call: number;
 };
 
-export type LiveEvent = { id: string; at: string; action: string; entity: string; meta: Record<string, unknown> | null; actor: string };
+export type LiveEvent = {
+  id: string; at: string; action: string; entity: string; meta: Record<string, unknown> | null; actor: string;
+  ward?: string | null; constituency?: string | null;
+};
 export type LiveCall = { agent_id: string; agent: string; status: "available" | "ringing" | "on_call" | "wrap_up" | "away"; since: string; voter: string | null; voter_reference: string | null; line: string | null };
 
 type LiveState = { connected: boolean; pulse: Pulse | null; events: LiveEvent[]; calls: LiveCall[] | null; lastAt: number | null };

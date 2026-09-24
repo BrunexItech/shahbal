@@ -130,6 +130,7 @@ export interface Insights {
   projected: number | null;
   required_pace: number | null;
   hourly: number[];
+  hourly_yesterday: number[];
   backlog_days: number | null;
   constituencies: (Progress & { id: string; name: string; verified: number; pace: number; today: number; projected: number | null; projected_percent: number | null; status: Health })[];
   cards: InsightCard[];
