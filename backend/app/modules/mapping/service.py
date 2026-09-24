@@ -18,7 +18,10 @@ from app.modules.users.models import User
 from app.modules.visits.models import Visit, VisitStatus
 from app.modules.voters.models import Status, Support, Voter
 
-BOUNDARIES = Path(__file__).resolve().parents[1] / "geo" / "data" / "mombasa-wards.geojson"
+DATA = Path(__file__).resolve().parents[1] / "geo" / "data"
+BOUNDARIES = DATA / "mombasa-wards.geojson"
+# The six constituencies, dissolved once from the IEBC ward shapes (static, no GIS library at runtime).
+CONSTITUENCIES = DATA / "mombasa-constituencies.geojson"
 MIN_CELL = 5
 CELL_DEG = 0.005  # ≈ 550 m at Mombasa's latitude
 
@@ -26,6 +29,11 @@ CELL_DEG = 0.005  # ≈ 550 m at Mombasa's latitude
 @lru_cache(maxsize=1)
 def ward_boundaries() -> dict:
     return json.loads(BOUNDARIES.read_text())
+
+
+@lru_cache(maxsize=1)
+def constituency_boundaries() -> dict:
+    return json.loads(CONSTITUENCIES.read_text())
 
 
 def _pct(a: int, t: int) -> float | None:
@@ -107,6 +115,23 @@ class MapService:
             props = {k: s[k] for k in ("code", "name", "constituency", "target", "achieved", "verified", "supporters", "percent",
                                         "gap", "visits_completed", "visits_upcoming", "registered_voters")}
             feats.append({"type": "Feature", "properties": props, "geometry": f["geometry"]})
+        return {"type": "FeatureCollection", "features": feats}
+
+    async def export_constituencies(self) -> dict:
+        """Constituency outlines with totals rolled up from the wards this user can see."""
+        totals: dict[str, dict] = {}
+        for w in await self.ward_stats():
+            t = totals.setdefault(w["constituency"], {"target": 0, "achieved": 0, "supporters": 0, "visits_completed": 0, "registered_voters": 0})
+            for k in t:
+                t[k] += w[k] or 0
+        feats = []
+        for f in constituency_boundaries()["features"]:
+            t = totals.get(f["properties"]["name"])
+            if t is None:
+                continue
+            feats.append({"type": "Feature", "geometry": f["geometry"], "properties": {
+                "name": f["properties"]["name"], "wards": f["properties"]["wards"], **t,
+                "percent": _pct(t["achieved"], t["target"]), "gap": max(t["target"] - t["achieved"], 0)}})
         return {"type": "FeatureCollection", "features": feats}
 
     async def export_grid(self) -> dict:

@@ -207,6 +207,9 @@ async def test_gis_exports_are_aggregate_and_suppress_small_cells(client, admin,
     assert "Amina" not in text and "+2547" not in text
     b = await client.get("/api/v1/map/boundaries", headers=admin)
     assert b.headers["cache-control"].startswith("private") and len(b.json()["features"]) == 30
+    c = (await client.get("/api/v1/map/boundaries/constituencies", headers=admin)).json()
+    assert sorted(f["properties"]["name"] for f in c["features"]) == ["Changamwe", "Jomvu", "Kisauni", "Likoni", "Mvita", "Nyali"]
+    assert sum(f["properties"]["wards"] for f in c["features"]) == 30
     agent = await make_user(client, admin, "field_agent", ward=wards["Tudor"])
     assert (await client.get("/api/v1/map/export/wards.geojson", headers=agent)).status_code == 403
 
@@ -251,7 +254,7 @@ async def test_gis_project_is_aggregate_and_admin_only(client, admin, wards):
     await client.patch(f"/api/v1/geo/wards/{wards['Tudor'].id}", json={"target": 100}, headers=admin)
     await client.post("/api/v1/voters", headers=admin, json=voter_payload(wards["Tudor"], national_id="61234567"))
     p = (await client.get("/api/v1/map/export/project.geolibre.json", headers=admin)).json()
-    assert p["version"] == "0.1.0" and [l["id"] for l in p["layers"]] == ["density", "wards", "stations"]
+    assert p["version"] == "0.1.0" and [l["id"] for l in p["layers"]] == ["constituencies", "progress", "density", "wards", "stations"]
     wl = p["layers"][1]
     assert wl["style"]["vectorStyleMode"] == "graduated" and wl["style"]["vectorStyleProperty"] == "percent"
     assert len(wl["geojson"]["features"]) == 30 and wl["capabilities"]["update"] is False
@@ -276,6 +279,9 @@ async def test_gis_one_time_link(client, admin, wards):
     # The lab fetches it from its own origin, with no session cookie.
     r = await client.get(f"/api/v1{link['url']}", headers={"Origin": settings.gis_origin})
     assert r.status_code == 200 and r.json()["storymap"]["chapters"]
+    layers = {layer["id"]: layer for layer in r.json()["layers"]}
+    assert len(layers["constituencies"]["geojson"]["features"]) == 6
+    assert layers["constituencies"]["style"]["vectorStyleMode"] == "categorized"
     assert r.headers["access-control-allow-origin"] == settings.gis_origin
     assert (await client.get(f"/api/v1{link['url']}")).status_code == 410  # single use
     agent = await make_user(client, admin, "field_agent", ward=wards["Tudor"])

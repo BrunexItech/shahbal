@@ -132,6 +132,12 @@ cd ../frontend && npm install && npm run dev   # :3000
 Demo logins (password `DemoPass2027`): `agent.0001@demo.campaign.co.ke` (field agent) and `calls1@demo.campaign.co.ke` (call centre).
 
 **GeoLibre GIS Lab (local):** run `docker compose -f docker-compose.dev.yml up -d gislab` to serve GeoLibre on `http://localhost:8081`, and set `NEXT_PUBLIC_GIS_URL=http://localhost:8081/` in `frontend/.env.local`.
+- The GIS Lab page shows a live **regions map** in the app itself:
+  - the 6 constituencies, each in its own colour and labelled,
+  - the 30 IEBC wards, whose names appear as you zoom in,
+  - the polling stations,
+  - a *Progress to target* view that shades each ward.
+  Click a constituency to zoom in, or a ward to see its numbers. The constituency outlines are dissolved once from the ward shapes into `geo/data/mombasa-constituencies.geojson`.
 - *GIS Lab → Open* creates a single-use link, valid for 120 s, to the aggregated Mombasa project and opens it in GeoLibre. The link returns `410 Gone` if it is reused.
 
 Tests: `cd backend && .venv/bin/pytest`. This needs a `shahbal_test` database on the compose Postgres.

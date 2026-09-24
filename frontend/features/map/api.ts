@@ -13,3 +13,6 @@ export const useBoundaries = () =>
 
 export const useActivity = (enabled: boolean) =>
   useQuery({ queryKey: ["map", "activity"], queryFn: () => api<Activity[]>("/map/activity"), refetchInterval: 10_000, enabled });
+
+export const useConstituencyOutlines = () =>
+  useQuery({ queryKey: ["map", "constituencies"], queryFn: () => api<FeatureCollection>("/map/boundaries/constituencies"), staleTime: Infinity });

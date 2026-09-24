@@ -68,7 +68,7 @@ export default function TeamPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {shown.map((u) => (
-            <button key={u.id} onClick={() => setOpen(u)} className="group animate-fade-up rounded-2xl border border-line bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg">
+            <button key={u.id} onClick={() => setOpen(u)} className="group min-w-0 animate-fade-up rounded-2xl border border-line bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg">
               <div className="flex items-center gap-3">
                 <Avatar userId={u.id} name={u.full_name} size={56} hasPhoto={u.has_photo} />
                 <div className="min-w-0 flex-1">

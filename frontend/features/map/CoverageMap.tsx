@@ -293,7 +293,7 @@ function visitCard(p: Record<string, unknown>) {
 }
 
 /** Tooltip built from DOM nodes with textContent, never from HTML strings. */
-function tooltip(title: string, sub: string) {
+export function tooltip(title: string, sub: string) {
   const wrap = document.createElement("div");
   const t = document.createElement("p");
   t.className = "text-sm font-semibold text-white";

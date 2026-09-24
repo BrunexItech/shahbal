@@ -20,7 +20,7 @@ from app.modules.audit.models import AuditLog
 from app.modules.auth.models import AuthChallenge, ChallengePurpose
 from app.modules.geo.models import Constituency, PollingStation, Ward
 from app.modules.mapping.project import build_project
-from app.modules.mapping.service import MapService, ward_boundaries
+from app.modules.mapping.service import MapService, constituency_boundaries, ward_boundaries
 from app.modules.users.models import User
 from app.modules.voters.models import Voter
 
@@ -34,6 +34,11 @@ exporters = require_step_up(*ADMINS)
 async def boundaries(ctx: Ctx = Depends(any_user)):
     # Public geography (IEBC ward shapes): cacheable, unlike everything else under /api.
     return JSONResponse(ward_boundaries(), headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.get("/boundaries/constituencies")
+async def constituency_outlines(ctx: Ctx = Depends(any_user)):
+    return JSONResponse(constituency_boundaries(), headers={"Cache-Control": "private, max-age=86400"})
 
 
 @router.get("/overview")
@@ -82,7 +87,8 @@ async def export_stations(ctx: Ctx = Depends(exporters)):
 
 async def _project_response(ctx: Ctx, mode: str, via: str) -> JSONResponse:
     svc = MapService(ctx)
-    project = build_project(await svc.export_wards(), await svc.export_grid(), await svc.export_stations(), briefing=mode == "briefing")
+    project = build_project(await svc.export_constituencies(), await svc.export_wards(), await svc.export_grid(), await svc.export_stations(),
+                            briefing=mode == "briefing")
     audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id=f"project:{mode}", ip=ctx.ip, via=via)
     await ctx.session.commit()
     return JSONResponse(project, headers={"Content-Disposition": 'inline; filename="mombasa-campaign.geolibre.json"', "Cache-Control": "no-store"})

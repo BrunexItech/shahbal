@@ -10,8 +10,14 @@ from datetime import datetime
 
 from app.core.clock import TZ
 
-# Same sequential ramp as the live coverage map (light → Kenyan green).
-RAMP = [(0, "#e8f5ee", "0–24%"), (25, "#b7e0cb", "25–49%"), (50, "#6fc29a", "50–74%"), (75, "#23985f", "75–99%"), (100, "#006b3f", "100%+")]
+# Sequential light → Kenyan green. The low end is split finely so early-campaign
+# differences (5% vs 11%) are visible instead of every ward sharing one pale step.
+RAMP = [(0, "#e3f1e9", "Under 5%"), (5, "#bfe2cd", "5–9%"), (10, "#8fcfaa", "10–24%"), (25, "#57b482", "25–49%"),
+        (50, "#2a965f", "50–74%"), (75, "#0f7a47", "75–99%"), (100, "#00552f", "100%+")]
+# One fixed hue per constituency (validated for colour-blind separation; always direct-labelled).
+CONSTITUENCY_COLORS = {"Changamwe": "#0b7fa6", "Jomvu": "#c9a227", "Kisauni": "#006b3f",
+                       "Likoni": "#bb1e10", "Mvita": "#7b4fb8", "Nyali": "#e07b39"}
+INK = "#0b1f3a"
 DENSITY = [(5, "#e6f5fa", "5–19"), (20, "#9fd6ea", "20–49"), (50, "#3fa7cc", "50–99"), (100, "#0b7fa6", "100+")]
 BASEMAP = "https://tiles.openfreemap.org/styles/positron"
 
@@ -86,29 +92,54 @@ def _story(wards_fc: dict) -> dict:
             "showMarkers": False, "chapters": chapters}
 
 
-def build_project(wards_fc: dict, grid_fc: dict, stations_fc: dict, *, briefing: bool = False) -> dict:
+_NUM = {"kind": "number", "format": {"thousands": True}}
+
+
+def build_project(cons_fc: dict, wards_fc: dict, grid_fc: dict, stations_fc: dict, *, briefing: bool = False) -> dict:
     """`briefing=True` adds the story map, which GeoLibre opens in presentation mode;
     the default opens straight into the analysis workspace."""
     stamp = datetime.now(TZ).strftime("%d %b %Y %H:%M")
-    wards = _layer("wards", "Ward coverage (% of target)", wards_fc, {
-        "fillColor": "#e8f5ee", "fillOpacity": 0.78, "strokeColor": "#ffffff", "strokeWidth": 1.5, "strokeWidthUnit": "pixels",
-        "vectorStyleMode": "graduated", "vectorStyleProperty": "percent", "vectorStyleStops": _stops(RAMP),
-        "vectorStyleClassCount": len(RAMP),
-        "labels": {"enabled": True, "field": "name", "expression": "", "placement": "point", "size": 11,
-                   "color": "#0b1f3a", "haloColor": "#ffffff", "haloWidth": 1.4, "minZoom": 0, "maxZoom": 24},
+    cons = _layer("constituencies", "Constituencies (6)", cons_fc, {
+        "fillColor": "#94a3b8", "fillOpacity": 0.4, "strokeColor": INK, "strokeWidth": 2.5, "strokeWidthUnit": "pixels",
+        "vectorStyleMode": "categorized", "vectorStyleProperty": "name",
+        "vectorStyleStops": [{"value": n, "color": c, "label": n} for n, c in CONSTITUENCY_COLORS.items()],
+        "labels": {"enabled": True, "field": "name", "expression": "", "placement": "point", "size": 16,
+                   "color": INK, "haloColor": "#ffffff", "haloWidth": 2.2, "minZoom": 0, "maxZoom": 12.6},
     }, {
         "titleField": "name",
         "fields": [
-            {"field": "constituency", "label": "Constituency"},
-            {"field": "achieved", "label": "Reached", "kind": "number", "format": {"thousands": True}, "hover": True},
-            {"field": "target", "label": "Target", "kind": "number", "format": {"thousands": True}},
+            {"field": "wards", "label": "Wards", "kind": "number"},
+            {"field": "achieved", "label": "Reached", **_NUM, "hover": True},
+            {"field": "target", "label": "Target", **_NUM},
             {"field": "percent", "label": "Progress", "kind": "number", "format": {"decimals": 1, "suffix": "%"}, "hover": True},
-            {"field": "gap", "label": "Gap", "kind": "number", "format": {"thousands": True}},
-            {"field": "supporters", "label": "Supporters", "kind": "number", "format": {"thousands": True}},
-            {"field": "visits_completed", "label": "Visits done", "kind": "number"},
-            {"field": "registered_voters", "label": "Registered (IEBC)", "kind": "number", "format": {"thousands": True}},
+            {"field": "gap", "label": "Gap", **_NUM},
+            {"field": "registered_voters", "label": "Registered (IEBC)", **_NUM},
         ],
     })
+    ward_popup = {
+        "titleField": "name",
+        "fields": [
+            {"field": "constituency", "label": "Constituency", "hover": True},
+            {"field": "achieved", "label": "Reached", **_NUM, "hover": True},
+            {"field": "target", "label": "Target", **_NUM},
+            {"field": "percent", "label": "Progress", "kind": "number", "format": {"decimals": 1, "suffix": "%"}, "hover": True},
+            {"field": "gap", "label": "Gap", **_NUM},
+            {"field": "supporters", "label": "Supporters", **_NUM},
+            {"field": "visits_completed", "label": "Visits done", "kind": "number"},
+            {"field": "registered_voters", "label": "Registered (IEBC)", **_NUM},
+        ],
+    }
+    # Ward boundaries + names on top of the constituency colours; clicking a ward shows its numbers.
+    wards = _layer("wards", "Wards (30): boundaries & names", wards_fc, {
+        "fillColor": "#ffffff", "fillOpacity": 0.01, "strokeColor": "#ffffff", "strokeWidth": 1.4, "strokeWidthUnit": "pixels",
+        "labels": {"enabled": True, "field": "name", "expression": "", "placement": "point", "size": 12,
+                   "color": INK, "haloColor": "#ffffff", "haloWidth": 1.6, "minZoom": 11.6, "maxZoom": 24},
+    }, ward_popup)
+    progress = _layer("progress", "Ward progress (% of target)", wards_fc, {
+        "fillColor": RAMP[0][1], "fillOpacity": 0.85, "strokeColor": "#ffffff", "strokeWidth": 1.4, "strokeWidthUnit": "pixels",
+        "vectorStyleMode": "graduated", "vectorStyleProperty": "percent", "vectorStyleStops": _stops(RAMP),
+        "vectorStyleClassCount": len(RAMP),
+    }, ward_popup, visible=False)
     grid = _layer("density", "Capture density (≈550 m cells, 5+ only)", grid_fc, {
         "fillColor": "#9fd6ea", "fillOpacity": 0.7, "strokeColor": "#ffffff", "strokeWidth": 0.5, "strokeWidthUnit": "pixels",
         "vectorStyleMode": "graduated", "vectorStyleProperty": "captures", "vectorStyleStops": _stops(DENSITY),
@@ -134,16 +165,19 @@ def build_project(wards_fc: dict, grid_fc: dict, stations_fc: dict, *, briefing:
     return {
         "version": "0.1.0",
         "name": f"Mombasa campaign · {stamp}",
-        "mapView": {"center": [39.66, -4.04], "zoom": 10.6, "bearing": 0, "pitch": 0},
+        "mapView": {"center": [39.665, -4.03], "zoom": 11.2, "bearing": 0, "pitch": 0},
         "basemapStyleUrl": BASEMAP,
         "basemapVisible": True,
         "basemapOpacity": 1,
-        "layers": [grid, wards, stations],
+        # Bottom → top. Toggle "Constituencies" off and "Ward progress" on for the performance view.
+        "layers": [cons, progress, grid, wards, stations],
         "styles": {},
-        "legend": {"title": "Mombasa campaign coverage", "groupByLayer": True},
+        "legend": {"title": "Mombasa County", "groupByLayer": True},
         "widgets": [
             {"id": "w-cons", "layerId": "wards", "type": "bar", "category": "constituency", "aggregation": "sum",
              "valueField": "achieved", "title": "Reached by constituency", "color": "#006b3f"},
+            {"id": "w-gap", "layerId": "constituencies", "type": "bar", "category": "name", "aggregation": "sum",
+             "valueField": "gap", "title": "Gap to target by constituency", "color": "#bb1e10"},
             {"id": "w-pct", "layerId": "wards", "type": "histogram", "field": "percent", "bins": 10,
              "title": "Wards by % of target", "color": "#0b7fa6"},
         ],

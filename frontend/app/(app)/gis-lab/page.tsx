@@ -6,10 +6,11 @@ import { toast } from "sonner";
 
 import { Button, Card, CardHeader, PageHeader } from "@/components/ui";
 import { API_URL, GIS_URL } from "@/lib/config";
+import { RegionsExplorer } from "@/features/map/RegionsExplorer";
 import { api, download } from "@/lib/api";
 
 const LAYERS = [
-  { icon: Shapes, name: "Ward coverage", file: "wards", desc: "30 IEBC wards with target, reached, gap, supporters, visits and progress %. Opens as a green choropleth." },
+  { icon: Shapes, name: "Constituencies and wards", file: "wards", desc: "The 6 constituencies in their own colours with the 30 IEBC wards and their names on top. Click any ward for target, reached, gap, supporters and visits. A \"Ward progress\" layer shades each ward by % of target." },
   { icon: Grid3x3, name: "Capture density", file: "grid", desc: "≈550 m grid of where the field team has captured supporters. Cells with fewer than 5 records are suppressed." },
   { icon: MapPin, name: "Polling stations", file: "stations", desc: "Mapped stations sized by how many supporters are registered to vote there." },
 ];
@@ -78,18 +79,22 @@ export default function GisLabPage() {
           </>
         } />
 
+      <div className="mb-6">
+        <RegionsExplorer />
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <Card>
-          <CardHeader title="What opens in the lab" subtitle="A ready-made project, generated fresh each time you open it." />
+          <CardHeader title="What opens in GeoLibre" subtitle="The same map as a full GIS project, generated fresh each time: filter, buffer, measure, chart and print." />
           <ul className="divide-y divide-line">
             {LAYERS.map(({ icon: Icon, name, file, desc }) => (
-              <li key={file} className="flex items-start gap-4 px-5 py-4">
+              <li key={file} className="flex flex-wrap items-start gap-x-4 gap-y-2 px-5 py-4 sm:flex-nowrap">
                 <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-kenya-green-50 text-kenya-green"><Icon className="size-5" /></span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-navy-900">{name}</p>
                   <p className="text-sm text-muted">{desc}</p>
                 </div>
-                <Button size="sm" variant="secondary" loading={busy === file} icon={<Download className="size-3.5" />} onClick={() => get(file)}>GeoJSON</Button>
+                <Button size="sm" variant="secondary" className="ml-14 sm:ml-0" loading={busy === file} icon={<Download className="size-3.5" />} onClick={() => get(file)}>GeoJSON</Button>
               </li>
             ))}
             <li className="flex items-start gap-4 px-5 py-4">
