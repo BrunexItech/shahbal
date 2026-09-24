@@ -55,6 +55,7 @@ class ConsentMixin(BaseModel):
 
 
 class VoterCreate(VoterBase, NationalIdMixin, ConsentMixin):
+    client_ref: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
     support: Support = Support.unknown
     notes: str | None = Field(default=None, max_length=2000)
     capture_lat: float | None = Field(default=None, ge=-90, le=90)
@@ -72,6 +73,7 @@ class VoterUpdate(BaseModel):
     support: Support | None = None
     notes: str | None = Field(default=None, max_length=2000)
     opted_out: bool | None = None
+    do_not_call: bool | None = None
 
     @field_validator("phone")
     @classmethod
@@ -104,6 +106,9 @@ class VoterOut(BaseModel):
     status: Status
     rejection_reason: str | None
     opted_out: bool
+    do_not_call: bool = False
+    last_contacted_at: datetime | None = None
+    voted_at: datetime | None = None
     notes: str | None
     captured_by_name: str | None = None
     verified_by_name: str | None = None

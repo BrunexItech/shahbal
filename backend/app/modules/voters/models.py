@@ -63,6 +63,17 @@ class Voter(Base):
     capture_lat: Mapped[float | None]
     capture_lng: Mapped[float | None]
 
+    # Offline capture: the device's UUID for this record, so a retried sync is idempotent.
+    client_ref: Mapped[str | None] = mapped_column(String(64), unique=True)
+    do_not_call: Mapped[bool] = mapped_column(default=False)
+    last_contacted_at: Mapped[datetime | None]
+    # Call-centre claim, so two agents never ring the same voter.
+    call_locked_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    call_locked_until: Mapped[datetime | None]
+    # Election day
+    voted_at: Mapped[datetime | None] = mapped_column(index=True)
+    voted_marked_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
     captured_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
     verified_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     verified_at: Mapped[datetime | None]

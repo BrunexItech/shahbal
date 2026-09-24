@@ -1,5 +1,6 @@
 import csv
 import io
+from pathlib import Path
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -114,42 +115,78 @@ class GeoService:
         return st
 
     async def import_csv(self, raw: bytes) -> ImportResult:
-        """Columns: code,name,ward_code[,streams,registered_voters,latitude,longitude].
-        Upserts by station code so the IEBC list can be re-imported safely."""
-        reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
-        wards = {w.code: w for w in (await self.s.execute(select(Ward))).scalars()}
-        stations = {s.code: s for s in (await self.s.execute(select(PollingStation))).scalars()}
-        created = updated = 0
-        errors: list[str] = []
-
-        def num(v, cast):
-            return cast(v) if v not in (None, "") else None
-
-        for i, row in enumerate(reader, start=2):
-            try:
-                code, name = (row.get("code") or "").strip(), (row.get("name") or "").strip()
-                ward = wards.get((row.get("ward_code") or "").strip().zfill(4))
-                if not code or not name or ward is None:
-                    raise ValueError("code, name and a valid ward_code are required")
-                values = dict(
-                    name=name,
-                    ward_id=ward.id,
-                    streams=num(row.get("streams"), int) or 1,
-                    registered_voters=num(row.get("registered_voters"), int),
-                    latitude=num(row.get("latitude"), float),
-                    longitude=num(row.get("longitude"), float),
-                )
-                if code in stations:
-                    for k, v in values.items():
-                        setattr(stations[code], k, v)
-                    updated += 1
-                else:
-                    stations[code] = PollingStation(code=code, **values)
-                    self.s.add(stations[code])
-                    created += 1
-            except (ValueError, TypeError) as exc:
-                errors.append(f"Row {i}: {exc}")
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            raise HTTPException(422, "The file must be UTF-8 CSV")
+        result = await upsert_stations(self.s, csv.DictReader(io.StringIO(text)))
         audit.record(self.s, actor_id=self.ctx.user.id, action="IMPORT", entity="station", ip=self.ctx.ip,
-                     created=created, updated=updated, errors=len(errors))
+                     created=result.created, updated=result.updated, errors=len(result.errors))
         await self.s.commit()
-        return ImportResult(created=created, updated=updated, errors=errors[:50])
+        return result
+
+
+def _norm(name: str) -> str:
+    return "".join(ch for ch in name.upper() if ch.isalnum())
+
+
+async def upsert_stations(session: AsyncSession, rows) -> ImportResult:
+    """Columns: code,name,ward_code[,streams,registered_voters,latitude,longitude].
+    Matches an existing station by code, else by (ward, normalised name), so the
+    official IEBC list can replace the bundled seed without creating duplicates."""
+    wards = {w.code: w for w in (await session.execute(select(Ward))).scalars()}
+    existing = list((await session.execute(select(PollingStation))).scalars())
+    by_code = {st.code: st for st in existing}
+    by_name = {(st.ward_id, _norm(st.name)): st for st in existing}
+    created = updated = 0
+    errors: list[str] = []
+
+    def num(v, cast):
+        return cast(v) if v not in (None, "") else None
+
+    for i, row in enumerate(rows, start=2):
+        try:
+            code, name = (row.get("code") or "").strip(), " ".join((row.get("name") or "").split())
+            ward = wards.get((row.get("ward_code") or "").strip().zfill(4))
+            if not code or not name or ward is None:
+                raise ValueError("code, name and a valid ward_code are required")
+            if len(code) > 20 or len(name) > 160:
+                raise ValueError("code or name too long")
+            lat, lng = num(row.get("latitude"), float), num(row.get("longitude"), float)
+            if (lat is None) != (lng is None) or (lat is not None and not (-90 <= lat <= 90 and -180 <= lng <= 180)):
+                raise ValueError("latitude/longitude must be given together and be valid")
+            # Only columns present in this file overwrite existing data.
+            values = dict(name=name, ward_id=ward.id)
+            for key, cast in (("streams", int), ("registered_voters", int)):
+                if (v := num(row.get(key), cast)) is not None:
+                    values[key] = v
+            if lat is not None:
+                values.update(latitude=lat, longitude=lng)
+            st = by_code.get(code) or by_name.get((ward.id, _norm(name)))
+            if st is not None:
+                for k, v in values.items():
+                    setattr(st, k, v)
+                if st.code != code and code not in by_code:
+                    by_code.pop(st.code, None)
+                    st.code = code
+                    by_code[code] = st
+                updated += 1
+            else:
+                st = PollingStation(code=code, **values)
+                session.add(st)
+                by_code[code] = by_name[(ward.id, _norm(name))] = st
+                created += 1
+        except (ValueError, TypeError) as exc:
+            errors.append(f"Row {i}: {exc}")
+    await session.flush()
+    return ImportResult(created=created, updated=updated, errors=errors[:50])
+
+
+SEED_STATIONS = Path(__file__).resolve().parent / "data" / "mombasa_stations.csv"
+
+
+async def seed_stations(session: AsyncSession) -> ImportResult:
+    with SEED_STATIONS.open(encoding="utf-8") as f:
+        result = await upsert_stations(session, csv.DictReader(f))
+    await session.commit()
+    return result

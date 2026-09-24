@@ -22,3 +22,8 @@ async def create_user(payload: UserCreate, ctx: Ctx = Depends(managers)):
 @router.patch("/{user_id}", response_model=UserOut)
 async def update_user(user_id: str, payload: UserUpdate, ctx: Ctx = Depends(managers)):
     return await UserService(ctx).update(user_id, payload)
+
+
+@router.post("/{user_id}/revoke-sessions", status_code=204)
+async def revoke_sessions(user_id: str, ctx: Ctx = Depends(managers)):
+    await UserService(ctx).revoke_sessions(user_id)

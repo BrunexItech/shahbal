@@ -46,7 +46,12 @@ async def register_voter(
 ) -> Voter:
     """Single write path for every channel (field, portal, call centre, import),
     so dedup, encryption and referencing can never drift between them.
-    Raises DuplicateVoter; the caller decides how much to reveal."""
+    Raises DuplicateVoter; the caller decides how much to reveal.
+    A replayed offline sync (same client_ref) returns the original record."""
+    if data.client_ref:
+        replay = (await session.execute(select(Voter).where(Voter.client_ref == data.client_ref))).scalar_one_or_none()
+        if replay is not None:
+            return replay
     await _validate_location(session, data.ward_id, data.station_id)
     existing = await find_by_national_id(session, data.national_id)
     if existing is not None:
@@ -71,6 +76,7 @@ async def register_voter(
         consent_at=utcnow(),
         capture_lat=data.capture_lat,
         capture_lng=data.capture_lng,
+        client_ref=data.client_ref,
         captured_by_id=captured_by.id if captured_by else None,
     )
     session.add(voter)

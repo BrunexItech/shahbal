@@ -1,13 +1,22 @@
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import audit
 from app.core.deps import Ctx
 from app.core.roles import Role
-from app.core.security import hash_password
+from app.core.clock import utcnow
+from app.core.security import hash_password, password_problems
 from app.modules.geo.models import Ward
-from app.modules.users.models import User
+from app.modules.users.models import User, UserSession
 from app.modules.users.schemas import UserCreate, UserUpdate
+
+async def revoke_all_sessions(session: AsyncSession, user_id: str, except_id: str | None = None) -> None:
+    stmt = update(UserSession).where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
+    if except_id:
+        stmt = stmt.where(UserSession.id != except_id)
+    await session.execute(stmt.values(revoked_at=utcnow()))
+
 
 # Which roles each manager may hand out. Coordinators grow their own teams,
 # but only a super admin can mint coordinators or admins.
@@ -66,6 +75,8 @@ class UserService:
 
     async def create(self, data: UserCreate) -> User:
         self._check_grant(data.role)
+        if problem := password_problems(data.password, data.email):
+            raise HTTPException(422, problem)
         exists = await self.s.execute(select(User.id).where(func.lower(User.email) == data.email.lower()))
         if exists.first():
             raise HTTPException(409, "A user with this email already exists")
@@ -106,8 +117,22 @@ class UserService:
             if key in fields:
                 setattr(user, key, fields[key])
         if data.password:
+            if problem := password_problems(data.password, user.email):
+                raise HTTPException(422, problem)
             user.password_hash = hash_password(data.password)
+        if data.password or data.is_active is False or "role" in fields:
+            # Access changed: force re-authentication everywhere.
+            await revoke_all_sessions(self.s, user.id)
         audit.record(self.s, actor_id=self.ctx.user.id, action="UPDATE", entity="user", entity_id=user.id,
                      ip=self.ctx.ip, fields=sorted(k for k in fields if k != "password"))
         await self.s.commit()
         return user
+
+    async def revoke_sessions(self, user_id: str) -> None:
+        user = (await self.s.execute(select(User).where(User.id == user_id, self._visible()))).scalar_one_or_none()
+        if user is None:
+            raise HTTPException(404, "User not found")
+        self._check_grant(user.role)
+        await revoke_all_sessions(self.s, user.id)
+        audit.record(self.s, actor_id=self.ctx.user.id, action="SESSIONS_REVOKE", entity="user", entity_id=user.id, ip=self.ctx.ip)
+        await self.s.commit()

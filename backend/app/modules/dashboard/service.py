@@ -7,7 +7,13 @@ Definitions (shown in the UI too):
 """
 from sqlalchemy import case, func, select
 
-from app.core.clock import local_date, local_midnight
+from datetime import timedelta
+
+from app.core.clock import local_date, local_midnight, utcnow
+from app.core.roles import Role
+from app.modules.calls.models import CallLog, Outcome
+from app.modules.messaging.models import CampaignStatus, Message, MessageCampaign, MessageStatus
+from app.modules.visits.models import Visit, VisitStatus
 from app.core.deps import Ctx
 from app.core.scope import voter_scope, ward_scope
 from app.modules.geo.models import Constituency, Ward
@@ -119,7 +125,10 @@ class DashboardService:
             ).all()
         ]
 
+        ops = await self._ops(vs, today)
+
         return {
+            "ops": ops,
             "totals": {"total": totals.total, "achieved": totals.achieved, "verified": totals.verified,
                        "pending": totals.pending, "rejected": totals.rejected, "today": totals.today,
                        "opted_out": totals.opted_out},
@@ -132,3 +141,30 @@ class DashboardService:
             "top_agents": top_agents,
             "recent": recent,
         }
+
+    async def _ops(self, vs, today) -> dict:
+        ws = ward_scope(self.user)
+        scoped_wards = select(Ward.id).where(ws)
+        in_scope_voters = select(Voter.id).where(vs)
+        msgs = (await self.s.execute(
+            select(func.count(case((Message.status.in_([MessageStatus.sent, MessageStatus.delivered]), 1))),
+                   func.count(case((Message.status == MessageStatus.delivered, 1))))
+            .where(Message.sent_at >= today, Message.voter_id.in_(in_scope_voters))
+        )).one()
+        calls = (await self.s.execute(
+            select(func.count(CallLog.id), func.count(case((CallLog.outcome == Outcome.answered, 1))))
+            .where(CallLog.created_at >= today, CallLog.voter_id.in_(in_scope_voters))
+        )).one()
+        visits = (await self.s.execute(
+            select(func.count(case(((Visit.scheduled_at >= today) & (Visit.scheduled_at < today + timedelta(days=1)) & (Visit.status != VisitStatus.cancelled), 1))),
+                   func.count(case(((Visit.status == VisitStatus.scheduled) & (Visit.scheduled_at >= utcnow()), 1))),
+                   func.count(func.distinct(case((Visit.status == VisitStatus.completed, Visit.ward_id)))))
+            .where(Visit.ward_id.in_(scoped_wards))
+        )).one()
+        pending = 0
+        if self.user.role == Role.super_admin:
+            pending = (await self.s.execute(select(func.count(MessageCampaign.id)).where(MessageCampaign.status == CampaignStatus.pending_approval))).scalar_one()
+        voted = (await self.s.execute(select(func.count(Voter.id)).where(vs, Voter.voted_at.is_not(None)))).scalar_one()
+        return {"messages_today": msgs[0], "delivered_today": msgs[1], "calls_today": calls[0], "answered_today": calls[1],
+                "visits_today": visits[0], "visits_upcoming": visits[1], "wards_visited": visits[2],
+                "approvals_pending": pending, "voted": voted}

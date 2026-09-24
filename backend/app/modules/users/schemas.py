@@ -18,13 +18,14 @@ class UserOut(BaseModel):
     is_active: bool
     last_login_at: datetime | None
     created_at: datetime
+    totp_enabled: bool = False
 
 
 class UserCreate(BaseModel):
     full_name: str = Field(min_length=3, max_length=120)
     email: EmailStr
     phone: str | None = None
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=10, max_length=200)
     role: Role
     constituency_id: str | None = None
     ward_id: str | None = None
@@ -37,4 +38,4 @@ class UserUpdate(BaseModel):
     constituency_id: str | None = None
     ward_id: str | None = None
     is_active: bool | None = None
-    password: str | None = Field(default=None, min_length=8)
+    password: str | None = Field(default=None, min_length=10, max_length=200)

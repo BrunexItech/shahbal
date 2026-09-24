@@ -11,7 +11,7 @@ from app import models  # noqa: F401
 from app.core.db import SessionLocal
 from app.core.roles import Role
 from app.core.security import hash_password
-from app.modules.geo.service import seed_geography
+from app.modules.geo.service import seed_geography, seed_stations
 from app.modules.users.models import User
 
 
@@ -19,6 +19,8 @@ async def main(email: str | None, password: str | None, name: str) -> None:
     async with SessionLocal() as session:
         created = await seed_geography(session)
         print(f"geography: {created} new rows")
+        st = await seed_stations(session)
+        print(f"polling stations: {st.created} new, {st.updated} refreshed, {len(st.errors)} skipped")
         if email and password:
             if (await session.execute(select(User).where(User.email == email.lower()))).scalar_one_or_none():
                 print(f"admin {email} already exists")

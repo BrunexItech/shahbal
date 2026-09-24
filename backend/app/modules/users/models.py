@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, pg_enum
@@ -20,3 +20,25 @@ class User(Base):
     ward_id: Mapped[str | None] = mapped_column(ForeignKey("wards.id"))
     is_active: Mapped[bool] = mapped_column(default=True)
     last_login_at: Mapped[datetime | None]
+
+    # Brute-force protection
+    failed_logins: Mapped[int] = mapped_column(default=0)
+    locked_until: Mapped[datetime | None]
+
+    # TOTP 2FA. The secret is Fernet-encrypted like other sensitive fields.
+    totp_secret_enc: Mapped[str | None] = mapped_column(Text)
+    totp_enabled: Mapped[bool] = mapped_column(default=False)
+
+
+class UserSession(Base):
+    """Server-side session behind each cookie, so logout / disable / password change
+    revoke access immediately instead of waiting for a JWT to expire."""
+
+    __tablename__ = "user_sessions"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[datetime]
+    revoked_at: Mapped[datetime | None]
+    last_seen_at: Mapped[datetime | None]
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(300))

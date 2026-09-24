@@ -1,17 +1,20 @@
 from dataclasses import dataclass
+from datetime import timedelta
 
 import jwt
 from fastapi import Depends, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import utcnow
+from app.core.config import settings
 from app.core.db import get_session
 from app.core.ratelimit import client_ip
 from app.core.roles import Role
 from app.core.security import decode_token
-from app.modules.users.models import User
+from app.modules.users.models import User, UserSession
 
-bearer = HTTPBearer(auto_error=False)
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+CSRF_HEADER = "x-requested-with"
 
 
 @dataclass
@@ -21,35 +24,58 @@ class Ctx:
     session: AsyncSession
     user: User
     ip: str
+    session_id: str | None = None
 
 
-async def current_user(
-    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
-    session: AsyncSession = Depends(get_session),
-) -> User:
-    if creds is None:
+def mfa_setup_pending(user: User) -> bool:
+    return settings.is_production and user.role.value in settings.mfa_roles and not user.totp_enabled
+
+
+def _token(request: Request) -> tuple[str | None, bool]:
+    """Returns (token, from_cookie). Bearer is accepted for non-browser API clients."""
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth[7:], False
+    return request.cookies.get(settings.cookie_name), True
+
+
+async def _authenticate(request: Request, session: AsyncSession, allow_mfa_pending: bool) -> tuple[User, UserSession]:
+    token, from_cookie = _token(request)
+    if not token:
         raise HTTPException(401, "Not authenticated")
+    # CSRF: a cookie-authenticated write must carry a custom header, which a
+    # cross-site form or <img> can't add and a cross-origin fetch can't send
+    # without passing our CORS allow-list. SameSite=Strict is the second layer.
+    if from_cookie and request.method not in SAFE_METHODS and not request.headers.get(CSRF_HEADER):
+        raise HTTPException(403, "Missing CSRF header")
     try:
-        user_id = decode_token(creds.credentials)
+        payload = decode_token(token, "session")
     except jwt.PyJWTError:
         raise HTTPException(401, "Session expired, please sign in again")
-    user = await session.get(User, user_id)
+    us = await session.get(UserSession, payload.get("sid"))
+    now = utcnow()
+    if us is None or us.revoked_at is not None or us.expires_at <= now or us.user_id != payload["sub"]:
+        raise HTTPException(401, "Session expired, please sign in again")
+    user = await session.get(User, us.user_id)
     if user is None or not user.is_active:
         raise HTTPException(401, "Account disabled")
-    return user
+    if not allow_mfa_pending and mfa_setup_pending(user):
+        raise HTTPException(403, "Two-factor authentication must be set up before continuing")
+    # Throttled touch so "last seen" is useful without a write per request.
+    if us.last_seen_at is None or now - us.last_seen_at > timedelta(minutes=5):
+        us.last_seen_at = now
+        await session.commit()
+    return user, us
 
 
-def require(*roles: Role):
+def require(*roles: Role, allow_mfa_pending: bool = False):
     allowed = set(roles)
 
-    async def dep(
-        request: Request,
-        user: User = Depends(current_user),
-        session: AsyncSession = Depends(get_session),
-    ) -> Ctx:
+    async def dep(request: Request, session: AsyncSession = Depends(get_session)) -> Ctx:
+        user, us = await _authenticate(request, session, allow_mfa_pending)
         if allowed and user.role not in allowed:
             raise HTTPException(403, "You do not have access to this action")
-        return Ctx(session=session, user=user, ip=client_ip(request))
+        return Ctx(session=session, user=user, ip=client_ip(request), session_id=us.id)
 
     return dep
 

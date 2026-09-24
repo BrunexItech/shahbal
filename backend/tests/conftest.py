@@ -34,7 +34,8 @@ async def schema():
 async def clean():
     async with engine.begin() as conn:
         # DELETE, not TRUNCATE: tiny tables, and TRUNCATE's file rewrite + fsync is slow per test.
-        for table in ("audit_logs", "voters", "users", "polling_stations", "wards", "constituencies"):
+        for table in ("audit_logs", "messages", "call_logs", "visits", "message_campaigns", "election_settings", "voters",
+                      "user_sessions", "users", "polling_stations", "wards", "constituencies"):
             await conn.execute(text(f"DELETE FROM {table}"))
     async with SessionLocal() as s:
         await seed_geography(s)
@@ -44,6 +45,7 @@ async def clean():
     from app.modules.portal import router as portal_router
 
     auth_router._login_limiter._hits.clear()
+    auth_router._mfa_limiter._hits.clear()
     portal_router._limiter._hits.clear()
 
 
@@ -53,10 +55,19 @@ async def client():
         yield c
 
 
+def session_headers(response) -> dict:
+    token = response.cookies.get("chq_session")
+    assert token, response.text
+    return {"Cookie": f"chq_session={token}", "X-Requested-With": "fetch"}
+
+
 async def login(client, email, password) -> dict:
+    """Each test 'user' carries its own cookie explicitly; the shared jar is cleared
+    so identities never bleed between requests."""
     r = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    client.cookies.clear()
+    return session_headers(r)
 
 
 @pytest.fixture
@@ -72,7 +83,7 @@ async def wards():
 
 async def make_user(client, admin_headers, role: str, ward=None, constituency_id=None, email=None) -> dict:
     email = email or f"{role}-{ward.code if ward else constituency_id or 'x'}@campaign.co.ke"
-    body = {"full_name": f"{role.title()} User", "email": email, "password": "Password!1", "role": role}
+    body = {"full_name": f"{role.replace('_', ' ').title()} User", "email": email, "password": "Password!1", "role": role}
     if ward:
         body["ward_id"] = ward.id
     if constituency_id:
