@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # and a hard refusal to boot with any default secret.
     environment: str = "development"
     session_hours: int = 12
+    # Signed out after this long with no taps, clicks or key presses (live updates don't
+    # count). Field phones get a shorter window: they're the ones left lying around.
+    idle_minutes_field: int = 15
+    idle_minutes_command: int = 30
     cookie_name: str = "chq_session"
     # Production: every staff role must enrol a passkey or an authenticator app.
     mfa_roles: list[str] = ["super_admin", "coordinator", "ward_coordinator", "field_agent", "call_agent", "viewer"]

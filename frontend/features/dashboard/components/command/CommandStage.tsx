@@ -7,8 +7,11 @@ import { AreaDrawer } from "@/features/dashboard/components/command/AreaDrawer";
 import { MombasaPulse, type StageMode } from "@/features/dashboard/components/command/MombasaPulse";
 import { PaceGauge } from "@/features/dashboard/components/command/PaceGauge";
 import { useBoundaries, useConstituencyOutlines, useMapOverview } from "@/features/map/api";
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { CANDIDATE_NAME } from "@/lib/config";
 import { num } from "@/lib/format";
@@ -27,6 +30,7 @@ export function CommandStage({ d, pulse, events, connected, activeAttention = -1
   const wards = useBoundaries();
   const cons = useConstituencyOutlines();
   const overview = useMapOverview();
+  const plan = useQuery({ queryKey: ["plan"], queryFn: () => api<{ vs_plan: number | null; planned_by_today: number | null }>("/election/plan"), staleTime: 60_000 });
   const [mode, setMode] = useState<StageMode>("pace");
   const [ward, setWard] = useState<string | null>(null);
   const ov = overview.data;
@@ -84,7 +88,14 @@ export function CommandStage({ d, pulse, events, connected, activeAttention = -1
               <p className="text-xs text-slate-400">per day needed</p>
             </div>
           </div>
-          {i.days_left == null && <p className="mt-2 text-xs text-slate-400">Set the election date under Election Day to see the countdown and required pace.</p>}
+          {i.days_left == null && <p className="mt-2 text-xs text-slate-400">Set the election date under Campaign Plan to see the countdown and required pace.</p>}
+          {plan.data?.vs_plan != null && (
+            <Link href="/plan" className={cn("mt-2 flex items-center justify-between gap-2 rounded-2xl px-3.5 py-2.5 text-sm ring-1 transition hover:brightness-110",
+              plan.data.vs_plan >= 0 ? "bg-[#34c77b]/12 text-[#9ff0c5] ring-[#34c77b]/30" : "bg-kenya-red/15 text-[#ffb3a8] ring-kenya-red/35")}>
+              <span>{plan.data.vs_plan >= 0 ? "Ahead of plan by" : "Behind plan by"} <b className="text-white tabular-nums">{num(Math.abs(plan.data.vs_plan))}</b></span>
+              <span className="text-xs text-slate-400">plan today {num(plan.data.planned_by_today)}</span>
+            </Link>
+          )}
           <div className="mt-4 grid grid-cols-2 gap-2">
             {live.map(([k, v, c]) => (
               <div key={k} className="relative overflow-hidden rounded-2xl bg-white/[.04] px-3.5 pt-3.5 pb-3 ring-1 ring-white/[.08]">

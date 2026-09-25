@@ -46,6 +46,11 @@ export function LoginScreen({ portal }: { portal: Portal }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  // Arrived here after an idle sign-out: say so, so nobody thinks something broke.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reason") === "idle")
+      setError("You were signed out after a period of inactivity. Sign in again to continue.");
+  }, []);
   const [busy, setBusy] = useState<"password" | "passkey" | "code" | null>(null);
   const [mfa, setMfa] = useState<{ token: string; methods: MfaMethod[] } | null>(null);
   const [code, setCode] = useState("");

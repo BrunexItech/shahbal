@@ -53,6 +53,7 @@ class UserSession(Base):
     expires_at: Mapped[datetime]
     revoked_at: Mapped[datetime | None]
     last_seen_at: Mapped[datetime | None]
+    active_at: Mapped[datetime | None]  # last real user interaction (tap/click/key), reported by the app
     ip: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(300))
     auth_method: Mapped[str] = mapped_column(String(20), default="password")  # password | totp | passkey

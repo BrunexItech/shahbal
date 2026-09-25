@@ -9,6 +9,7 @@ import { SkeletonRows } from "@/components/loaders";
 import { Badge, Button, Card, EmptyState, ErrorState, PageHeader } from "@/components/ui";
 import { useCampaigns } from "@/features/messaging/api";
 import { CampaignStatusBadge } from "@/features/messaging/components";
+import { MessagingOverview } from "@/features/messaging/MessagingOverview";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { dateTime, num } from "@/lib/format";
@@ -29,6 +30,7 @@ export default function MessagingPage() {
       <PageHeader eyebrow="Outreach" title="Messaging"
         subtitle="Targeted SMS & WhatsApp to the right wards and voters. Opted-out voters are always excluded and nothing sends between 9 pm and 8 am."
         actions={<Link href="/messaging/new"><Button icon={<MessageSquarePlus className="size-4" />}>New message</Button></Link>} />
+      <MessagingOverview />
       <Card className="overflow-hidden">
         <div className="flex gap-1 border-b border-line px-4 pt-3">
           {([["all", "All campaigns"], ["approval", "Awaiting approval"]] as const).map(([k, label]) => (

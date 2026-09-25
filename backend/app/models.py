@@ -2,7 +2,7 @@
 from app.modules.audit.models import AuditLog  # noqa: F401
 from app.modules.auth.models import AuthChallenge, KnownDevice, Passkey  # noqa: F401
 from app.modules.calls.models import CallLog  # noqa: F401
-from app.modules.election.models import ElectionSettings  # noqa: F401
+from app.modules.election.models import ElectionSettings, PlanWeek  # noqa: F401
 from app.modules.live.models import AgentPresence  # noqa: F401
 from app.modules.geo.models import Constituency, PollingStation, Ward  # noqa: F401
 from app.modules.messaging.models import Message, MessageCampaign  # noqa: F401

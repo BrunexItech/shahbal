@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { BrandLoader } from "@/components/loaders";
+import { IdleGuard } from "@/components/shell/IdleGuard";
 import { MobileNav } from "@/components/shell/MobileNav";
 import { ShellProvider, Sidebar, SIDEBAR_W, useShell } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
@@ -29,6 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <LiveProvider>
       <ShellProvider>
         <Shell role={user.role}>{children}</Shell>
+        <IdleGuard />
       </ShellProvider>
     </LiveProvider>
   );

@@ -32,6 +32,7 @@ class MeOut(UserOut):
     passkey_count: int = 0
     session_method: str = "password"
     elevated_until: str | None = None
+    idle_minutes: int = 30
 
 
 class PasskeyOptionsIn(BaseModel):

@@ -16,6 +16,7 @@ from app.core.phone import to_e164
 from app.core.ratelimit import client_ip
 from app.modules.messaging.dispatcher import refresh_counters
 from app.modules.messaging.models import CampaignStatus, Message, MessageCampaign, MessageStatus
+from app.modules.messaging.stats import messaging_stats
 from app.modules.messaging.schemas import CampaignIn, CampaignOut, MessageOut, PreviewIn, PreviewOut, ReviewIn
 from app.modules.messaging.service import MessagingService
 from app.modules.voters.models import Voter
@@ -28,6 +29,12 @@ STOP_WORDS = {"STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "ACHA",
 @router.post("/preview", response_model=PreviewOut)
 async def preview(payload: PreviewIn, ctx: Ctx = Depends(any_user)):
     return await MessagingService(ctx).preview(payload)
+
+
+@router.get("/stats")
+async def stats(days: int = Query(30, ge=7, le=180), ctx: Ctx = Depends(any_user)):
+    """Everything sent in the window: delivery, failures, channels, days and places."""
+    return await messaging_stats(ctx, days)
 
 
 @router.get("/campaigns", response_model=list[CampaignOut])

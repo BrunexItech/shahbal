@@ -58,6 +58,12 @@ async def _authenticate(request: Request, session: AsyncSession, allow_mfa_pendi
     now = utcnow()
     if us is None or us.revoked_at is not None or us.expires_at <= now or us.user_id != payload["sub"]:
         raise HTTPException(401, "Session expired, please sign in again")
+    # Idle sign-out: judged on real interaction, not on background polling.
+    idle = idle_limit(us.portal)
+    if (us.active_at or us.created_at) + idle <= now:
+        us.revoked_at = now
+        await session.commit()
+        raise HTTPException(401, "Signed out after a period of inactivity")
     user = await session.get(User, us.user_id)
     if user is None or not user.is_active:
         raise HTTPException(401, "Account disabled")
@@ -72,6 +78,10 @@ async def _authenticate(request: Request, session: AsyncSession, allow_mfa_pendi
         us.last_seen_at = now
         await session.commit()
     return user, us
+
+
+def idle_limit(portal: str) -> timedelta:
+    return timedelta(minutes=settings.idle_minutes_field if portal == "field" else settings.idle_minutes_command)
 
 
 def require(*roles: Role, allow_mfa_pending: bool = False):

@@ -10,7 +10,7 @@ from app.core import audit, crypto
 from app.core.clock import utcnow
 from app.core.config import settings
 from app.core.db import get_session
-from app.core.deps import STEP_UP_STATUS, Ctx, mfa_setup_pending, require, require_step_up
+from app.core.deps import idle_limit, STEP_UP_STATUS, Ctx, mfa_setup_pending, require, require_step_up
 from app.core.ratelimit import RateLimiter, client_ip
 from app.core.roles import PORTAL_ROLES, Role
 from app.core.security import (
@@ -80,7 +80,7 @@ async def _start_session(session: AsyncSession, user: User, request: Request, re
     us = UserSession(
         portal=portal,
         user_id=user.id,
-        expires_at=now + timedelta(hours=settings.session_hours),
+        expires_at=now + timedelta(hours=settings.session_hours), active_at=now,
         ip=client_ip(request),
         user_agent=(request.headers.get("user-agent") or "")[:300],
         auth_method=method,
@@ -212,6 +212,14 @@ async def logout(response: Response, ctx: Ctx = Depends(me_dep)):
     response.delete_cookie(settings.cookie_name, path="/")
 
 
+@router.post("/activity", status_code=204)
+async def activity(ctx: Ctx = Depends(me_dep)):
+    """The app reports real interaction (throttled, about once a minute while in use)."""
+    if ctx.user_session:
+        ctx.user_session.active_at = utcnow()
+        await ctx.session.commit()
+
+
 @router.get("/me", response_model=MeOut)
 async def me(ctx: Ctx = Depends(me_dep)):
     us = ctx.user_session
@@ -219,7 +227,8 @@ async def me(ctx: Ctx = Depends(me_dep)):
     return MeOut(**UserOut.model_validate(ctx.user).model_dump(), mfa_setup_required=mfa_setup_pending(ctx.user),
                  portal=us.portal if us else "command",
                  passkey_count=ctx.user.passkey_count, session_method=us.auth_method if us else "password",
-                 elevated_until=elevated.isoformat() if elevated else None)
+                 elevated_until=elevated.isoformat() if elevated else None,
+                 idle_minutes=int(idle_limit(us.portal if us else "command").total_seconds() // 60))
 
 
 # ---- step-up (re-confirm identity for sensitive actions) --------------------------

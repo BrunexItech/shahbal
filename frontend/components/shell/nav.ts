@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  CalendarRange,
   ClipboardCheck,
   Contact,
   Flag,
@@ -27,6 +28,7 @@ export type NavItem = { href: string; label: string; short?: string; icon: Lucid
 export const NAV: NavItem[] = [
   { section: "Command", href: "/dashboard", label: "Command Centre", short: "Home", icon: LayoutDashboard, show: () => true },
   { section: "Command", href: "/analytics", label: "Analytics", icon: BarChart3, show: (r) => can.manageUsers(r) || r === "viewer" },
+  { section: "Command", href: "/plan", label: "Campaign Plan", short: "Plan", icon: CalendarRange, show: () => true },
   { section: "Command", href: "/targets", label: "Targets & Captures", short: "Targets", icon: Target, show: () => true },
   { section: "Voters", href: "/voters/new", label: "Capture Voter", short: "Capture", icon: UserPlus, show: can.capture },
   { section: "Voters", href: "/voters", label: "Voter Registry", icon: UsersRound, show: () => true },

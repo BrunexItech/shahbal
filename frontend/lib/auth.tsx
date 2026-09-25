@@ -9,7 +9,7 @@ import { signInWithPasskey } from "@/lib/passkeys";
 import { lastPortal, type Portal, PORTAL_LOGIN, rememberPortal } from "@/lib/portal";
 import type { User } from "@/lib/types";
 
-export type Me = User & { mfa_setup_required?: boolean; passkey_count?: number; session_method?: string; elevated_until?: string | null; portal?: Portal };
+export type Me = User & { mfa_setup_required?: boolean; passkey_count?: number; session_method?: string; elevated_until?: string | null; portal?: Portal; idle_minutes?: number };
 
 export type MfaMethod = "passkey" | "totp";
 type LoginResult = { done: true } | { done: false; mfaToken: string; methods: MfaMethod[] };

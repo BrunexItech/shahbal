@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.deps import Ctx, any_user
 from app.modules.election.schemas import MarkIn, ReminderPlanIn, RosterRow, SettingsIn, SettingsOut, TurnoutOut
+from app.modules.election.plan import PlanIn, plan_view, save_plan
 from app.modules.election.service import ElectionService
 
 router = APIRouter(prefix="/api/v1/election", tags=["election"])
@@ -15,6 +16,16 @@ async def get_settings(ctx: Ctx = Depends(any_user)):
 @router.put("/settings", response_model=SettingsOut)
 async def put_settings(payload: SettingsIn, ctx: Ctx = Depends(any_user)):
     return await ElectionService(ctx).update_settings(payload)
+
+
+@router.get("/plan")
+async def get_plan(ctx: Ctx = Depends(any_user)):
+    return await plan_view(ctx)
+
+
+@router.put("/plan")
+async def put_plan(payload: PlanIn, ctx: Ctx = Depends(any_user)):
+    return await save_plan(ctx, payload)
 
 
 @router.post("/voters/{voter_id}/voted")

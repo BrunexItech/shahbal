@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.core.clock import utcnow
 from app.core.db import SessionLocal
-from app.core.deps import Ctx, any_user, require
+from app.core.deps import idle_limit, Ctx, any_user, require
 from app.core.roles import MANAGERS, Role
 from app.modules.live.models import AgentPresence, AgentStatus
 from app.modules.live.service import call_wall, feed, pulse
@@ -32,7 +32,8 @@ async def stream(request: Request, ctx: Ctx = Depends(any_user)):
             async with SessionLocal() as s:
                 us = await s.get(UserSession, session_id)
                 user = await s.get(User, user_id)
-                if us is None or us.revoked_at is not None or us.expires_at <= utcnow() or user is None or not user.is_active:
+                if (us is None or us.revoked_at is not None or us.expires_at <= utcnow() or user is None or not user.is_active
+                        or (us.active_at or us.created_at) + idle_limit(us.portal) <= utcnow()):
                     yield "event: expired\ndata: {}\n\n"
                     return
                 now = utcnow()

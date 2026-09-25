@@ -15,3 +15,12 @@ class ElectionSettings(Base):
     polls_open: Mapped[str] = mapped_column(String(5), default="06:00")
     polls_close: Mapped[str] = mapped_column(String(5), default="17:00")
     candidate_label: Mapped[str] = mapped_column(String(80), default="our candidate")
+
+
+class PlanWeek(Base):
+    """The campaign's week-by-week capture plan up to election day (week starts Monday)."""
+
+    __tablename__ = "plan_weeks"
+
+    week_start: Mapped[date] = mapped_column(unique=True, index=True)
+    target: Mapped[int] = mapped_column(default=0)  # people to capture during this week

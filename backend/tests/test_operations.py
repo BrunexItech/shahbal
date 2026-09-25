@@ -53,6 +53,10 @@ async def test_admin_campaign_sends_skips_opted_out_and_never_duplicates(client,
     assert (done["status"], done["recipients"], done["delivered"]) == ("sent", 2, 2)
     async with SessionLocal() as s:
         assert (await s.execute(select(func.count(Message.id)))).scalar_one() == 2
+    st = (await client.get("/api/v1/messaging/stats", params={"days": 14}, headers=admin)).json()
+    assert (st["total"], st["delivered"], st["failed"], st["opted_out"], st["campaigns"]) == (2, 2, 0, 1, 1)
+    assert st["delivery_rate"] == 100.0 and st["by_channel"]["sms"]["delivered"] == 2 and st["series"][-1]["delivered"] == 2
+    assert st["constituencies"] == [{"name": "Mvita", "total": 2, "delivered": 2, "failed": 0}]
 
 
 async def test_coordinator_campaign_needs_approval_and_is_area_scoped(client, admin, wards, monkeypatch):
