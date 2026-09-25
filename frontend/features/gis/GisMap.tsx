@@ -232,6 +232,10 @@ export const GisMap = forwardRef<GisMapHandle, {
         popup.setLngLat(e.lngLat).setDOMContent(tooltip(p.name, `Polling station ${p.code} · ${Number(p.captured).toLocaleString()} captured`)).addTo(m);
       });
       m.on("mouseleave", "stations", leave);
+      if (m.getLayer("mly-img")) {
+        m.on("mouseenter", "mly-img", () => { if (cb.current.measuring === "off") m.getCanvas().style.cursor = "pointer"; });
+        m.on("mouseleave", "mly-img", () => { m.getCanvas().style.cursor = cb.current.measuring !== "off" ? "crosshair" : ""; });
+      }
 
       const redrawMeasure = () => {
         const p = pts.current;
@@ -250,8 +254,12 @@ export const GisMap = forwardRef<GisMapHandle, {
           redrawMeasure();
           return;
         }
-        const hit = m.queryRenderedFeatures(e.point, { layers: ["places", ...(m.getLayer("mly-img") ? ["mly-img"] : []), "ward-fill", "ward-3d"].filter((l) => m.getLayoutProperty(l, "visibility") !== "none") });
-        const f = hit[0];
+        // Points are small (and fingers aren't), so a few pixels around the tap count for them.
+        const shown = (ids: string[]) => ids.filter((l) => m.getLayer(l) && m.getLayoutProperty(l, "visibility") !== "none");
+        const pad = 10;
+        const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
+        const f = m.queryRenderedFeatures(box, { layers: shown(["places", "mly-img"]) })[0]
+          ?? m.queryRenderedFeatures(e.point, { layers: shown(["ward-fill", "ward-3d"]) })[0];
         if (!f) return cb.current.onSelect(null);
         if (f.layer.id === "places") cb.current.onSelect({ kind: "place", key: String(f.properties?.key) });
         else if (f.layer.id === "mly-img") cb.current.onSelect({ kind: "street", id: String(f.properties?.id) });

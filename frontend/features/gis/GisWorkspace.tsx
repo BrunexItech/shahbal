@@ -352,7 +352,7 @@ function StreetPhoto({ id }: { id: string }) {
     <figure>
       {/* eslint-disable-next-line @next/next/no-img-element -- external CDN image */}
       <img src={q.data.thumb_1024_url} alt="Street-level photo" className="w-full rounded-xl" />
-      <figcaption className="mt-1.5 text-xs text-slate-500">Mapillary · {new Date(q.data.captured_at).toLocaleDateString("en-KE")}</figcaption>
+      <figcaption className="mt-1.5 text-xs text-slate-500">Mapillary · taken {new Date(q.data.captured_at).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}</figcaption>
     </figure>
   );
 }
