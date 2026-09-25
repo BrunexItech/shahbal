@@ -65,6 +65,10 @@ class Voter(Base):
 
     # Offline capture: the device's UUID for this record, so a retried sync is idempotent.
     client_ref: Mapped[str | None] = mapped_column(String(64), unique=True)
+    # Supporter referrals: every supporter gets a share code (derived from their phone);
+    # people who sign up through their link are credited to it.
+    share_code: Mapped[str | None] = mapped_column(String(12), index=True)
+    referred_by: Mapped[str | None] = mapped_column(String(12), index=True)
     do_not_call: Mapped[bool] = mapped_column(default=False)
     last_contacted_at: Mapped[datetime | None]
     # Call-centre claim, so two agents never ring the same voter.

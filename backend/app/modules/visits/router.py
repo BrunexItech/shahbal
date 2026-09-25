@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Response, UploadFile
 
 from app.core.deps import Ctx, any_user
 from app.modules.visits.models import VisitStatus
-from app.modules.visits.schemas import CheckinIn, CompleteIn, VisitIn, VisitOut, VisitUpdate
+from app.modules.visits.schemas import CheckinIn, CompleteIn, QuickVisitIn, VisitIn, VisitOut, VisitUpdate
 from app.modules.visits.photos import MAX_BYTES, VisitPhotoService
 from app.modules.visits.service import VisitService
 
@@ -20,6 +20,11 @@ async def list_visits(status: VisitStatus | None = None, ward_id: str | None = N
 @router.post("", response_model=VisitOut, status_code=201)
 async def create_visit(payload: VisitIn, ctx: Ctx = Depends(any_user)):
     return await VisitService(ctx).create(payload)
+
+
+@router.post("/quick", response_model=VisitOut, status_code=201)
+async def quick_visit(payload: QuickVisitIn, ctx: Ctx = Depends(any_user)):
+    return await VisitService(ctx).quick(payload)
 
 
 @router.get("/{vid}", response_model=VisitOut)

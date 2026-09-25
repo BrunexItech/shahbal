@@ -27,7 +27,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY_IMG}`,
+  `img-src 'self' data: blob: ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY_IMG}`,
   "font-src 'self' data:",
   `connect-src 'self' ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY} ${MAPILLARY_IMG} ${SIP_WSS}${isDev ? " ws:" : ""}`,
   "media-src 'self' blob: mediastream:",

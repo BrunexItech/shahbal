@@ -72,6 +72,7 @@ async def register_voter(
         station_id=data.station_id,
         support=data.support,
         source=source,
+        share_code=crypto.share_code(data.phone),
         notes=data.notes,
         consent_at=utcnow(),
         capture_lat=data.capture_lat,

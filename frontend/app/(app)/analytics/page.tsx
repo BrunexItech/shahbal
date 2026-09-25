@@ -5,21 +5,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { Skeleton } from "@/components/loaders";
-import { Card, CardHeader, EmptyState, ErrorState, PageHeader, SOURCE_LABEL, SUPPORT } from "@/components/ui";
+import { Card, CardHeader, EmptyState, ErrorState, PageHeader } from "@/components/ui";
 import { LiveDot } from "@/components/ui/Motion";
 import { FlagTabs, readHash } from "@/components/ui/FlagTabs";
 import { SectionTitle } from "@/components/ui/SectionNav";
 import { Avatar } from "@/components/ui/Avatar";
 import { useDashboard } from "@/features/dashboard/api";
-import { BarList } from "@/features/dashboard/components/BarList";
-import { DailyChart } from "@/features/dashboard/components/DailyChart";
-import { CallWall, InsightCards, KpiTile, LiveActivity } from "@/features/dashboard/components/Mission";
+import { SupporterProfile } from "@/features/analytics/SupporterProfile";
+import { TrendStudio } from "@/features/analytics/TrendStudio";
+import { CallWall, InsightCards, LiveActivity } from "@/features/dashboard/components/Mission";
 import { WardTable } from "@/features/dashboard/components/WardTable";
 import { useUser } from "@/lib/auth";
-import { num, pct } from "@/lib/format";
+import { num } from "@/lib/format";
 import { useLive } from "@/lib/live";
 import { can } from "@/lib/roles";
-import type { Source, Support } from "@/lib/types";
 
 const SECTIONS = [
   { id: "trends", label: "Trends", hint: "Headline numbers and daily captures" },
@@ -33,7 +32,7 @@ const SECTIONS = [
 export default function AnalyticsPage() {
   const user = useUser();
   const { data: d, isLoading, error, refetch } = useDashboard();
-  const { events, calls, connected, pulse } = useLive();
+  const { events, calls, connected } = useLive();
   const ids = SECTIONS.map((x) => x.id);
   const [tab, setTab] = useState<string>("trends");
   const [switching, setSwitching] = useState(0);
@@ -66,17 +65,8 @@ export default function AnalyticsPage() {
       <div key={tab} id={`panel-${tab}`} role="tabpanel" className="tab-in">
         {tab === "trends" && (
         <section id="trends" className="scroll-mt-36 space-y-4">
-          <SectionTitle n={1} title="Trends" hint="Headline numbers and the last 14 days of captures." />
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <KpiTile cap="green" label="Verified supporters" value={d.totals.verified} foot={<span className="text-xs text-muted">{pct(d.totals.achieved ? (d.totals.verified / d.totals.achieved) * 100 : null)} of live records</span>} />
-            <KpiTile cap="ocean" label="Messages today" value={pulse?.messages_today ?? d.ops.messages_today} foot={<span className="text-xs text-muted">{num(d.ops.delivered_today)} delivered</span>} />
-            <KpiTile cap="gold" label="Wards visited" value={`${d.ops.wards_visited}/${d.wards.length}`} foot={<span className="text-xs text-muted">{num(d.ops.visits_upcoming)} visits planned</span>} />
-            <KpiTile cap="red" label="Opted out" value={d.totals.opted_out} foot={<span className="text-xs text-muted">Never messaged again</span>} />
-          </div>
-          <Card>
-            <CardHeader title="Daily captures" subtitle="Last 14 days, all channels" />
-            <div className="p-4"><DailyChart data={d.daily} /></div>
-          </Card>
+          <SectionTitle n={1} title="Trends" hint="How capturing is moving over time, overall and in each constituency." />
+          <TrendStudio target={d.overall.target} />
         </section>
         )}
 
@@ -100,17 +90,8 @@ export default function AnalyticsPage() {
 
         {tab === "supporters" && (
         <section id="supporters" className="scroll-mt-36">
-          <SectionTitle n={4} title="Supporters" hint="How people lean, and how they reached us." />
-          <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader title="Support mix" />
-            <div className="p-5"><BarList color="bg-kenya-green" rows={(Object.keys(SUPPORT) as Support[]).map((s) => ({ key: s, label: SUPPORT[s][1], value: d.by_support[s] ?? 0 }))} /></div>
-          </Card>
-          <Card>
-            <CardHeader title="Capture channel" />
-            <div className="p-5"><BarList color="bg-ocean" rows={(Object.keys(SOURCE_LABEL) as Source[]).map((s) => ({ key: s, label: SOURCE_LABEL[s], value: d.by_source[s] ?? 0 }))} /></div>
-          </Card>
-          </div>
+          <SectionTitle n={4} title="Supporters" hint="Who our supporters are, and where the next ones will come from." />
+          <SupporterProfile />
         </section>
         )}
 

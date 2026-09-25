@@ -15,7 +15,8 @@ from app.modules.messaging.schemas import CampaignIn
 from app.modules.messaging.service import as_utc, count_audience, create_campaign
 from app.modules.users.models import User
 from app.modules.visits.models import Visit, VisitStatus
-from app.modules.visits.schemas import CheckinIn, CompleteIn, VisitIn, VisitOut, VisitUpdate
+from app.modules.geo.locate import ward_code_at
+from app.modules.visits.schemas import CheckinIn, CompleteIn, QuickVisitIn, VisitIn, VisitOut, VisitUpdate
 from app.modules.voters.audience import Audience
 
 DEFAULT_MESSAGE = "Habari {first_name}! Our campaign team will be at {venue} in {ward} on {date} from {time}. Karibu sana!"
@@ -144,6 +145,29 @@ class VisitService:
         audit.record(self.s, actor_id=self.user.id, action="CANCEL", entity="visit", entity_id=v.id, ip=self.ctx.ip)
         await self.s.commit()
         return await self.get(vid)
+
+    async def quick(self, data: QuickVisitIn) -> VisitOut:
+        """Unplanned visit, logged on the spot: the ward comes from the GPS point, the
+        visit is created already checked in, and it shows on the maps immediately."""
+        if self.user.role not in MANAGERS | {Role.field_agent}:
+            raise HTTPException(403, "You cannot log visits")
+        code = ward_code_at(data.latitude, data.longitude)
+        ward = (await self.s.execute(select(Ward).where(Ward.code == code))).scalar_one_or_none() if code else None
+        if ward is None and data.ward_id:
+            ward = await self.s.get(Ward, data.ward_id)
+        if ward is None:
+            raise HTTPException(422, "Your location isn't inside a Mombasa ward. Choose the ward and try again.")
+        if not can_touch_ward(self.user, ward):
+            raise HTTPException(403, f"You're in {ward.name}, outside your area")
+        now = utcnow()
+        v = Visit(title=data.title or f"Visit: {data.venue}", ward_id=ward.id, venue=data.venue, scheduled_at=now,
+                  status=VisitStatus.in_progress, announce=False, checkin_at=now, checkin_by_id=self.user.id,
+                  checkin_lat=data.latitude, checkin_lng=data.longitude, created_by_id=self.user.id, lead_id=self.user.id)
+        self.s.add(v)
+        await self.s.flush()
+        audit.record(self.s, actor_id=self.user.id, action="CHECKIN", entity="visit", entity_id=v.id, ip=self.ctx.ip, quick=True)
+        await self.s.commit()
+        return await self.get(v.id)
 
     async def checkin(self, vid: str, data: CheckinIn) -> VisitOut:
         if self.user.role not in MANAGERS | {Role.field_agent}:

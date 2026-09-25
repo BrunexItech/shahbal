@@ -39,3 +39,8 @@ export const useCheckin = () =>
 export const useCompleteVisit = () =>
   useVisitMutation(({ id, attendance, outcome }: { id: string; attendance?: number; outcome?: string }) =>
     api<Visit>(`/visits/${id}/complete`, { body: { attendance, outcome } }));
+
+/** "I'm here now": log an unplanned visit on the spot; the ward comes from GPS. */
+export const useQuickVisit = () =>
+  useVisitMutation((b: { venue: string; title?: string; latitude: number; longitude: number; ward_id?: string }) =>
+    api<Visit>("/visits/quick", { method: "POST", body: b }));

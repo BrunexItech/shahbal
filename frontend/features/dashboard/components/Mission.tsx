@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui";
 import { CountUp, Sparkline } from "@/components/ui/Motion";
 import { cn } from "@/lib/cn";
 import { num, pct, timeAgo } from "@/lib/format";
-import type { LiveCall, LiveEvent, Pulse } from "@/lib/live";
+import type { LiveCall, LiveEvent } from "@/lib/live";
 import type { DashboardSummary, Health, InsightCard } from "@/lib/types";
 
 // ---- insight cards ---------------------------------------------------------------

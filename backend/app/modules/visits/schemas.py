@@ -28,6 +28,15 @@ class VisitUpdate(BaseModel):
     notes: str | None = Field(default=None, max_length=2000)
 
 
+class QuickVisitIn(BaseModel):
+    """"I'm here now": log an unplanned visit in one tap, located by GPS."""
+    venue: str = Field(min_length=2, max_length=160)
+    title: str | None = Field(default=None, max_length=140)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    ward_id: str | None = None  # only used when GPS falls outside every ward (e.g. on the water)
+
+
 class CheckinIn(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)

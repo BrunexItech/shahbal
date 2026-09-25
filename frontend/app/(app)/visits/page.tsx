@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, CalendarPlus, CheckCircle2, MapPin, Navigation, Route, Users, XCircle } from "lucide-react";
+import { BellRing, CalendarPlus, CheckCircle2, MapPin, Navigation, Route, Users, XCircle, LocateFixed } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { CampaignStatusBadge } from "@/features/messaging/components";
 import { useCancelVisit, useCheckin, useCompleteVisit, useCreateVisit, useVisits } from "@/features/visits/api";
 import { ApiError } from "@/lib/api";
 import { VisitPhotos } from "@/features/visits/photos";
+import { QuickVisitModal } from "@/features/visits/QuickVisit";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { num } from "@/lib/format";
@@ -33,6 +34,7 @@ export default function VisitsPage() {
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const { data, isLoading, error, refetch } = useVisits();
   const [planning, setPlanning] = useState(false);
+  const [quick, setQuick] = useState(false);
   const [completing, setCompleting] = useState<Visit | null>(null);
 
   const groups = useMemo(() => {
@@ -53,8 +55,11 @@ export default function VisitsPage() {
   return (
     <>
       <PageHeader eyebrow="Outreach" title="Campaign visits"
-        subtitle="Plan where the team goes. Voters in the ward get an SMS before the team arrives, and completed visits light up the coverage map."
-        actions={can.planVisits(user.role) && <Button icon={<CalendarPlus className="size-4" />} onClick={() => setPlanning(true)}>Plan a visit</Button>} />
+        subtitle="Plan where the team goes, or log an unplanned stop with “I’m here now”. Every visit shows on the Command Centre map."
+        actions={<>
+          {can.runVisits(user.role) && <Button variant="gold" icon={<LocateFixed className="size-4" />} onClick={() => setQuick(true)}>I&apos;m here now</Button>}
+          {can.planVisits(user.role) && <Button icon={<CalendarPlus className="size-4" />} onClick={() => setPlanning(true)}>Plan a visit</Button>}
+        </>} />
 
       <div className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1 sm:w-fit">
         {(["upcoming", "past"] as const).map((t) => (
@@ -80,6 +85,7 @@ export default function VisitsPage() {
       )}
 
       {planning && <PlanVisitModal onClose={() => setPlanning(false)} />}
+      {quick && <QuickVisitModal onClose={() => setQuick(false)} />}
       {completing && <CompleteModal visit={completing} onClose={() => setCompleting(null)} />}
     </>
   );

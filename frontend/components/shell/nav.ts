@@ -1,6 +1,7 @@
 import {
   BarChart3,
   ClipboardCheck,
+  Contact,
   Flag,
   Globe2,
   History,
@@ -30,6 +31,7 @@ export const NAV: NavItem[] = [
   { section: "Voters", href: "/voters/new", label: "Capture Voter", short: "Capture", icon: UserPlus, show: can.capture },
   { section: "Voters", href: "/voters", label: "Voter Registry", icon: UsersRound, show: () => true },
   { section: "Voters", href: "/verification", label: "Verification Queue", icon: ClipboardCheck, show: can.verify },
+  { section: "Outreach", href: "/audiences", label: "Audiences", icon: Contact, show: can.message },
   { section: "Outreach", href: "/messaging", label: "Messaging", icon: MessageSquareText, show: can.message },
   { section: "Outreach", href: "/visits", label: "Campaign Visits", short: "Visits", icon: Route, show: () => true },
   { section: "Outreach", href: "/calls", label: "Call Centre", icon: PhoneCall, show: can.callCentre },

@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, CalendarClock, Send, Users } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -36,6 +36,19 @@ export default function ComposeMessagePage() {
   const [body, setBody] = useState("Habari {first_name}! ");
   const [constituencies, setConstituencies] = useState<string[]>([]);
   const [wards, setWards] = useState<string[]>([]);
+  const [stations, setStations] = useState<string[]>([]);
+  // Arriving from Audiences: pre-select the chosen regions, support levels and channel.
+  const params = useSearchParams();
+  useEffect(() => {
+    const list = (k: string) => (params.get(k) ?? "").split(",").filter(Boolean);
+    if (list("c").length) setConstituencies(list("c"));
+    if (list("w").length) setWards(list("w"));
+    if (list("s").length) setStations(list("s"));
+    if (list("support").length) setSupport(list("support") as Support[]);
+    const ch = params.get("channel");
+    if (ch === "sms" || ch === "whatsapp") setChannel(ch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read once on arrival
+  }, []);
   const [support, setSupport] = useState<Support[]>([]);
   const [statuses, setStatuses] = useState<VoterStatus[]>(["verified", "pending"]);
   const [notVoted, setNotVoted] = useState(false);
@@ -55,8 +68,10 @@ export default function ComposeMessagePage() {
   }, [wardOptions]);
 
   const audience: Partial<Audience> = useMemo(() => ({
-    constituency_ids: constituencies, ward_ids: wards, support, statuses, voted: notVoted ? false : null,
-  }), [constituencies, wards, support, statuses, notVoted]);
+    // Picking wards inside a constituency narrows it to those wards; place picks otherwise add up.
+    constituency_ids: constituencies.filter((cid) => !(tree ?? []).find((c) => c.id === cid)?.wards.some((w) => wards.includes(w.id))),
+    ward_ids: wards, station_ids: stations, support, statuses, voted: notVoted ? false : null,
+  }), [constituencies, wards, stations, support, statuses, notVoted, tree]);
 
   // Live, debounced preview: recipients, sample render, segment count.
   useEffect(() => {
@@ -128,6 +143,12 @@ export default function ComposeMessagePage() {
                 <input type="checkbox" className="size-4 accent-kenya-green" checked={notVoted} onChange={(e) => setNotVoted(e.target.checked)} />
                 Only voters not yet marked as voted <span className="text-xs text-muted">(election day)</span>
               </label>
+              {stations.length > 0 && (
+                <p className="flex items-center justify-between gap-3 rounded-xl bg-ocean-50 px-3 py-2 text-sm text-navy-900 ring-1 ring-ocean/20">
+                  <span>Plus <b>{stations.length}</b> polling station{stations.length > 1 ? "s" : ""} chosen in Audiences</span>
+                  <button type="button" onClick={() => setStations([])} className="text-xs font-semibold text-ocean hover:underline">Remove</button>
+                </p>
+              )}
               {errors.audience && <p className="text-xs font-medium text-kenya-red">{errors.audience}</p>}
             </div>
           </Card>
