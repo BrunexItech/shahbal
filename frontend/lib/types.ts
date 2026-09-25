@@ -345,7 +345,7 @@ export interface MapWard {
 export interface VisitedPlace {
   ward_id: string; ward: string; venue: string; lat: number; lng: number; count: number;
   exact: boolean; last_at: string | null; attendance: number; titles: string[];
-  visit_ids: string[]; photos: number; photo_url: string | null;
+  visit_ids: string[]; photos: number; photo_url: string | null; dates: string[];
 }
 
 export interface MapOverview {

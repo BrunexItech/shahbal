@@ -46,6 +46,12 @@ async def overview(ctx: Ctx = Depends(any_user)):
     return await MapService(ctx).overview()
 
 
+@router.get("/density")
+async def density(ctx: Ctx = Depends(admins)):
+    """Capture density for the in-app GIS map (same k-anonymous grid as the export, not a download)."""
+    return await MapService(ctx).export_grid()
+
+
 @router.get("/activity")
 async def activity(limit: int = Query(30, ge=1, le=100), ctx: Ctx = Depends(admins)):
     """Live HQ activity stream (county-wide admins only: audit rows aren't area-scoped)."""

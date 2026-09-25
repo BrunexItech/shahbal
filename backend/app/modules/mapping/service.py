@@ -139,13 +139,15 @@ class MapService:
             if p is None:  # rows are newest first, so the first one names the place
                 p = places[key] = {"ward_id": wid, "ward": wname, "venue": venue, "lat": lat, "lng": lng, "count": 0,
                                    "exact": False, "last_at": at.isoformat() if at else None, "attendance": 0, "titles": [],
-                                   "visit_ids": [], "photos": 0, "photo_url": None}
+                                   "visit_ids": [], "photos": 0, "photo_url": None, "dates": []}
             p["count"] += 1
             p["exact"] = p["exact"] or bool(exact)
             p["attendance"] += att or 0
             if len(p["titles"]) < 3:
                 p["titles"].append(title)
             p["visit_ids"].append(vid)
+            if at:
+                p["dates"].append(at.isoformat())
             vp = photos.get(vid, [])
             p["photos"] += len(vp)
             if vp and p["photo_url"] is None:  # newest visit first, newest photo first

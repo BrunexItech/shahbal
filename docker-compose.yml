@@ -64,6 +64,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: /api/v1        # same origin via the gateway
         NEXT_PUBLIC_GIS_URL: /gis/
+        NEXT_PUBLIC_MAPILLARY_TOKEN: ${MAPILLARY_TOKEN:-}   # street-level photos in GIS Lab
     depends_on:
       - backend
     restart: unless-stopped
