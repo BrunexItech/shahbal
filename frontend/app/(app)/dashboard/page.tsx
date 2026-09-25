@@ -2,12 +2,13 @@
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { Skeleton } from "@/components/loaders";
 import { Card, CardHeader, ErrorState } from "@/components/ui";
 import { LiveDot } from "@/components/ui/Motion";
 import { useDashboard } from "@/features/dashboard/api";
-import { AttentionRadar } from "@/features/dashboard/components/command/AttentionRadar";
+import { AttentionStrip } from "@/features/dashboard/components/command/AttentionStrip";
 import { CommandStage } from "@/features/dashboard/components/command/CommandStage";
 import { Heartbeat } from "@/features/dashboard/components/command/Heartbeat";
 import { RaceLanes } from "@/features/dashboard/components/command/RaceLanes";
@@ -28,6 +29,8 @@ const URGENCY: Record<InsightCard["tone"], number> = { bad: 0, warn: 1, info: 2,
 export default function CommandCentrePage() {
   const user = useUser();
   const { data: d, isLoading, error, refetch } = useDashboard();
+  const [attActive, setAttActive] = useState(0);
+  const [attPlaying, setAttPlaying] = useState(true);
   const { pulse, events, connected } = useLive();
   const hq = can.audit(user.role) || user.role === "viewer";
   const analytics = can.manageUsers(user.role) || user.role === "viewer";
@@ -47,11 +50,11 @@ export default function CommandCentrePage() {
       </header>
 
       {/* 1 · Are we winning, how fast, and where? */}
-      <CommandStage d={d} pulse={pulse} events={events} connected={connected} />
+      <CommandStage d={d} pulse={pulse} events={events} connected={connected} activeAttention={attActive} />
 
       {/* 2 · What needs attention now, and where? */}
       {i.alerts?.length ? (
-        <AttentionRadar alerts={i.alerts} connected={connected} />
+        <AttentionStrip alerts={i.alerts} active={attActive} onActive={setAttActive} playing={attPlaying} onPlaying={setAttPlaying} allInsights={analytics} />
       ) : (
         <section aria-labelledby="attention">
           <div className="mb-3 flex items-center justify-between">

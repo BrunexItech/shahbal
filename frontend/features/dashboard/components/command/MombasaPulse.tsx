@@ -7,7 +7,7 @@ import { buildGeometry } from "@/features/dashboard/components/command/geometry"
 import { cn } from "@/lib/cn";
 import { num } from "@/lib/format";
 import type { LiveEvent } from "@/lib/live";
-import type { Health, VisitedPlace } from "@/lib/types";
+import type { AttentionAlert, Health, VisitedPlace } from "@/lib/types";
 
 export type StageMode = "pace" | "visits";
 
@@ -40,7 +40,9 @@ type Region = { name: string; status: Health; today: number };
  * wards etched inside, and a pulse wherever something happened in the last half hour.
  * Pure SVG (no map tiles), so it loads instantly and looks the same everywhere.
  */
-export function MombasaPulse({ constituencies, wards, regions, events, mode = "pace", wardVisits, places = [], onWard }: {
+const ATTENTION: Record<string, string> = { bad: "#ff5a4a", warn: "#e3b53a" };
+
+export function MombasaPulse({ constituencies, wards, regions, events, mode = "pace", wardVisits, places = [], onWard, attention = [], activeAttention = -1 }: {
   constituencies: FeatureCollection;
   wards: FeatureCollection;
   regions: Region[];
@@ -50,10 +52,32 @@ export function MombasaPulse({ constituencies, wards, regions, events, mode = "p
   wardVisits?: Map<string, number>;
   places?: VisitedPlace[];
   onWard?: (name: string) => void;
+  /** Places that need action (ward / constituency alerts), with pulsing rings; the active one strongest. */
+  attention?: AttentionAlert[];
+  activeAttention?: number;
 }) {
   const geo = useMemo(() => buildGeometry(constituencies, wards, W), [constituencies, wards]);
 
   const byName = new Map(regions.map((r) => [r.name, r]));
+  // Attention: wards that need action get pulsing rings; a constituency alert lights up
+  // its whole outline when selected (a ring would sit on top of its name).
+  const spots = useMemo(() => {
+    const out: { i: number; x: number; y: number; d: string; color: string; area: string }[] = [];
+    attention.forEach((a, i) => {
+      const color = ATTENTION[a.tone];
+      const w = a.level === "ward" ? geo.wards.find((x) => x.name === a.area) : null;
+      if (!color || !w) return;
+      let [x, y] = w.c;
+      for (let t = 0; t < 6 && out.some((q) => Math.hypot(q.x - x, q.y - y) < 30); t++) { x += 26 * Math.cos(t * 1.9); y += 26 * Math.sin(t * 1.9); }
+      out.push({ i, x, y, d: w.d, color, area: a.area });
+    });
+    return out;
+  }, [attention, geo]);
+  const activeSpot = spots.find((s) => s.i === activeAttention);
+  const activeAlert = attention[activeAttention];
+  const activeArea = activeSpot?.d
+    ?? (activeAlert?.level === "constituency" && ATTENTION[activeAlert.tone] ? geo.cons.find((c) => c.name === activeAlert.area)?.d : undefined);
+  const activeColor = activeAlert ? ATTENTION[activeAlert.tone] : undefined;
   const wardAt = new Map(geo.wards.map((w) => [w.name, w.c]));
   const cutoff = Date.now() - PULSE_MINUTES * 60_000;
   const pulses = events
@@ -122,6 +146,21 @@ export function MombasaPulse({ constituencies, wards, regions, events, mode = "p
           );
         })}
 
+        {/* Needs attention: rings on the places that need action */}
+        {activeArea && activeColor && <path d={activeArea} fill={activeColor} fillOpacity=".2" stroke={activeColor} strokeWidth="2.5" filter="url(#mp-glow)" className="pointer-events-none" />}
+        {spots.map((s) => {
+          const on = s.i === activeAttention;
+          return (
+            <g key={`att-${s.i}`} transform={`translate(${s.x} ${s.y})`} className="pointer-events-none">
+              {[0, 0.9, 1.8].map((delay) => (
+                <circle key={delay} r={on ? 13 : 8} className="radar-wave" fill={on ? `${s.color}18` : "none"} stroke={s.color} strokeWidth={on ? 2.4 : 1.5}
+                  style={{ animationDelay: `${delay + s.i * 0.3}s`, opacity: on ? 1 : 0.6 }} />
+              ))}
+              <circle r={on ? 7.5 : 5} fill={s.color} stroke="#06101f" strokeWidth="2" filter="url(#mp-glow)" />
+            </g>
+          );
+        })}
+
         {/* Activity pulses (last 30 minutes) */}
         {pulses.map((p) => (
           <g key={p.id} transform={`translate(${p.at[0]} ${p.at[1]})`} className="pointer-events-none">
@@ -131,6 +170,19 @@ export function MombasaPulse({ constituencies, wards, regions, events, mode = "p
         ))}
 
       </svg>
+
+      {/* Attention pins: number + the active place's name */}
+      {spots.map((sp) => (
+        <span key={`pin-${sp.i}`} aria-hidden className={cn("pointer-events-none absolute grid size-5 -translate-x-1/2 place-items-center rounded-full text-xs font-extrabold text-navy-950 ring-2 ring-[#06101f] transition",
+          sp.i === activeAttention ? "z-10 scale-110 bg-white" : "bg-white/75")}
+          style={{ left: `${((sp.x + 20) / (W + 40)) * 100}%`, top: `calc(${((sp.y + 20) / (geo.H + 40)) * 100}% - 24px)` }}>{sp.i + 1}</span>
+      ))}
+      {activeSpot && (
+        <span className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-full bg-[#06101f]/90 px-2.5 py-1 text-xs font-bold tracking-wider whitespace-nowrap uppercase transition-all duration-500"
+          style={{ left: `${((activeSpot.x + 20) / (W + 40)) * 100}%`, top: `calc(${((activeSpot.y + 20) / (geo.H + 40)) * 100}% + 14px)`, color: activeSpot.color, boxShadow: `0 0 0 1px ${activeSpot.color}88` }}>
+          {activeSpot.area}
+        </span>
+      )}
 
       {/* Direct labels in HTML so they keep a readable size when the map shrinks on phones. */}
       {geo.cons.map((c) => {

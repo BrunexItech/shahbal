@@ -19,7 +19,9 @@ import type { DashboardSummary } from "@/lib/types";
  * The Command Centre stage: are we winning (gauge + verdict), how fast (pace vs
  * required), how long is left (countdown), and where it's happening (live map).
  */
-export function CommandStage({ d, pulse, events, connected }: { d: DashboardSummary; pulse: Pulse | null; events: LiveEvent[]; connected: boolean }) {
+export function CommandStage({ d, pulse, events, connected, activeAttention = -1 }: {
+  d: DashboardSummary; pulse: Pulse | null; events: LiveEvent[]; connected: boolean; activeAttention?: number;
+}) {
   const i = d.insights;
   const o = d.overall;
   const wards = useBoundaries();
@@ -52,7 +54,7 @@ export function CommandStage({ d, pulse, events, connected }: { d: DashboardSumm
   ];
 
   return (
-    <section className="relative overflow-hidden rounded-3xl bg-[#06101f] text-white shadow-[0_30px_60px_-30px_rgba(6,16,31,.7)]">
+    <section id="command-stage" className="relative scroll-mt-24 overflow-hidden rounded-3xl bg-[#06101f] text-white shadow-[0_30px_60px_-30px_rgba(6,16,31,.7)]">
       <FlagStripe />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_0%_0%,rgba(11,127,166,.32),transparent_45%),radial-gradient(ellipse_at_100%_100%,rgba(0,107,63,.28),transparent_50%)]" />
       <div className="pointer-events-none absolute inset-0 opacity-[.045] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:32px_32px]" />
@@ -114,7 +116,7 @@ export function CommandStage({ d, pulse, events, connected }: { d: DashboardSumm
           </div>
           {wards.data && cons.data ? (
             <MombasaPulse constituencies={cons.data} wards={wards.data} events={events} mode={mode} wardVisits={wardVisits}
-              places={ov?.places ?? []} onWard={setWard}
+              places={ov?.places ?? []} onWard={setWard} attention={i.alerts ?? []} activeAttention={activeAttention}
               regions={i.constituencies.map((c) => ({ name: c.name, status: c.status, today: c.today }))} />
           ) : (
             <Skeleton className="aspect-[4/3] w-full rounded-2xl bg-white/5" />
