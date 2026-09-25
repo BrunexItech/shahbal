@@ -127,3 +127,8 @@ html { font-size: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; 
 .tab-in { animation: tab-in .42s cubic-bezier(.2,.7,.2,1) both; }
 .tab-sweep { transform-origin: left; animation: tab-sweep .55s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .tab-in, .tab-sweep { animation: none; } }
+
+/* ---- attention radar ------------------------------------------------------------ */
+@keyframes radar-wave { 0% { transform: scale(.35); opacity: .95; } 100% { transform: scale(3.6); opacity: 0; } }
+.radar-wave { transform-box: fill-box; transform-origin: center; animation: radar-wave 2.7s cubic-bezier(.15,.6,.3,1) infinite; }
+@media (prefers-reduced-motion: reduce) { .radar-wave { animation: none; opacity: .35; } }

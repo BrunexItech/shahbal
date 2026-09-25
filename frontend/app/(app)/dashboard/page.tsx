@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/loaders";
 import { Card, CardHeader, ErrorState } from "@/components/ui";
 import { LiveDot } from "@/components/ui/Motion";
 import { useDashboard } from "@/features/dashboard/api";
+import { AttentionRadar } from "@/features/dashboard/components/command/AttentionRadar";
 import { CommandStage } from "@/features/dashboard/components/command/CommandStage";
 import { Heartbeat } from "@/features/dashboard/components/command/Heartbeat";
 import { RaceLanes } from "@/features/dashboard/components/command/RaceLanes";
@@ -48,14 +49,18 @@ export default function CommandCentrePage() {
       {/* 1 · Are we winning, how fast, and where? */}
       <CommandStage d={d} pulse={pulse} events={events} connected={connected} />
 
-      {/* 2 · What needs attention now? */}
-      <section aria-labelledby="attention">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 id="attention" className="text-base font-bold text-navy-900">Needs attention now</h2>
-          {analytics && <Link href="/analytics" className="inline-flex items-center gap-1 text-sm font-semibold text-ocean hover:underline">All insights <ArrowRight className="size-4" /></Link>}
-        </div>
-        <InsightCards cards={attention} featured />
-      </section>
+      {/* 2 · What needs attention now, and where? */}
+      {i.alerts?.length ? (
+        <AttentionRadar alerts={i.alerts} connected={connected} />
+      ) : (
+        <section aria-labelledby="attention">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 id="attention" className="text-base font-bold text-navy-900">Needs attention now</h2>
+            {analytics && <Link href="/analytics#insights" className="inline-flex items-center gap-1 text-sm font-semibold text-ocean hover:underline">All insights <ArrowRight className="size-4" /></Link>}
+          </div>
+          <InsightCards cards={attention} featured />
+        </section>
+      )}
 
       {/* 3 · Who is winning the race? */}
       <Card className="overflow-hidden">

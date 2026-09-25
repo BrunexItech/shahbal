@@ -1,14 +1,14 @@
 "use client";
 
-import { X } from "lucide-react";
+import { SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Skeleton } from "@/components/loaders";
-import { Card, ErrorState, PageHeader } from "@/components/ui";
+import { Button, Card, ErrorState, PageHeader } from "@/components/ui";
 import { useBreakdown } from "@/features/dashboard/api";
 import { CONSTITUENCY_COLORS } from "@/features/map/regions";
 import { ConstituencyCards } from "@/features/targets/ConstituencyCards";
-import { CountyBand } from "@/features/targets/CountyBand";
+import { TargetPlanner } from "@/features/targets/TargetPlanner";
 import { pctLabel } from "@/features/targets/status";
 import { WardList, type WardRow } from "@/features/targets/WardList";
 import { useUser } from "@/lib/auth";
@@ -23,6 +23,7 @@ export default function TargetsPage() {
   const user = useUser();
   const { data, isLoading, error, refetch } = useBreakdown();
   const [selected, setSelected] = useState<string | null>(null);
+  const [planning, setPlanning] = useState(false);
 
   const cons = data?.constituencies.find((c) => c.id === selected) ?? null;
   const wards = useMemo<WardRow[]>(() => (data?.constituencies ?? [])
@@ -33,7 +34,6 @@ export default function TargetsPage() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-72" />
-        <Skeleton className="h-52 rounded-3xl" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}</div>
       </div>
     );
@@ -44,11 +44,13 @@ export default function TargetsPage() {
   return (
     <>
       <PageHeader eyebrow="Planning" title="Targets & captures"
-        subtitle="How many people have been captured in each constituency, ward and polling station, against target. Live." />
+        subtitle={`${num(data.county.captured)} captured of ${num(data.county.target)} across ${data.constituencies.length} constituencies, ${data.county.wards} wards and ${num(data.county.stations)} polling stations.`}
+        actions={can.setTargets(user.role) && (
+          <Button variant="gold" icon={<SlidersHorizontal className="size-4" />} onClick={() => setPlanning(true)}>Plan targets</Button>
+        )} />
+      {planning && <TargetPlanner onClose={() => setPlanning(false)} />}
 
       <div className="space-y-8">
-        <CountyBand county={data.county} />
-
         <section aria-labelledby="by-constituency">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
             <div>

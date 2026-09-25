@@ -12,6 +12,7 @@ from app.modules.geo.schemas import (
     WardUpdate,
 )
 from app.modules.geo.service import GeoService
+from app.modules.geo.targets import PlanIn, PlanOut, TargetPlanner
 
 router = APIRouter(prefix="/api/v1/geo", tags=["geo"])
 managers = require(*MANAGERS)
@@ -26,6 +27,17 @@ async def tree(ctx: Ctx = Depends(any_user)):
 @router.patch("/wards/{ward_id}", response_model=WardOut)
 async def update_ward(ward_id: str, payload: WardUpdate, ctx: Ctx = Depends(target_setters)):
     return await GeoService(ctx).update_ward(ward_id, payload)
+
+
+@router.post("/targets/preview", response_model=PlanOut)
+async def preview_targets(payload: PlanIn, ctx: Ctx = Depends(target_setters)):
+    """Work out targets for a whole level without saving anything."""
+    return await TargetPlanner(ctx).plan(payload)
+
+
+@router.post("/targets/apply", response_model=PlanOut)
+async def apply_targets(payload: PlanIn, ctx: Ctx = Depends(target_setters)):
+    return await TargetPlanner(ctx).apply(payload)
 
 
 @router.get("/stations", response_model=list[StationOut])

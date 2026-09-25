@@ -120,7 +120,17 @@ export interface InsightCard {
   detail: string;
 }
 
+export interface AttentionAlert {
+  tone: "good" | "warn" | "bad" | "info";
+  level: "county" | "constituency" | "ward";
+  area: string;
+  constituency: string | null;
+  title: string;
+  detail: string;
+}
+
 export interface Insights {
+  alerts: AttentionAlert[];
   today: number;
   yesterday_same_time: number;
   last7: number;

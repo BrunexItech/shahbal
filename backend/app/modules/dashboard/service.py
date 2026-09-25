@@ -276,8 +276,53 @@ async def insights(session, user, summary: dict) -> dict:
         cards.append({"tone": "info", "title": f"Busiest hour today: {peak:02d}:00–{(peak + 1) % 24:02d}:00",
                       "detail": f"{hourly[peak]:,} captures in that hour. Schedule field teams around it."})
 
+    alerts = await _alerts(session, vs, live, summary, constituencies, cards, required, pace, days_left)
+
     return {
+        "alerts": alerts,
         "today": today_n, "yesterday_same_time": yday_to_now, "last7": last7, "prev7": prev7, "pace": pace,
         "days_left": days_left, "projected": round(projected) if projected is not None else None, "required_pace": required,
         "hourly": hourly, "hourly_yesterday": hourly_yesterday, "backlog_days": backlog_days, "constituencies": constituencies, "cards": cards[:6],
     }
+
+
+async def _alerts(session, vs, live, summary, constituencies, cards, required, pace, days_left) -> list[dict]:
+    """Attention items pinned to a place, for the Command Centre's live attention map.
+
+    Each alert names a level (county / constituency / ward) and the area, so the map
+    can put its pulsing rings exactly there. Most urgent first, at most five."""
+    wards = summary["wards"]
+    ward_ids = [w["id"] for w in wards]
+    visited = dict((await session.execute(
+        select(Visit.ward_id, func.count()).where(Visit.ward_id.in_(ward_ids), Visit.status == VisitStatus.completed).group_by(Visit.ward_id)
+    )).all()) if ward_ids else {}
+    week = dict((await session.execute(
+        select(Voter.ward_id, func.count()).where(vs, live, Voter.created_at >= local_midnight(6)).group_by(Voter.ward_id)
+    )).all())
+    out: list[dict] = []
+
+    if days_left is not None and summary["overall"]["target"] and required and required > pace:
+        out.append({"tone": "bad", "level": "county", "area": "Mombasa County", "constituency": None,
+                    "title": f"Pace must rise to {required:,} a day",
+                    "detail": f"Now {round(pace):,} a day with {days_left} days left. Every constituency needs more field time."})
+    ranked = [c for c in constituencies if c["target"]]
+    if ranked:
+        worst = min(ranked, key=lambda c: c["projected_percent"] if c["projected_percent"] is not None else c["percent"] or 0)
+        out.append({"tone": "bad" if worst["status"] == "critical" else "warn", "level": "constituency", "area": worst["name"], "constituency": worst["name"],
+                    "title": f"{worst['name']} is furthest behind",
+                    "detail": f"{worst['achieved']:,} of {worst['target']:,} ({worst['percent'] or 0:g}%). Gap of {worst['gap']:,}."})
+    never = sorted([w for w in wards if w["target"] and not visited.get(w["id"])], key=lambda w: -w["gap"])[:2]
+    for w in never:
+        out.append({"tone": "bad", "level": "ward", "area": w["name"], "constituency": w["constituency"],
+                    "title": f"{w['name']} has never been visited",
+                    "detail": f"Gap of {w['gap']:,} in {w['constituency']}. Plan a visit here first."})
+    stalled = sorted([w for w in wards if w["target"] and not week.get(w["id"]) and w not in never], key=lambda w: -w["gap"])[:1]
+    for w in stalled:
+        out.append({"tone": "warn", "level": "ward", "area": w["name"], "constituency": w["constituency"],
+                    "title": f"No captures in {w['name']} this week",
+                    "detail": f"The team hasn't added anyone here in 7 days. Gap of {w['gap']:,}."})
+    best = max(constituencies, key=lambda c: c["today"], default=None)
+    if best and best["today"]:
+        out.append({"tone": "good", "level": "constituency", "area": best["name"], "constituency": best["name"],
+                    "title": f"{best['name']} is leading today", "detail": f"{best['today']:,} captured since midnight."})
+    return out[:5]

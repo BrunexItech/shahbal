@@ -130,7 +130,7 @@ function StationBreakdown({ w }: { w: WardRow }) {
             <span className="col-span-2 row-start-2 h-2 rounded-full bg-slate-100 sm:col-span-1 sm:row-start-auto">
               <span className="block h-full rounded-full bg-ocean" style={{ width: `${(s.captured / max) * 100}%` }} />
             </span>
-            <span className="text-right text-sm font-semibold text-navy-900 tabular-nums">{num(s.captured)}</span>
+            <span className="text-right text-sm font-semibold text-navy-900 tabular-nums">{num(s.captured)}{s.target ? <span className="font-normal text-slate-500"> / {num(s.target)}</span> : null}</span>
           </li>
         ))}
         {w.no_station > 0 && (
