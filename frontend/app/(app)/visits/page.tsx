@@ -11,6 +11,7 @@ import { useGeoTree, useStations } from "@/features/geo/api";
 import { CampaignStatusBadge } from "@/features/messaging/components";
 import { useCancelVisit, useCheckin, useCompleteVisit, useCreateVisit, useVisits } from "@/features/visits/api";
 import { ApiError } from "@/lib/api";
+import { VisitPhotos } from "@/features/visits/photos";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { num } from "@/lib/format";
@@ -94,7 +95,7 @@ function VisitCard({ visit: v, onComplete }: { visit: Visit; onComplete: () => v
   function start() {
     const send = (lat?: number, lng?: number) =>
       checkin.mutate({ id: v.id, latitude: lat, longitude: lng }, {
-        onSuccess: () => toast.success("Checked in. The visit is live on the map."),
+        onSuccess: () => toast.success("Checked in. Add photos from the visit card."),
         onError: (e) => toast.error(e.message),
         onSettled: () => setLocating(false),
       });
@@ -126,6 +127,7 @@ function VisitCard({ visit: v, onComplete }: { visit: Visit; onComplete: () => v
           </Link>
         )}
         {v.outcome && <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700 ring-1 ring-line">{v.outcome}</p>}
+        <VisitPhotos visit={v} />
       </div>
       <div className="flex flex-wrap gap-2 sm:justify-end">
         {v.status === "scheduled" && can.runVisits(user.role) && (

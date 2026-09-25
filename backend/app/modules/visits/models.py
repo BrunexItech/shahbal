@@ -39,3 +39,17 @@ class Visit(Base):
     outcome: Mapped[str | None] = mapped_column(Text)
 
     created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+
+
+class VisitPhoto(Base):
+    """A photo taken at a visit. Stored encrypted in the vault (ns "visit-photos"),
+    re-encoded so phone metadata (including GPS) never survives."""
+
+    __tablename__ = "visit_photos"
+
+    visit_id: Mapped[str] = mapped_column(ForeignKey("visits.id", ondelete="CASCADE"), index=True)
+    path: Mapped[str] = mapped_column(String(80))
+    sha256: Mapped[str] = mapped_column(String(64))
+    width: Mapped[int]
+    height: Mapped[int]
+    taken_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))

@@ -88,7 +88,7 @@ async def export_stations(ctx: Ctx = Depends(exporters)):
 async def _project_response(ctx: Ctx, mode: str, via: str) -> JSONResponse:
     svc = MapService(ctx)
     project = build_project(await svc.export_constituencies(), await svc.export_wards(), await svc.export_grid(), await svc.export_stations(),
-                            briefing=mode == "briefing")
+                            await svc.export_places(), await svc.export_visit_timeline(), briefing=mode == "briefing")
     audit.record(ctx.session, actor_id=ctx.user.id, action="EXPORT", entity="gis", entity_id=f"project:{mode}", ip=ctx.ip, via=via)
     await ctx.session.commit()
     return JSONResponse(project, headers={"Content-Disposition": 'inline; filename="mombasa-campaign.geolibre.json"', "Cache-Control": "no-store"})

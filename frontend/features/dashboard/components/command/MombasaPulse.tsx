@@ -3,9 +3,21 @@
 import type { Feature, FeatureCollection, MultiPolygon, Polygon, Position } from "geojson";
 import { useMemo } from "react";
 
+import { cn } from "@/lib/cn";
 import { num } from "@/lib/format";
 import type { LiveEvent } from "@/lib/live";
-import type { Health } from "@/lib/types";
+import type { Health, VisitedPlace } from "@/lib/types";
+
+export type StageMode = "pace" | "visits";
+
+/** Times visited, on the dark stage: dim → bright ocean. 0 = unlit with a red dashed edge. */
+export const VISIT_GLOW: [number, string, string][] = [
+  [1, "#1c5d78", "1"],
+  [2, "#1f86ad", "2"],
+  [3, "#3fb3de", "3–4"],
+  [5, "#9ee3ff", "5+"],
+];
+const visitColor = (n: number) => [...VISIT_GLOW].reverse().find(([v]) => n >= v)?.[1] ?? null;
 
 /** Status colours tuned for the dark stage; always paired with a label in the legend. */
 export const HEALTH: Record<Health, { color: string; label: string }> = {
@@ -31,11 +43,16 @@ function polys(f: Feature): Position[][][] {
  * wards etched inside, and a pulse wherever something happened in the last half hour.
  * Pure SVG (no map tiles), so it loads instantly and looks the same everywhere.
  */
-export function MombasaPulse({ constituencies, wards, regions, events }: {
+export function MombasaPulse({ constituencies, wards, regions, events, mode = "pace", wardVisits, places = [], onWard }: {
   constituencies: FeatureCollection;
   wards: FeatureCollection;
   regions: Region[];
   events: LiveEvent[];
+  mode?: StageMode;
+  /** Completed visits per ward name (visits mode). */
+  wardVisits?: Map<string, number>;
+  places?: VisitedPlace[];
+  onWard?: (name: string) => void;
 }) {
   const geo = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -53,7 +70,7 @@ export function MombasaPulse({ constituencies, wards, regions, events }: {
       return [sx / ring.length, sy / ring.length];
     };
     return {
-      H,
+      H, pt,
       cons: constituencies.features.map((f) => ({
         name: String(f.properties?.name), d: path(f),
         label: pt([Number(f.properties?.label_lng), Number(f.properties?.label_lat)]),
@@ -93,22 +110,47 @@ export function MombasaPulse({ constituencies, wards, regions, events }: {
           <path className="radar-sweep" d="M0 0 L360 0 A360 360 0 0 0 311.8 -180 Z" fill="url(#mp-sweep)" />
         </g>
 
-        {/* Constituencies lit by status */}
+        {/* Constituencies: lit by status (pace) or outlined (visits) */}
         {geo.cons.map((c) => {
           const s = HEALTH[byName.get(c.name)?.status ?? "unknown"];
-          return (
+          return mode === "pace" ? (
             <g key={c.name}>
               <path d={c.d} fill={s.color} fillOpacity=".16" stroke={s.color} strokeOpacity=".9" strokeWidth="2" filter="url(#mp-glow)" />
               <path d={c.d} fill={s.color} fillOpacity=".1" />
             </g>
+          ) : (
+            <path key={c.name} d={c.d} fill="#ffffff" fillOpacity=".03" stroke="#ffffff" strokeOpacity=".5" strokeWidth="1.6" />
           );
         })}
-        {/* Ward etching */}
-        {geo.wards.map((w) => <path key={w.name} d={w.d} fill="none" stroke="#ffffff" strokeOpacity=".14" strokeWidth=".8" />)}
+        {/* Wards: etched (pace) or lit by times visited (visits); always clickable */}
+        {geo.wards.map((w) => {
+          const n = wardVisits?.get(w.name) ?? 0;
+          const lit = mode === "visits" ? visitColor(n) : null;
+          return (
+            <path key={w.name} d={w.d} role={onWard ? "button" : undefined} tabIndex={onWard ? 0 : undefined}
+              aria-label={onWard ? `${w.name}: ${mode === "visits" ? `visited ${n} times` : "open ward"}` : undefined}
+              onClick={() => onWard?.(w.name)} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onWard?.(w.name)}
+              className={cn(onWard && "cursor-pointer outline-none transition-[fill-opacity] hover:[fill-opacity:.45] focus-visible:[fill-opacity:.45]")}
+              fill={lit ?? "#ffffff"} fillOpacity={lit ? 0.7 : 0.001}
+              stroke={mode === "visits" && !n ? "#ff5a4a" : "#ffffff"} strokeOpacity={mode === "visits" && !n ? 0.75 : 0.16}
+              strokeWidth={mode === "visits" && !n ? 1.3 : 0.8} strokeDasharray={mode === "visits" && !n ? "4 3" : undefined}>
+              <title>{w.name}</title>
+            </path>
+          );
+        })}
+
+        {/* Places the team has been (visits mode): size = times visited */}
+        {mode === "visits" && places.map((p) => {
+          const [x, y] = geo.pt([p.lng, p.lat]);
+          return (
+            <circle key={`${p.lat},${p.lng}`} cx={x} cy={y} r={4 + 2.5 * Math.sqrt(p.count)} className="pointer-events-none"
+              fill={p.exact ? "#34c77b" : "#94a3b8"} stroke="#06101f" strokeWidth="1.5" />
+          );
+        })}
 
         {/* Activity pulses (last 30 minutes) */}
         {pulses.map((p) => (
-          <g key={p.id} transform={`translate(${p.at[0]} ${p.at[1]})`}>
+          <g key={p.id} transform={`translate(${p.at[0]} ${p.at[1]})`} className="pointer-events-none">
             <circle r="8" className="map-ping" fill="#c9a227" fillOpacity=".25" stroke="#e3b53a" strokeWidth="2" style={{ animationDelay: `${(p.i % 6) * 0.4}s` }} />
             <circle r="6" fill="#fff4cc" stroke="#c9a227" strokeWidth="2.5" filter="url(#mp-glow)" />
           </g>
@@ -129,6 +171,15 @@ export function MombasaPulse({ constituencies, wards, regions, events }: {
       })}
       </div>
 
+      {mode === "visits" ? (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300">
+          <span className="inline-flex items-center gap-1.5"><span className="h-0 w-4 border-t-2 border-dashed border-[#ff5a4a]" />Not visited</span>
+          {VISIT_GLOW.map(([v, c, l]) => (
+            <span key={v} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm" style={{ background: c }} />{l}×</span>
+          ))}
+          <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-[#34c77b]" />Place visited (size = times)</span>
+        </div>
+      ) : (
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300">
         {(["on_track", "at_risk", "critical"] as const).map((k) => (
           <span key={k} className="inline-flex items-center gap-1.5">
@@ -140,6 +191,7 @@ export function MombasaPulse({ constituencies, wards, regions, events }: {
           {pulses.length > 0 && <b className="text-white">· {pulses.length}</b>}
         </span>
       </div>
+      )}
     </div>
   );
 }

@@ -35,7 +35,7 @@ async def schema():
 async def clean():
     async with engine.begin() as conn:
         # DELETE, not TRUNCATE: tiny tables, and TRUNCATE's file rewrite + fsync is slow per test.
-        for table in ("audit_logs", "call_recordings", "sip_accounts", "agent_presence", "messages", "call_logs", "visits", "message_campaigns", "election_settings", "voters",
+        for table in ("audit_logs", "call_recordings", "sip_accounts", "agent_presence", "messages", "call_logs", "visit_photos", "visits", "message_campaigns", "election_settings", "voters",
                       "auth_challenges", "known_devices", "passkeys", "user_invites", "user_sessions", "users", "polling_stations",
                       "wards", "constituencies"):
             await conn.execute(text(f"DELETE FROM {table}"))

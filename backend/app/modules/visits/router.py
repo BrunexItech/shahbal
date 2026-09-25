@@ -1,10 +1,11 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Response, UploadFile
 
 from app.core.deps import Ctx, any_user
 from app.modules.visits.models import VisitStatus
 from app.modules.visits.schemas import CheckinIn, CompleteIn, VisitIn, VisitOut, VisitUpdate
+from app.modules.visits.photos import MAX_BYTES, VisitPhotoService
 from app.modules.visits.service import VisitService
 
 router = APIRouter(prefix="/api/v1/visits", tags=["visits"])
@@ -44,3 +45,25 @@ async def checkin_visit(vid: str, payload: CheckinIn, ctx: Ctx = Depends(any_use
 @router.post("/{vid}/complete", response_model=VisitOut)
 async def complete_visit(vid: str, payload: CompleteIn, ctx: Ctx = Depends(any_user)):
     return await VisitService(ctx).complete(vid, payload)
+
+
+# ---- photos ------------------------------------------------------------------------
+@router.get("/{vid}/photos")
+async def list_photos(vid: str, ctx: Ctx = Depends(any_user)):
+    return await VisitPhotoService(ctx).list(vid)
+
+
+@router.post("/{vid}/photos", status_code=201)
+async def add_photo(vid: str, photo: UploadFile = File(...), ctx: Ctx = Depends(any_user)):
+    return await VisitPhotoService(ctx).add(vid, await photo.read(MAX_BYTES + 1))
+
+
+@router.get("/{vid}/photos/{pid}")
+async def get_photo(vid: str, pid: str, ctx: Ctx = Depends(any_user)):
+    data = await VisitPhotoService(ctx).read(vid, pid)
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.delete("/{vid}/photos/{pid}", status_code=204)
+async def delete_photo(vid: str, pid: str, ctx: Ctx = Depends(any_user)):
+    await VisitPhotoService(ctx).delete(vid, pid)

@@ -276,7 +276,7 @@ async def test_gis_project_is_aggregate_and_admin_only(client, admin, wards):
     await client.patch(f"/api/v1/geo/wards/{wards['Tudor'].id}", json={"target": 100}, headers=admin)
     await client.post("/api/v1/voters", headers=admin, json=voter_payload(wards["Tudor"], national_id="61234567"))
     p = (await client.get("/api/v1/map/export/project.geolibre.json", headers=admin)).json()
-    assert p["version"] == "0.1.0" and [l["id"] for l in p["layers"]] == ["constituencies", "progress", "density", "wards", "stations"]
+    assert p["version"] == "0.1.0" and [l["id"] for l in p["layers"]] == ["constituencies", "progress", "density", "wards", "stations", "timeline", "places"]
     wl = p["layers"][1]
     assert wl["style"]["vectorStyleMode"] == "graduated" and wl["style"]["vectorStyleProperty"] == "percent"
     assert len(wl["geojson"]["features"]) == 30 and wl["capabilities"]["update"] is False

@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, BookOpenText, Download, ExternalLink, Grid3x3, Layers, Lock, MapPin, Shapes } from "lucide-react";
+import { BarChart3, BookOpenText, Camera, History, Download, ExternalLink, Grid3x3, Layers, Lock, MapPin, Shapes } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ const LAYERS = [
 ];
 
 const IDEAS = [
+  "Bind the Visit timeline to the time slider and press play: watch the campaign's footprint grow day by day.",
   "Buffer each polling station by 1 km and look for dense capture cells outside every buffer: likely transport needs on election day.",
   "Overlay Overture building footprints to find dense estates the team hasn't reached yet.",
   "Use the Dashboard panel to compare constituencies, or build a print layout for a briefing pack.",
@@ -97,6 +98,14 @@ export default function GisLabPage() {
                 <Button size="sm" variant="secondary" className="ml-14 sm:ml-0" loading={busy === file} icon={<Download className="size-3.5" />} onClick={() => get(file)}>GeoJSON</Button>
               </li>
             ))}
+            <li className="flex items-start gap-4 px-5 py-4">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-kenya-green-50 text-kenya-green"><Camera className="size-5" /></span>
+              <div><p className="font-semibold text-navy-900">Visited places, with photos</p><p className="text-sm text-muted">Every place the team has been, exact GPS where available, sized by how many times. Click one for its latest photo, attendance and recent visits.</p></div>
+            </li>
+            <li className="flex items-start gap-4 px-5 py-4">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-gold-50 text-[#7a5f0c]"><History className="size-5" /></span>
+              <div><p className="font-semibold text-navy-900">Visit timeline</p><p className="text-sm text-muted">Each visit with its date. In GeoLibre, open the layer&apos;s menu and choose <b>Bind to time slider</b>, then press play to replay how the campaign spread across Mombasa.</p></div>
+            </li>
             <li className="flex items-start gap-4 px-5 py-4">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ocean-50 text-ocean"><BarChart3 className="size-5" /></span>
               <div><p className="font-semibold text-navy-900">Dashboard charts</p><p className="text-sm text-muted">Reached by constituency, and wards by % of target.</p></div>

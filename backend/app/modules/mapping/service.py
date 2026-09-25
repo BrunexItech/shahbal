@@ -10,12 +10,14 @@ from pathlib import Path
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import aliased
 
+from app.core.config import settings
 from app.core.clock import local_midnight, utcnow
 from app.core.deps import Ctx
 from app.core.scope import voter_scope, ward_scope
 from app.modules.geo.models import Constituency, PollingStation, Ward
 from app.modules.users.models import User
-from app.modules.visits.models import Visit, VisitStatus
+from app.modules.visits.models import Visit, VisitPhoto, VisitStatus
+from app.modules.visits.photos import photo_url
 from app.modules.voters.models import Status, Support, Voter
 
 DATA = Path(__file__).resolve().parents[1] / "geo" / "data"
@@ -113,7 +115,7 @@ class MapService:
         GPS at check-in, else the planned polling station. Visits within ≈110 m of each
         other are one place, so repeat visits to the same market or school add up."""
         rows = (await self.s.execute(
-            select(Visit.ward_id, Ward.name, Visit.title, Visit.venue, Visit.status,
+            select(Visit.id, Visit.ward_id, Ward.name, Visit.title, Visit.venue, Visit.status,
                    func.coalesce(Visit.checkin_lat, PollingStation.latitude), func.coalesce(Visit.checkin_lng, PollingStation.longitude),
                    Visit.checkin_lat.is_not(None), func.coalesce(Visit.completed_at, Visit.checkin_at), Visit.attendance)
             .outerjoin(PollingStation, PollingStation.id == Visit.station_id)
@@ -121,20 +123,33 @@ class MapService:
             .where(Visit.ward_id.in_(allowed), Visit.status.in_((VisitStatus.completed, VisitStatus.in_progress)))
             .order_by(func.coalesce(Visit.completed_at, Visit.checkin_at).desc())
         )).all()
+        photo_rows = (await self.s.execute(
+            select(VisitPhoto.visit_id, VisitPhoto.id, VisitPhoto.created_at)
+            .where(VisitPhoto.visit_id.in_([r[0] for r in rows])).order_by(VisitPhoto.created_at.desc())
+        )).all() if rows else []
+        photos: dict[str, list[str]] = {}
+        for vid_, pid, _ in photo_rows:
+            photos.setdefault(vid_, []).append(pid)
         places: dict[tuple, dict] = {}
-        for wid, wname, title, venue, status, lat, lng, exact, at, att in rows:
+        for vid, wid, wname, title, venue, status, lat, lng, exact, at, att in rows:
             if lat is None or lng is None:
                 continue
             key = (wid, round(lat, 3), round(lng, 3))
             p = places.get(key)
             if p is None:  # rows are newest first, so the first one names the place
                 p = places[key] = {"ward_id": wid, "ward": wname, "venue": venue, "lat": lat, "lng": lng, "count": 0,
-                                   "exact": False, "last_at": at.isoformat() if at else None, "attendance": 0, "titles": []}
+                                   "exact": False, "last_at": at.isoformat() if at else None, "attendance": 0, "titles": [],
+                                   "visit_ids": [], "photos": 0, "photo_url": None}
             p["count"] += 1
             p["exact"] = p["exact"] or bool(exact)
             p["attendance"] += att or 0
             if len(p["titles"]) < 3:
                 p["titles"].append(title)
+            p["visit_ids"].append(vid)
+            vp = photos.get(vid, [])
+            p["photos"] += len(vp)
+            if vp and p["photo_url"] is None:  # newest visit first, newest photo first
+                p["photo_url"] = photo_url(vid, vp[0])
         return sorted(places.values(), key=lambda p: -p["count"])
 
     # ---- GIS Lab exports (aggregates only) ----------------------------------------
@@ -183,6 +198,34 @@ class MapService:
             feats.append({"type": "Feature", "properties": {"captures": n, "supporters": sup, "supporter_share": _pct(sup, n)},
                           "geometry": {"type": "Polygon", "coordinates": [ring]}})
         return {"type": "FeatureCollection", "features": feats}
+
+    async def export_places(self) -> dict:
+        """Places the team has been (campaign activity, no voter data), with a photo for the popup."""
+        ov = await self.overview()
+        feats = []
+        for p in ov["places"]:
+            feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [p["lng"], p["lat"]]}, "properties": {
+                "venue": p["venue"], "ward": p["ward"], "times_visited": p["count"], "attendance": p["attendance"],
+                "last_visit": p["last_at"], "exact_gps": p["exact"], "photos": p["photos"],
+                "photo": f"{settings.api_base}{p['photo_url'].removeprefix('/api/v1')}" if p["photo_url"] else None,
+                "recent_visits": " · ".join(p["titles"])}})
+        return {"type": "FeatureCollection", "features": feats}
+
+    async def export_visit_timeline(self) -> dict:
+        """One point per visit with its date, so GeoLibre's time slider can replay the campaign."""
+        allowed = {w["id"] for w in await self.ward_stats()}
+        rows = (await self.s.execute(
+            select(Visit.title, Visit.venue, Ward.name, Visit.status, func.coalesce(Visit.completed_at, Visit.checkin_at),
+                   func.coalesce(Visit.checkin_lat, PollingStation.latitude), func.coalesce(Visit.checkin_lng, PollingStation.longitude),
+                   Visit.attendance)
+            .outerjoin(PollingStation, PollingStation.id == Visit.station_id).join(Ward, Ward.id == Visit.ward_id)
+            .where(Visit.ward_id.in_(allowed), Visit.status.in_((VisitStatus.completed, VisitStatus.in_progress)))
+            .order_by(func.coalesce(Visit.completed_at, Visit.checkin_at))
+        )).all()
+        return {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lng, lat]}, "properties": {
+                "title": t, "venue": v, "ward": w, "status": st.value, "date": at.isoformat() if at else None, "attendance": att}}
+            for t, v, w, st, at, lat, lng, att in rows if lat is not None and lng is not None and at is not None]}
 
     async def export_stations(self) -> dict:
         ov = await self.overview()

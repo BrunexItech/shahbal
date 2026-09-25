@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     # Public address of the web app: invitation links point here.
     app_url: str = "http://localhost:3000"
+    # Absolute API base for links that leave the app (e.g. photo URLs inside GIS Lab
+    # projects). Empty = same origin as the app: {app_url}/api/v1.
+    api_public_url: str = ""
     # Where the GIS Lab (GeoLibre) runs. Its origin may fetch one-time project links.
     gis_origin: str = "http://localhost:8081"
     invite_hours: int = 72
@@ -87,6 +90,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @property
+    def api_base(self) -> str:
+        return (self.api_public_url or f"{self.app_url.rstrip('/')}/api/v1").rstrip("/")
 
     def assert_production_safe(self) -> None:
         if not self.is_production:

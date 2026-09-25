@@ -41,9 +41,11 @@ const VISIT_FILL = [
 export type MapMode = "visits" | "progress";
 export type Layers = { wards: boolean; visited: boolean; stations: boolean; visits: boolean; labels: boolean };
 
-export function CoverageMap({ data, boundaries, layers, selected, onSelect, focus, mode = "visits" }: {
+export function CoverageMap({ data, boundaries, layers, selected, onSelect, focus, mode = "visits", fitWard }: {
   data: MapOverview;
   mode?: MapMode;
+  /** Frame this ward (id) instead of the whole area. */
+  fitWard?: string | null;
   boundaries: FeatureCollection;
   layers: Layers;
   selected: string | null;
@@ -283,12 +285,13 @@ export function CoverageMap({ data, boundaries, layers, selected, onSelect, focu
     const m = map.current;
     if (!loaded || !m || fitted.current || !wardFc.features.length) return;
     const b = new maplibregl.LngLatBounds();
-    for (const f of wardFc.features) {
+    const target = fitWard ? wardFc.features.filter((f) => f.properties?.ward_id === fitWard) : wardFc.features;
+    for (const f of target.length ? target : wardFc.features) {
       for (const poly of (f.geometry as MultiPolygon).coordinates) for (const [x, y] of poly[0]) b.extend([x, y]);
     }
     m.fitBounds(b, { padding: 40, duration: 0 });
     fitted.current = true;
-  }, [loaded, wardFc]);
+  }, [loaded, wardFc, fitWard]);
 
   useEffect(() => {
     const m = map.current;

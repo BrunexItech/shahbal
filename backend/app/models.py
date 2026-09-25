@@ -7,5 +7,5 @@ from app.modules.live.models import AgentPresence  # noqa: F401
 from app.modules.geo.models import Constituency, PollingStation, Ward  # noqa: F401
 from app.modules.messaging.models import Message, MessageCampaign  # noqa: F401
 from app.modules.users.models import User, UserInvite, UserSession  # noqa: F401
-from app.modules.visits.models import Visit  # noqa: F401
+from app.modules.visits.models import Visit, VisitPhoto  # noqa: F401
 from app.modules.voters.models import Voter  # noqa: F401

@@ -5,7 +5,6 @@ import {
   Globe2,
   History,
   LayoutDashboard,
-  Map,
   MapPin,
   MessageSquareText,
   PhoneCall,
@@ -27,7 +26,6 @@ export type NavItem = { href: string; label: string; short?: string; icon: Lucid
 export const NAV: NavItem[] = [
   { section: "Command", href: "/dashboard", label: "Command Centre", short: "Home", icon: LayoutDashboard, show: () => true },
   { section: "Command", href: "/analytics", label: "Analytics", icon: BarChart3, show: (r) => can.manageUsers(r) || r === "viewer" },
-  { section: "Command", href: "/map", label: "Coverage Map", short: "Map", icon: Map, show: () => true },
   { section: "Command", href: "/targets", label: "Targets & Captures", short: "Targets", icon: Target, show: () => true },
   { section: "Voters", href: "/voters/new", label: "Capture Voter", short: "Capture", icon: UserPlus, show: can.capture },
   { section: "Voters", href: "/voters", label: "Voter Registry", icon: UsersRound, show: () => true },
@@ -43,4 +41,4 @@ export const NAV: NavItem[] = [
   { section: "Setup", href: "/account", label: "My Account", icon: UserCog, show: () => true },
 ];
 
-export const MOBILE_NAV = ["/dashboard", "/map", "/voters/new", "/visits", "/election"];
+export const MOBILE_NAV = ["/dashboard", "/targets", "/voters/new", "/visits", "/election"];

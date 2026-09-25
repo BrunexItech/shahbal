@@ -3,9 +3,12 @@
 import { Skeleton } from "@/components/loaders";
 import { FlagStripe } from "@/components/shell/FlagStripe";
 import { CountUp, LiveDot } from "@/components/ui/Motion";
-import { MombasaPulse } from "@/features/dashboard/components/command/MombasaPulse";
+import { AreaDrawer } from "@/features/dashboard/components/command/AreaDrawer";
+import { MombasaPulse, type StageMode } from "@/features/dashboard/components/command/MombasaPulse";
 import { PaceGauge } from "@/features/dashboard/components/command/PaceGauge";
-import { useBoundaries, useConstituencyOutlines } from "@/features/map/api";
+import { useBoundaries, useConstituencyOutlines, useMapOverview } from "@/features/map/api";
+import { useMemo, useState } from "react";
+
 import { cn } from "@/lib/cn";
 import { CANDIDATE_NAME } from "@/lib/config";
 import { num } from "@/lib/format";
@@ -21,6 +24,18 @@ export function CommandStage({ d, pulse, events, connected }: { d: DashboardSumm
   const o = d.overall;
   const wards = useBoundaries();
   const cons = useConstituencyOutlines();
+  const overview = useMapOverview();
+  const [mode, setMode] = useState<StageMode>("pace");
+  const [ward, setWard] = useState<string | null>(null);
+  const ov = overview.data;
+  const wardVisits = useMemo(() => new Map((ov?.wards ?? []).map((w) => [w.name, w.visits_completed])), [ov]);
+  const visited = ov?.wards.filter((w) => w.visits_completed > 0).length ?? 0;
+  const coverage: [string, string][] = [
+    ["Visits done", num(ov?.wards.reduce((a, w) => a + w.visits_completed, 0) ?? 0)],
+    ["Places", num(ov?.places.length ?? 0)],
+    ["Wards visited", `${visited}/${ov?.wards.length ?? 30}`],
+    ["Never visited", num((ov?.wards.length ?? 0) - visited)],
+  ];
   const projectedPct = i.projected != null && o.target ? (i.projected / o.target) * 100 : null;
   const onTrack = projectedPct != null && projectedPct >= 100;
   const verdict = !o.target
@@ -81,21 +96,43 @@ export function CommandStage({ d, pulse, events, connected }: { d: DashboardSumm
 
         {/* Right: live Mombasa */}
         <div className="min-w-0">
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <div>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-xs font-semibold tracking-[.2em] text-slate-400 uppercase">Live across Mombasa</p>
-              <p className="text-sm text-slate-300">Each constituency lit by its pace to target. Gold pulses show new activity.</p>
+              <p className="text-sm text-slate-300">
+                {mode === "pace" ? "Each constituency lit by its pace to target. Gold pulses show new activity." : "Wards lit by how often the team has been. Tap a ward for streets and photos."}
+              </p>
+            </div>
+            <div role="tablist" aria-label="Map view" className="inline-flex rounded-xl bg-white/[.06] p-1 ring-1 ring-white/10">
+              {([["pace", "Pace"], ["visits", "Visits"]] as const).map(([k, label]) => (
+                <button key={k} role="tab" aria-selected={mode === k} onClick={() => setMode(k)}
+                  className={cn("rounded-lg px-3.5 py-1.5 text-sm font-semibold transition", mode === k ? "bg-gold text-navy-950" : "text-slate-300 hover:text-white")}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
           {wards.data && cons.data ? (
-            <MombasaPulse constituencies={cons.data} wards={wards.data} events={events}
+            <MombasaPulse constituencies={cons.data} wards={wards.data} events={events} mode={mode} wardVisits={wardVisits}
+              places={ov?.places ?? []} onWard={setWard}
               regions={i.constituencies.map((c) => ({ name: c.name, status: c.status, today: c.today }))} />
           ) : (
             <Skeleton className="aspect-[4/3] w-full rounded-2xl bg-white/5" />
           )}
+          {mode === "visits" && (
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {coverage.map(([k, v], n) => (
+                <div key={k} className={cn("rounded-2xl px-3.5 py-3 ring-1", n === 3 && visited < (ov?.wards.length ?? 0) ? "bg-kenya-red/15 ring-kenya-red/35" : "bg-white/[.04] ring-white/[.08]")}>
+                  <p className="font-display text-2xl font-bold tabular-nums">{v}</p>
+                  <p className="text-xs text-slate-400">{k}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
         </div>
       </div>
+      {ward && <AreaDrawer wardName={ward} onClose={() => setWard(null)} />}
     </section>
   );
 }

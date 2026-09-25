@@ -38,6 +38,8 @@ services:
         condition: service_healthy
     volumes:
       - recordings:/data/recordings   # encrypted call recordings
+      - photos:/data/photos           # encrypted staff photos
+      - visit-photos:/data/visit-photos   # encrypted visit photos
     command: sh -c "alembic upgrade head && python -m scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     restart: unless-stopped
 
@@ -94,3 +96,5 @@ services:
 volumes:
   pgdata:
   recordings:
+  photos:
+  visit-photos:

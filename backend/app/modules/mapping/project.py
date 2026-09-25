@@ -95,7 +95,8 @@ def _story(wards_fc: dict) -> dict:
 _NUM = {"kind": "number", "format": {"thousands": True}}
 
 
-def build_project(cons_fc: dict, wards_fc: dict, grid_fc: dict, stations_fc: dict, *, briefing: bool = False) -> dict:
+def build_project(cons_fc: dict, wards_fc: dict, grid_fc: dict, stations_fc: dict, places_fc: dict | None = None,
+                  timeline_fc: dict | None = None, *, briefing: bool = False) -> dict:
     """`briefing=True` adds the story map, which GeoLibre opens in presentation mode;
     the default opens straight into the analysis workspace."""
     stamp = datetime.now(TZ).strftime("%d %b %Y %H:%M")
@@ -162,6 +163,36 @@ def build_project(cons_fc: dict, wards_fc: dict, grid_fc: dict, stations_fc: dic
             {"field": "registered_voters", "label": "Registered (IEBC)", "kind": "number", "format": {"thousands": True}},
         ],
     })
+    empty = {"type": "FeatureCollection", "features": []}
+    places = _layer("places", "Visited places (times visited, photos)", places_fc or empty, {
+        "fillColor": "#006b3f", "strokeColor": "#ffffff", "strokeWidth": 2.5, "strokeWidthUnit": "pixels", "circleRadius": 7,
+        "proportionalSizeEnabled": True, "proportionalSizeProperty": "times_visited", "proportionalSizeMinValue": 1,
+        "proportionalSizeMaxValue": 10, "proportionalSizeMinRadius": 7, "proportionalSizeMaxRadius": 18,
+        "labels": {"enabled": True, "field": "times_visited", "expression": "", "placement": "point", "size": 12,
+                   "color": "#ffffff", "haloColor": "#006b3f", "haloWidth": 1.2, "minZoom": 0, "maxZoom": 24},
+    }, {
+        "titleField": "venue",
+        "fields": [
+            {"field": "photo", "label": "Latest photo", "kind": "image"},
+            {"field": "ward", "label": "Ward", "hover": True},
+            {"field": "times_visited", "label": "Times visited", "kind": "number", "hover": True},
+            {"field": "attendance", "label": "Total attendance", **_NUM},
+            {"field": "last_visit", "label": "Last visit", "kind": "date"},
+            {"field": "photos", "label": "Photos", "kind": "number"},
+            {"field": "recent_visits", "label": "Recent visits"},
+        ],
+    })
+    timeline = _layer("timeline", "Visit timeline (bind to the time slider)", timeline_fc or empty, {
+        "fillColor": "#c9a227", "strokeColor": "#0b1f3a", "strokeWidth": 1.5, "strokeWidthUnit": "pixels", "circleRadius": 6,
+    }, {
+        "titleField": "title",
+        "fields": [
+            {"field": "date", "label": "Date", "kind": "date", "hover": True},
+            {"field": "venue", "label": "Venue"},
+            {"field": "ward", "label": "Ward"},
+            {"field": "attendance", "label": "Attendance", "kind": "number"},
+        ],
+    }, visible=False)
     return {
         "version": "0.1.0",
         "name": f"Mombasa campaign · {stamp}",
@@ -170,7 +201,7 @@ def build_project(cons_fc: dict, wards_fc: dict, grid_fc: dict, stations_fc: dic
         "basemapVisible": True,
         "basemapOpacity": 1,
         # Bottom → top. Toggle "Constituencies" off and "Ward progress" on for the performance view.
-        "layers": [cons, progress, grid, wards, stations],
+        "layers": [cons, progress, grid, wards, stations, timeline, places],
         "styles": {},
         "legend": {"title": "Mombasa County", "groupByLayer": True},
         "widgets": [
