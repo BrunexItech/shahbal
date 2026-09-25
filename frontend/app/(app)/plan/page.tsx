@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Check, Flag, Sparkles, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { CalendarDays, Check, Flag, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -174,7 +174,7 @@ export default function PlanPage() {
         <Card className="mt-6 p-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="flex items-center gap-2 font-bold text-navy-900"><Sparkles className="size-4 text-gold" /> Build the plan</p>
+              <p className="font-bold text-navy-900">Build the plan</p>
               <p className="text-sm text-slate-500">
                 {p.election_date ? <>Share the remaining <b>{num(Math.max(p.target_total - p.achieved, 0))}</b> over the {weeksToVote.length} weeks to election day. You can edit any week after.</> : "Set election day first."}
               </p>
