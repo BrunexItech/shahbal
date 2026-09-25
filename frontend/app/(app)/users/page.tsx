@@ -81,6 +81,7 @@ export default function TeamPage() {
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Badge tone={u.role === "super_admin" ? "navy" : "blue"}>{ROLE_LABEL[u.role]}</Badge>
                 <StatusChip u={u} />
+                {u.mfa_exempt_until && new Date(u.mfa_exempt_until) > new Date() && <Badge tone="amber">No two-step until {new Date(u.mfa_exempt_until).toLocaleDateString("en-KE", { day: "numeric", month: "short" })}</Badge>}
               </div>
               <p className="mt-2 truncate text-xs text-muted">
                 {area(u)} · {u.status === "invited" ? "hasn't joined yet" : u.last_login_at ? `last seen ${timeAgo(u.last_login_at)}` : "never signed in"}
@@ -148,6 +149,7 @@ function InviteModal({ tree, grantable, onClose, onIssued }: {
   const [f, setF] = useState<Partial<UserInput>>({ role: grantable.includes("field_agent") ? "field_agent" : grantable.at(-1) });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const create = useInviteUser();
+  const me = useUser();
   const set = (k: keyof UserInput, v: unknown) => setF((x) => ({ ...x, [k]: v }));
 
   function submit() {
@@ -166,6 +168,7 @@ function InviteModal({ tree, grantable, onClose, onIssued }: {
         <Input label="Email" type="email" required className="sm:col-span-2" value={f.email ?? ""} error={errors.email} onChange={(e) => set("email", e.target.value)}
           placeholder="their.name@gmail.com" hint="Their personal email. They must type it again to accept, so a forwarded link is useless." />
         <RoleArea role={f.role} value={f} onChange={set} tree={tree} grantable={grantable} />
+        {me.role === "super_admin" && <ExemptionPicker value={f.mfa_exempt_days ?? 0} onChange={(d) => set("mfa_exempt_days", d)} />}
       </div>
     </Modal>
   );
@@ -229,10 +232,12 @@ function PersonModal({ user, area, tree, grantable, isSelf, onClose, onIssued }:
   const revoke = useRevokeInvite();
   const signOut = useForceSignOut();
   const confirm = useConfirm();
+  const me = useUser();
+  const [exempt, setExempt] = useState<number | null>(null);
   const set = (k: keyof UserInput, v: unknown) => setF((x) => ({ ...x, [k]: v }));
 
   function save() {
-    const body = { ...f, id: user.id, email: user.email } as UserInput & { id: string };
+    const body = { ...f, id: user.id, email: user.email, ...(exempt != null ? { mfa_exempt_days: exempt } : {}) } as UserInput & { id: string };
     if (body.role && !WARD_ROLES.includes(body.role)) body.ward_id = null;
     if (body.role !== "coordinator" && !WARD_ROLES.includes(body.role!)) body.constituency_id = null;
     update.mutate(body, { onSuccess: () => { toast.success("Saved"); onClose(); }, onError: (e) => toast.error(e.message) });
@@ -258,6 +263,7 @@ function PersonModal({ user, area, tree, grantable, isSelf, onClose, onIssued }:
           </div>
         </div>
         <div className="space-y-4">
+          {me.role === "super_admin" && !isSelf && <ExemptionPicker value={exempt} onChange={setExempt} current={user.mfa_exempt_until} />}
           <div className="grid gap-4 sm:grid-cols-2">
             <Input label="Full name" value={f.full_name ?? ""} disabled={isSelf} onChange={(e) => set("full_name", e.target.value)} />
             <Input label="Phone" value={f.phone ?? ""} disabled={isSelf} onChange={(e) => set("phone", e.target.value)} />
@@ -287,5 +293,28 @@ function PersonModal({ user, area, tree, grantable, isSelf, onClose, onIssued }:
         </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * HQ only, temporary: let someone sign in with just their password for a few days
+ * (demo period). Expires by itself; every change is audited.
+ */
+function ExemptionPicker({ value, onChange, current }: { value: number | null; onChange: (d: number) => void; current?: string | null }) {
+  const active = !!current && new Date(current) > new Date();
+  const shown = value ?? (active ? -1 : 0);
+  return (
+    <div className="rounded-2xl bg-gold-50/60 p-3.5 ring-1 ring-gold/30 sm:col-span-2">
+      <p className="text-sm font-semibold text-navy-900">Two-step sign-in</p>
+      <p className="text-xs text-slate-600">
+        {active ? <>Not required until <b>{dateTime(current!)}</b>.</> : "Required (fingerprint, face or authenticator app)."} For now you can let this person sign in with just their password. It switches back on by itself.
+      </p>
+      <div role="radiogroup" aria-label="Two-step exemption" className="mt-2.5 inline-flex flex-wrap gap-1 rounded-xl bg-white p-1 ring-1 ring-line">
+        {([[0, "Required"], [7, "Skip for 7 days"], [30, "Skip for 30 days"]] as const).map(([d, label]) => (
+          <button key={d} type="button" role="radio" aria-checked={shown === d} onClick={() => onChange(d)}
+            className={cn("rounded-lg px-3 py-1.5 text-sm font-semibold transition", shown === d ? "bg-navy-950 text-white" : "text-slate-600 hover:text-navy-900")}>{label}</button>
+        ))}
+      </div>
+    </div>
   );
 }

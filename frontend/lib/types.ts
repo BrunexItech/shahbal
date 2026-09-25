@@ -19,6 +19,7 @@ export interface User {
   status?: "active" | "invited" | "disabled";
   has_photo?: boolean;
   invite_expires_at?: string | null;
+  mfa_exempt_until?: string | null;
 }
 
 export interface InviteInfo {

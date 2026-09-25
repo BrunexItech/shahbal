@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utcnow
 from app.core.db import Base, pg_enum
 from app.core.roles import Role
 
@@ -30,6 +31,7 @@ class User(Base):
     totp_enabled: Mapped[bool] = mapped_column(default=False)
     # Denormalised so the per-request MFA-policy check needs no extra query.
     passkey_count: Mapped[int] = mapped_column(default=0)
+    mfa_exempt_until: Mapped[datetime | None]  # temporary two-step exemption granted by HQ
 
     # Invitation-only onboarding: an account works only after its invite is accepted.
     activated_at: Mapped[datetime | None]
@@ -37,6 +39,11 @@ class User(Base):
     photo_path: Mapped[str | None] = mapped_column(String(80))
     photo_sha256: Mapped[str | None] = mapped_column(String(64))
     photo_updated_at: Mapped[datetime | None]
+
+    @property
+    def mfa_exempt(self) -> bool:
+        """HQ let this person skip two-step sign-in for now (temporary, expires by itself)."""
+        return self.mfa_exempt_until is not None and self.mfa_exempt_until > utcnow()
 
     @property
     def has_second_factor(self) -> bool:

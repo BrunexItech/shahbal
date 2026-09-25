@@ -22,6 +22,7 @@ class UserOut(BaseModel):
     status: str = "active"  # active | invited | disabled
     has_photo: bool = False
     invite_expires_at: datetime | None = None
+    mfa_exempt_until: datetime | None = None
 
 
 class UserCreate(BaseModel):
@@ -33,6 +34,8 @@ class UserCreate(BaseModel):
     role: Role
     constituency_id: str | None = None
     ward_id: str | None = None
+    # HQ only: let this person sign in without two-step for N days (0 = no exemption).
+    mfa_exempt_days: int = Field(default=0, ge=0, le=30)
 
 
 class UserUpdate(BaseModel):
@@ -42,6 +45,7 @@ class UserUpdate(BaseModel):
     constituency_id: str | None = None
     ward_id: str | None = None
     is_active: bool | None = None
+    mfa_exempt_days: int | None = Field(default=None, ge=0, le=30)  # HQ only; 0 removes the exemption
 
 
 class InviteOut(BaseModel):

@@ -12,6 +12,7 @@ export type UserInput = {
   role: Role;
   constituency_id?: string | null;
   ward_id?: string | null;
+  mfa_exempt_days?: number;
   is_active?: boolean;
 };
 

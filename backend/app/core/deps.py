@@ -30,7 +30,7 @@ class Ctx:
 
 def mfa_setup_pending(user: User) -> bool:
     """Production policy: roles in MFA_ROLES must enrol a passkey or an authenticator app."""
-    return settings.is_production and user.role.value in settings.mfa_roles and not user.has_second_factor
+    return settings.is_production and user.role.value in settings.mfa_roles and not user.has_second_factor and not user.mfa_exempt
 
 
 def _token(request: Request) -> tuple[str | None, bool]:

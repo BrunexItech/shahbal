@@ -1,3 +1,4 @@
+from datetime import timedelta
 from fastapi import HTTPException
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,6 +74,17 @@ class UserService:
         if role not in GRANTABLE.get(self.ctx.user.role, set()):
             raise HTTPException(403, f"You cannot assign the {role.value} role")
 
+    def _apply_exemption(self, user: User, days: int) -> None:
+        """Temporary "sign in without two-step" for chosen people. HQ administrators only,
+        always time-limited, always audited. 0 removes it."""
+        if not days and user.mfa_exempt_until is None:
+            return
+        if self.ctx.user.role != Role.super_admin:
+            raise HTTPException(403, "Only HQ administrators can change two-step sign-in requirements")
+        user.mfa_exempt_until = utcnow() + timedelta(days=days) if days else None
+        audit.record(self.s, actor_id=self.ctx.user.id, action="MFA_EXEMPT" if days else "MFA_EXEMPT_REMOVED", entity="user",
+                     entity_id=user.id, ip=self.ctx.ip, days=days)
+
     async def create(self, data: UserCreate) -> tuple[User, str, UserInvite]:
         self._check_grant(data.role)
         exists = await self.s.execute(select(User.id).where(func.lower(User.email) == data.email.lower()))
@@ -90,6 +102,7 @@ class UserService:
         )
         self.s.add(user)
         await self.s.flush()
+        self._apply_exemption(user, data.mfa_exempt_days)
         token, inv = await onboarding.issue_invite(self.s, user, self.ctx.user)
         audit.record(self.s, actor_id=self.ctx.user.id, action="INVITE", entity="user", entity_id=user.id,
                      ip=self.ctx.ip, role=data.role.value)
@@ -150,6 +163,8 @@ class UserService:
         for key in ("full_name", "phone", "is_active"):
             if key in fields:
                 setattr(user, key, fields[key])
+        if data.mfa_exempt_days is not None:
+            self._apply_exemption(user, data.mfa_exempt_days)
         if data.is_active is False or "role" in fields:
             # Access changed: force re-authentication everywhere.
             await revoke_all_sessions(self.s, user.id)

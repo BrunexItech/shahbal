@@ -224,3 +224,50 @@ async def test_passkey_cannot_open_the_wrong_portal(client, admin):
     step1 = (await client.post("/api/v1/auth/login", json={"email": ADMIN[0], "password": ADMIN[1], "portal": "command"})).json()
     o = (await client.post("/api/v1/auth/passkeys/login/options", json={"mfa_token": step1["mfa_token"], "portal": "field"}))
     assert o.status_code == 401  # a second-factor token is bound to the portal it started on
+
+
+async def test_hq_can_grant_a_temporary_two_step_exemption(client, admin, wards, monkeypatch):
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.core.clock import utcnow
+    from app.core.config import settings
+    from app.modules.users.models import User
+
+    def prod(on: bool):
+        monkeypatch.setattr(settings, "environment", "production" if on else "development")
+
+    async def agent_can_work() -> bool:
+        prod(True)
+        ok = (await client.get("/api/v1/voters", headers=agent)).status_code == 200
+        prod(False)
+        return ok
+
+    agent = await make_user(client, admin, "field_agent", ward=wards["Tudor"])
+    agent_id = (await client.get("/api/v1/auth/me", headers=agent)).json()["id"]
+    assert not await agent_can_work()  # production: must enrol a second factor first
+
+    r = await client.patch(f"/api/v1/users/{agent_id}", json={"mfa_exempt_days": 7}, headers=admin)
+    assert r.status_code == 200 and r.json()["mfa_exempt_until"]
+    assert await agent_can_work()  # password alone works during the exemption
+
+    coord = await make_user(client, admin, "coordinator", constituency_id=wards["Tudor"].constituency_id)
+    coord = await elevate(client, coord, "Password!1")
+    other = await make_user(client, admin, "ward_coordinator", ward=wards["Tudor"], email="wc-exempt@campaign.co.ke")
+    other_id = (await client.get("/api/v1/auth/me", headers=other)).json()["id"]
+    denied = await client.patch(f"/api/v1/users/{other_id}", json={"mfa_exempt_days": 7}, headers=coord)
+    assert denied.status_code == 403 and "HQ administrators" in denied.text
+
+    # It expires by itself...
+    async with SessionLocal() as s:
+        await s.execute(update(User).where(User.id == agent_id).values(mfa_exempt_until=utcnow() - timedelta(minutes=1)))
+        await s.commit()
+    assert not await agent_can_work()
+    # ...and HQ can grant then remove it.
+    await client.patch(f"/api/v1/users/{agent_id}", json={"mfa_exempt_days": 30}, headers=admin)
+    assert await agent_can_work()
+    r = await client.patch(f"/api/v1/users/{agent_id}", json={"mfa_exempt_days": 0}, headers=admin)
+    assert r.json()["mfa_exempt_until"] is None and not await agent_can_work()
+    async with SessionLocal() as s:
+        assert (await s.execute(select(AuditLog).where(AuditLog.action == "MFA_EXEMPT"))).scalars().first() is not None
