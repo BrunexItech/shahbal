@@ -9,6 +9,7 @@ import { BrandLoader, BrandMark } from "@/components/loaders";
 import { FlagStripe } from "@/components/shell/FlagStripe";
 import { Button, Input } from "@/components/ui";
 import { type MfaMethod, useAuth } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { CAMPAIGN_NAME, CANDIDATE_NAME } from "@/lib/config";
 import { cancelPasskeyPrompt, passkeyErrorMessage, passkeySupport } from "@/lib/passkeys";
@@ -70,8 +71,10 @@ export function LoginScreen({ portal }: { portal: Portal }) {
     loginWithPasskey({ portal, autofill: true })
       .then(() => router.replace(safeNext()))
       .catch((e) => {
-        const msg = passkeyErrorMessage(e);
-        if (!/Cancelled/.test(msg)) setError(msg);
+        // Autofill runs quietly in the background: browser/device limitations (no passkey
+        // here, unsupported mode) are not the user's problem. Only a real answer from our
+        // server, after they picked a passkey, is worth showing.
+        if (e instanceof ApiError) setError(passkeyErrorMessage(e));
       });
     return () => cancelPasskeyPrompt();
   }, [ready, user, mfa, support.autofill, loginWithPasskey, router, portal]);
@@ -143,7 +146,8 @@ export function LoginScreen({ portal }: { portal: Portal }) {
       <p className={cn("mt-1 text-sm", hq ? "text-slate-400" : "text-muted")}>Your account is protected with two-step verification.</p>
       {mfa.methods.includes("passkey") && (
         <Button size="lg" variant={hq ? "gold" : "primary"} className="mt-8 w-full" loading={busy === "passkey"} icon={<Fingerprint className="size-5" />} onClick={signInPasskey}>
-          Use fingerprint, face or security key
+          <span className="min-[400px]:hidden">Fingerprint, face or key</span>
+          <span className="hidden min-[400px]:inline">Use fingerprint, face or security key</span>
         </Button>
       )}
       {mfa.methods.includes("totp") && (
@@ -172,7 +176,8 @@ export function LoginScreen({ portal }: { portal: Portal }) {
         <>
           <Button type="button" size="lg" variant={hq ? "gold" : "primary"} className="mt-8 w-full" loading={busy === "passkey"}
             icon={<Fingerprint className="size-5" />} onClick={signInPasskey}>
-            Sign in with fingerprint or face
+            <span className="min-[380px]:hidden">Fingerprint or face</span>
+            <span className="hidden min-[380px]:inline">Sign in with fingerprint or face</span>
           </Button>
           <div className={cn("my-6 flex items-center gap-3 text-xs", hq ? "text-slate-500" : "text-muted")}>
             <span className={cn("h-px flex-1", hq ? "bg-white/10" : "bg-line")} /> or use your password <span className={cn("h-px flex-1", hq ? "bg-white/10" : "bg-line")} />
@@ -234,11 +239,14 @@ export function LoginScreen({ portal }: { portal: Portal }) {
             <p className="text-xs text-white/70">{CANDIDATE_NAME} · Field Team</p>
           </div>
         </div>
-        <div className="relative mx-auto mt-8 flex max-w-md gap-3 px-6 text-xs text-white/80">
+        <ul className="relative mx-auto mt-7 grid max-w-md grid-cols-3 gap-2 px-6 sm:gap-3">
           {[{ i: Smartphone, t: "Works offline" }, { i: Fingerprint, t: "Fingerprint sign-in" }, { i: Radar, t: "Live with HQ" }].map(({ i: Icon, t }) => (
-            <span key={t} className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/15"><Icon className="size-3.5" />{t}</span>
+            <li key={t} className="flex min-w-0 flex-col items-center gap-2 rounded-2xl bg-white/[.08] px-2 py-3 text-center ring-1 ring-white/15 backdrop-blur">
+              <span className="grid size-9 place-items-center rounded-full bg-white/15 ring-1 ring-white/20"><Icon className="size-[18px] text-gold" /></span>
+              <span className="text-xs leading-tight font-semibold text-white/90">{t}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       </header>
       <main className="relative mx-auto -mt-16 w-full max-w-md flex-1 px-4 pb-10">
         <div className="animate-fade-up rounded-3xl bg-white p-7 shadow-xl ring-1 ring-line">{form}</div>
