@@ -23,6 +23,50 @@ const QUEUES: { id: CallQueue; label: string; hint: string }[] = [
   { id: "gotv", label: "Get out the vote", hint: "Supporters who haven't voted" },
 ];
 
+const QUEUE_COLOR: Record<CallQueue, string> = { verify: "#0b7fa6", persuade: "#c9a227", follow_up: "#7b4fb8", gotv: "#006b3f" };
+
+/** Agent status strip: who's on the line, line state, shift timer and today's own numbers. */
+function AgentBar({ phone }: { phone: Softphone }) {
+  const user = useUser();
+  const stats = useAgentStats();
+  const mine = stats.data?.find((a) => a.agent_id === user.id);
+  const [start] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const secs = Math.floor((now - start) / 1000);
+  const shift = `${String(Math.floor(secs / 3600)).padStart(2, "0")}:${String(Math.floor((secs % 3600) / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+  const state = phone.state === "in_call" ? ["On a call", "#ff8a7a"] : phone.state === "dialing" || phone.state === "ringing" ? ["Dialling", "#e3b53a"]
+    : phone.state === "error" ? ["Line problem", "#ff5a4a"] : phone.state === "connecting" || phone.state === "offline" ? ["Connecting", "#94a3b8"] : ["Available", "#34c77b"];
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-[#06101f] p-4 text-white shadow-[0_18px_40px_-24px_rgba(6,16,31,.9)] sm:p-5">
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[.05] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:26px_26px]" />
+      <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4">
+        <div className="flex items-center gap-3">
+          <span className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-gold to-[#8a6d12] font-display text-lg font-extrabold text-navy-950">{initials(user.full_name)}</span>
+          <div>
+            <p className="font-semibold">{user.full_name}</p>
+            <p className="flex items-center gap-1.5 text-xs font-bold tracking-wider uppercase" style={{ color: state[1] }}>
+              <span className="relative flex size-2"><span className="absolute inset-0 animate-ping rounded-full opacity-60" style={{ background: state[1] }} /><span className="relative size-2 rounded-full" style={{ background: state[1] }} /></span>
+              {state[0]}
+            </p>
+          </div>
+        </div>
+        <div className="ml-auto grid grid-cols-4 gap-2 text-center sm:gap-3">
+          {([["Shift", shift], ["Calls", num(mine?.calls ?? 0)], ["Answered", num(mine?.answered ?? 0)], ["Verified", num(mine?.verified ?? 0)]] as const).map(([k, v]) => (
+            <div key={k} className="rounded-2xl bg-white/[.05] px-3 py-2 ring-1 ring-white/[.08]">
+              <p className="font-mono text-base font-bold tabular-nums sm:text-lg">{v}</p>
+              <p className="text-xs text-slate-400">{k}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const OUTCOMES: { id: CallOutcome; label: string; tone: string }[] = [
   { id: "answered", label: "Answered", tone: "bg-kenya-green text-white" },
   { id: "no_answer", label: "No answer", tone: "bg-slate-600 text-white" },
@@ -85,16 +129,28 @@ function Console({ phone, canManualDial }: { phone: Softphone; canManualDial: bo
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
       <div className="space-y-6">
+        <AgentBar phone={phone} />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {QUEUES.map((q) => (
-            <button key={q.id} disabled={["dialing", "ringing", "in_call"].includes(phone.state)}
-              onClick={() => { setQueue(q.id); if (claim) void releaseClaim(); setClaim(null); setEmpty(false); }}
-              className={cn("rounded-2xl p-4 text-left ring-1 transition disabled:opacity-60", queue === q.id ? "bg-navy-950 text-white ring-navy-950" : "bg-white ring-line hover:ring-slate-300")}>
-              <p className={cn("text-xs font-semibold", queue === q.id ? "text-gold" : "text-muted")}>{q.label}</p>
-              <p className="mt-1 font-display text-2xl font-bold tabular-nums">{counts.data ? num(counts.data[q.id]) : "–"}</p>
-              <p className={cn("mt-1 text-xs", queue === q.id ? "text-slate-400" : "text-muted")}>{q.hint}</p>
-            </button>
-          ))}
+          {QUEUES.map((q) => {
+            const on = queue === q.id;
+            const waiting = counts.data?.[q.id] ?? 0;
+            return (
+              <button key={q.id} disabled={["dialing", "ringing", "in_call"].includes(phone.state)}
+                onClick={() => { setQueue(q.id); if (claim) void releaseClaim(); setClaim(null); setEmpty(false); }}
+                className={cn("group relative overflow-hidden rounded-3xl p-4 text-left transition duration-300 disabled:opacity-60",
+                  on ? "bg-[#06101f] text-white shadow-[0_18px_40px_-22px_rgba(6,16,31,.9)]" : "bg-white ring-1 ring-line hover:-translate-y-0.5 hover:shadow-lg")}>
+                <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: QUEUE_COLOR[q.id] }} />
+                {on && <span aria-hidden className="pointer-events-none absolute -right-8 -bottom-10 size-28 rounded-full blur-2xl" style={{ background: `${QUEUE_COLOR[q.id]}55` }} />}
+                <div className="relative flex items-center justify-between">
+                  <p className={cn("text-xs font-bold tracking-[.14em] uppercase", on ? "text-gold" : "text-slate-500")}>{q.label}</p>
+                  {waiting > 0 && <span className="relative flex size-2.5"><span className="absolute inset-0 animate-ping rounded-full opacity-60" style={{ background: QUEUE_COLOR[q.id] }} /><span className="relative size-2.5 rounded-full" style={{ background: QUEUE_COLOR[q.id] }} /></span>}
+                </div>
+                <p className="relative mt-2 font-display text-3xl leading-none font-extrabold tabular-nums">{counts.data ? num(waiting) : "–"}</p>
+                <p className={cn("relative mt-0.5 text-xs font-semibold", on ? "text-slate-300" : "text-slate-500")}>waiting</p>
+                <p className={cn("relative mt-2 text-xs", on ? "text-slate-400" : "text-muted")}>{q.hint}</p>
+              </button>
+            );
+          })}
         </div>
 
         {loading ? (

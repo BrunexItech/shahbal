@@ -14,118 +14,77 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { FlagStripe } from "@/components/shell/FlagStripe";
 import { Badge } from "@/components/ui";
-import { CountUp, LiveDot, Ring, Sparkline } from "@/components/ui/Motion";
+import { CountUp, Sparkline } from "@/components/ui/Motion";
 import { cn } from "@/lib/cn";
-import { CANDIDATE_NAME } from "@/lib/config";
 import { num, pct, timeAgo } from "@/lib/format";
 import type { LiveCall, LiveEvent, Pulse } from "@/lib/live";
 import type { DashboardSummary, Health, InsightCard } from "@/lib/types";
 
-// ---- hero ------------------------------------------------------------------------
-export function MissionHero({ d, pulse, connected }: { d: DashboardSummary; pulse: Pulse | null; connected: boolean }) {
-  const i = d.insights;
-  const o = d.overall;
-  const onTrack = i.projected != null && o.target > 0 && i.projected >= o.target;
-  const verdict = !o.target
-    ? { tone: "info", text: "Set ward targets to start tracking the mission" }
-    : i.days_left == null
-      ? { tone: "info", text: `${pct(o.percent)} of the county target reached` }
-      : onTrack
-        ? { tone: "good", text: "On course to hit the county target" }
-        : { tone: "bad", text: `Behind: we need ${num(i.required_pace)} supporters a day` };
-  const scale = Math.max(o.target, i.projected ?? 0, o.achieved, 1);
-  const at = (n: number) => `${Math.min((n / scale) * 100, 100)}%`;
+// ---- insight cards ---------------------------------------------------------------
+const TONE: Record<InsightCard["tone"], { key: string; hex: string; soft: string; chip: string; glow: string }> = {
+  bad: { key: "Act now", hex: "#bb1e10", soft: "#fdecea", chip: "bg-kenya-red text-white", glow: "rgba(187,30,16,.55)" },
+  warn: { key: "Watch", hex: "#c9a227", soft: "#fbf4dc", chip: "bg-gold text-navy-950", glow: "rgba(201,162,39,.5)" },
+  good: { key: "Good news", hex: "#006b3f", soft: "#e6f4ec", chip: "bg-kenya-green text-white", glow: "rgba(0,107,63,.5)" },
+  info: { key: "Note", hex: "#0b7fa6", soft: "#e6f3f8", chip: "bg-ocean text-white", glow: "rgba(11,127,166,.5)" },
+};
 
-  return (
-    <section className="relative overflow-hidden rounded-3xl bg-[#06101f] text-white shadow-[0_30px_60px_-30px_rgba(6,16,31,.6)]">
-      <FlagStripe />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_10%_0%,rgba(11,127,166,.35),transparent_45%),radial-gradient(ellipse_at_90%_110%,rgba(201,162,39,.22),transparent_45%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-[.05] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:36px_36px]" />
-      <div className="relative grid gap-8 p-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:p-8">
-        <Ring percent={o.percent ?? 0} size={176} stroke={14}>
-          <p className="font-display text-4xl font-extrabold"><CountUp value={o.percent ?? 0} format={(n) => `${n.toFixed(n >= 10 ? 0 : 1)}%`} /></p>
-          <p className="text-xs tracking-wider text-slate-400 uppercase">of target</p>
-        </Ring>
-
-        <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[.2em] text-gold uppercase">{CANDIDATE_NAME} · County mission</p>
-          <h2 className={cn("mt-2 text-2xl leading-tight font-extrabold sm:text-3xl", verdict.tone === "bad" && "text-white", verdict.tone === "good" && "text-[#7ee2b0]")}>
-            {verdict.text}
-          </h2>
-          <p className="mt-2 text-sm text-slate-400">
-            <b className="text-white"><CountUp value={o.achieved} /></b> supporters reached of <b className="text-white">{num(o.target)}</b>
-            {i.days_left != null && <> · <b className="text-white">{i.days_left}</b> days to election day</>}
-            {" "}· pace <b className="text-white">{num(Math.round(i.pace))}</b>/day
-          </p>
-          {o.target > 0 && (
-            <div className="mt-6">
-              <div className="relative h-3 rounded-full bg-white/[.08]">
-                <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-kenya-green to-[#34c77b] transition-[width] duration-1000" style={{ width: at(o.achieved) }} />
-                {i.projected != null && (
-                  <div className="absolute inset-y-0 left-0 rounded-full border border-dashed border-white/40" style={{ width: at(i.projected) }} />
-                )}
-                <div className="absolute -top-1.5 h-6 w-0.5 bg-gold shadow-[0_0_10px_#c9a227]" style={{ left: at(o.target) }} />
-              </div>
-              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-400">
-                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm bg-kenya-green" /> Reached today</span>
-                {i.projected != null && <span className="inline-flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm border border-dashed border-white/50" /> Projected by election day: {num(i.projected)}</span>}
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-0.5 bg-gold" /> Target {num(o.target)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 lg:w-[300px]">
-          {[
-            { rule: "bg-white", label: "Captured today", value: pulse?.captures_today ?? d.totals.today },
-            { rule: "bg-kenya-red", label: "Calls today", value: pulse?.calls_today ?? d.ops.calls_today },
-            { rule: "bg-[#34c77b]", label: "In the field now", value: pulse?.online_field ?? 0 },
-            { rule: "bg-gold", label: "Marked voted", value: pulse?.voted ?? d.ops.voted },
-          ].map(({ rule, label, value }) => (
-            <div key={label} className="relative overflow-hidden rounded-2xl border border-white/[.08] bg-white/[.04] p-3.5 pt-4 backdrop-blur">
-              <span className={cn("absolute inset-x-3.5 top-0 h-[3px] rounded-b-full", rule)} />
-              <p className="font-display text-2xl font-bold"><CountUp value={value} /></p>
-              <p className="text-xs text-slate-400">{label}</p>
-            </div>
-          ))}
-          <p className="col-span-2 flex items-center justify-end gap-2 text-xs text-slate-400">
-            <LiveDot on={connected} className="size-2" /> {connected ? "Streaming live" : "Reconnecting…"}
-          </p>
-        </div>
+/**
+ * Briefing cards. With `featured`, the most urgent item becomes a large dark card and
+ * the rest stack beside it: the eye goes to what matters first.
+ */
+export function InsightCards({ cards, featured = false }: { cards: InsightCard[]; featured?: boolean }) {
+  if (!cards.length) return null;
+  if (featured) {
+    const [lead, ...rest] = cards;
+    return (
+      <div className="grid gap-4 lg:grid-cols-[1.25fr_1fr]">
+        <LeadCard c={lead} />
+        <div className="grid gap-4">{rest.map((c, i) => <BriefCard key={c.title} c={c} n={i + 2} delay={(i + 1) * 80} />)}</div>
       </div>
-    </section>
+    );
+  }
+  return <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{cards.map((c, i) => <BriefCard key={c.title} c={c} n={i + 1} delay={i * 60} />)}</div>;
+}
+
+function LeadCard({ c }: { c: InsightCard }) {
+  const t = TONE[c.tone];
+  return (
+    <article className="relative flex min-h-[220px] animate-fade-up flex-col justify-between overflow-hidden rounded-3xl bg-[#06101f] p-6 text-white shadow-[0_24px_50px_-28px_rgba(6,16,31,.8)] sm:p-7">
+      <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 size-72 rounded-full blur-3xl" style={{ background: t.glow }} />
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[.05] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:28px_28px]" />
+      <span aria-hidden className="pointer-events-none absolute -right-2 -bottom-10 font-display text-[10rem] leading-none font-black text-white/[.05] select-none">01</span>
+      <div className="relative flex items-center gap-3">
+        <span className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase", t.chip)}>
+          <span className="relative flex size-2"><span className="absolute inset-0 animate-ping rounded-full bg-white/70" /><span className="relative size-2 rounded-full bg-white" /></span>
+          {t.key}
+        </span>
+        <span className="text-xs font-semibold tracking-[.18em] text-slate-400 uppercase">Priority one</span>
+      </div>
+      <div className="relative mt-6">
+        <h3 className="font-display text-2xl leading-tight font-extrabold sm:text-3xl">{c.title}</h3>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">{c.detail}</p>
+      </div>
+      <div aria-hidden className="relative mt-6 flex h-1 w-24 overflow-hidden rounded-full"><i className="flex-1 bg-kenya-black ring-1 ring-white/20" /><i className="flex-1 bg-kenya-red" /><i className="flex-1 bg-kenya-green" /></div>
+    </article>
   );
 }
 
-// ---- insight cards ---------------------------------------------------------------
-const TONE: Record<InsightCard["tone"], { key: string; spine: string; wash: string; chip: string }> = {
-  bad: { key: "Act now", spine: "bg-kenya-red", wash: "from-kenya-red/[.07]", chip: "bg-kenya-red text-white" },
-  warn: { key: "Watch", spine: "bg-gold", wash: "from-gold/[.12]", chip: "bg-gold text-navy-950" },
-  good: { key: "Good news", spine: "bg-kenya-green", wash: "from-kenya-green/[.08]", chip: "bg-kenya-green text-white" },
-  info: { key: "Note", spine: "bg-ocean", wash: "from-ocean/[.08]", chip: "bg-ocean text-white" },
-};
-
-export function InsightCards({ cards }: { cards: InsightCard[] }) {
+function BriefCard({ c, n, delay }: { c: InsightCard; n: number; delay: number }) {
+  const t = TONE[c.tone];
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {cards.map((c, idx) => {
-        const t = TONE[c.tone];
-        return (
-          <article key={c.title} style={{ animationDelay: `${idx * 70}ms` }}
-            className={cn("relative animate-fade-up overflow-hidden rounded-2xl border border-line bg-gradient-to-br to-white to-60% p-5 pl-7 shadow-[0_1px_2px_rgba(11,31,58,.04)]", t.wash)}>
-            <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1.5", t.spine)} />
-            <div className="flex items-center justify-between gap-3">
-              <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold tracking-wide uppercase", t.chip)}>{t.key}</span>
-              <span className="font-mono text-xs font-semibold tracking-widest text-slate-400">#{String(idx + 1).padStart(2, "0")}</span>
-            </div>
-            <h3 className="mt-3 font-display text-lg leading-snug font-bold text-navy-900">{c.title}</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{c.detail}</p>
-          </article>
-        );
-      })}
-    </div>
+    <article style={{ animationDelay: `${delay}ms`, background: `linear-gradient(135deg, ${t.soft} 0%, #ffffff 55%)` }}
+      className="group relative animate-fade-up overflow-hidden rounded-3xl p-5 ring-1 ring-line transition hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-24px_rgba(11,31,58,.45)]">
+      <span aria-hidden className="absolute inset-y-5 left-0 w-1.5 rounded-r-full" style={{ background: t.hex }} />
+      <span aria-hidden className="pointer-events-none absolute top-1 right-4 font-display text-6xl leading-none font-black select-none" style={{ color: t.hex, opacity: 0.09 }}>
+        {String(n).padStart(2, "0")}
+      </span>
+      <div className="relative flex items-center gap-2">
+        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold tracking-wide uppercase", t.chip)}>{t.key}</span>
+      </div>
+      <h3 className="relative mt-3 pr-10 font-display text-lg leading-snug font-bold text-navy-900">{c.title}</h3>
+      <p className="relative mt-1.5 text-sm leading-relaxed text-slate-600">{c.detail}</p>
+    </article>
   );
 }
 
@@ -143,21 +102,40 @@ export function Delta({ now, before, suffix = "" }: { now: number; before: numbe
   );
 }
 
-const CAP = { black: "bg-kenya-black", red: "bg-kenya-red", green: "bg-kenya-green", gold: "bg-gold", ocean: "bg-ocean" } as const;
+const CAP = {
+  black: { hex: "#111111", tint: "#eef0f3" },
+  red: { hex: "#bb1e10", tint: "#fdecea" },
+  green: { hex: "#006b3f", tint: "#e6f4ec" },
+  gold: { hex: "#c9a227", tint: "#fbf4dc" },
+  ocean: { hex: "#0b7fa6", tint: "#e6f3f8" },
+} as const;
 
+/**
+ * Metric tile: tinted corner in its accent colour, a flag-colour marker, big number,
+ * optional sparkline and a footnote. Lifts on hover when it links somewhere.
+ */
 export function KpiTile({ label, value, foot, spark, sparkColor, href, cap = "green" }: {
   label: string; value: number | string; foot: React.ReactNode; spark?: number[]; sparkColor?: string; href?: string; cap?: keyof typeof CAP;
 }) {
+  const c = CAP[cap];
   const body = (
-    <div className="group relative h-full animate-fade-up overflow-hidden rounded-2xl border border-line bg-white p-4 pt-5 shadow-[0_1px_2px_rgba(11,31,58,.04)] transition hover:-translate-y-0.5 hover:shadow-lg">
-      <span aria-hidden className={cn("absolute inset-x-0 top-0 h-1", CAP[cap])} />
-      <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">{label}</p>
-      <p className="mt-1 font-display text-[28px] leading-tight font-bold text-navy-900">{typeof value === "number" ? <CountUp value={value} /> : value}</p>
-      {spark && <Sparkline data={spark} color={sparkColor} className="mt-1" />}
-      <div className="mt-1.5">{foot}</div>
+    <div className={cn("group relative h-full animate-fade-up overflow-hidden rounded-3xl bg-white p-5 ring-1 ring-line transition duration-300",
+      "hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-24px_rgba(11,31,58,.45)]")}>
+      <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 size-40 rounded-full opacity-80 transition-transform duration-500 group-hover:scale-110"
+        style={{ background: `radial-gradient(circle, ${c.tint} 0%, transparent 70%)` }} />
+      <div className="relative flex items-center gap-2">
+        <span aria-hidden className="h-4 w-1 rounded-full" style={{ background: c.hex }} />
+        <p className="text-xs font-bold tracking-[.14em] text-slate-500 uppercase">{label}</p>
+        {href && <ArrowUpRight aria-hidden className="ml-auto size-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-navy-900" />}
+      </div>
+      <p className="relative mt-2 font-display text-[32px] leading-none font-extrabold tracking-tight text-navy-900 tabular-nums">
+        {typeof value === "number" ? <CountUp value={value} /> : value}
+      </p>
+      {spark && <Sparkline data={spark} color={sparkColor ?? c.hex} className="relative mt-3" />}
+      <div className="relative mt-2.5">{foot}</div>
     </div>
   );
-  return href ? <Link href={href}>{body}</Link> : body;
+  return href ? <Link href={href} className="block h-full rounded-3xl focus-visible:ring-2 focus-visible:ring-ocean focus-visible:outline-none">{body}</Link> : body;
 }
 
 // ---- constituency league -------------------------------------------------------------

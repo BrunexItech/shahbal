@@ -57,7 +57,7 @@ export default function CommandCentrePage() {
           <h2 id="attention" className="text-base font-bold text-navy-900">Needs attention now</h2>
           {analytics && <Link href="/analytics" className="inline-flex items-center gap-1 text-sm font-semibold text-ocean hover:underline">All insights <ArrowRight className="size-4" /></Link>}
         </div>
-        <InsightCards cards={attention} />
+        <InsightCards cards={attention} featured />
       </section>
 
       {/* 3 · Who is winning the race? */}

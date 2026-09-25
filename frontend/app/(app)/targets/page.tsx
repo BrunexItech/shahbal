@@ -53,7 +53,7 @@ export default function TargetsPage() {
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 id="by-constituency" className="text-lg font-bold text-navy-900">By constituency</h2>
-              <p className="text-sm text-slate-500">Select one to see its wards. Each small square is a ward.</p>
+              <p className="text-sm text-slate-500">Select one to see its wards. Each bar is a ward: taller means closer to target.</p>
             </div>
           </div>
           <ConstituencyCards rows={data.constituencies} countyPercent={countyPct} selected={selected} onSelect={setSelected} />

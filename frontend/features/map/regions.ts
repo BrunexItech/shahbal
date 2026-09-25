@@ -23,3 +23,13 @@ export const PROGRESS_STEPS: [number, string, string][] = [
   [75, "#0f7a47", "75–99"],
   [100, "#00552f", "100%+"],
 ];
+
+/** Deeper shades of the constituency colours: backgrounds that keep white text readable. */
+export const CONSTITUENCY_DEEP: Record<string, string> = {
+  Changamwe: "#075a78",
+  Jomvu: "#7a5f0c",
+  Kisauni: "#004d2d",
+  Likoni: "#8a150b",
+  Mvita: "#553286",
+  Nyali: "#9a4a14",
+};
