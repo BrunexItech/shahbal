@@ -80,9 +80,9 @@ export default function AudiencesPage() {
       <PageHeader eyebrow="Outreach" title="Audiences"
         subtitle="Everyone we can reach, by constituency, ward and polling station. Pick a region and message exactly those people." />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         {/* Region tree */}
-        <Card className="overflow-hidden">
+        <Card className="min-w-0 overflow-hidden">
           <div className="border-b border-line bg-slate-50/60 px-5 py-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-sm font-bold text-navy-900">Choose regions</p>
@@ -107,7 +107,7 @@ export default function AudiencesPage() {
         </Card>
 
         {/* Selection */}
-        <div className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+        <div className="min-w-0 space-y-4 xl:sticky xl:top-24 xl:self-start">
           <section className="relative overflow-hidden rounded-3xl bg-[#06101f] p-5 text-white shadow-[0_24px_50px_-28px_rgba(6,16,31,.8)] sm:p-6">
             <div aria-hidden className="pointer-events-none absolute -top-20 -right-16 size-64 rounded-full bg-ocean/25 blur-3xl" />
             <p className="relative text-xs font-semibold tracking-[.18em] text-gold uppercase">Your audience</p>
