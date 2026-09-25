@@ -13,6 +13,8 @@ const MANAGERS: Role[] = ["super_admin", "coordinator", "ward_coordinator"];
 
 /** Single source of truth for what each role can do in the UI (the API enforces the same rules). */
 export const can = {
+  /** Campaign-wide overviews (Command Centre, plan, targets, analytics). Agents get their own workspace. */
+  oversee: (r: Role) => [...MANAGERS, "viewer"].includes(r),
   capture: (r: Role) => r !== "viewer",
   verify: (r: Role) => [...MANAGERS, "call_agent"].includes(r),
   edit: (r: Role) => ["super_admin", "coordinator", "ward_coordinator", "call_agent"].includes(r),
@@ -41,3 +43,6 @@ export const GRANTABLE: Record<Role, Role[]> = {
   call_agent: [],
   viewer: [],
 };
+
+/** Where each role lands after signing in. */
+export const homeFor = (r: Role) => (r === "field_agent" ? "/home" : r === "call_agent" ? "/calls" : "/dashboard");

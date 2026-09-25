@@ -108,3 +108,54 @@ async def supporters(ctx: Ctx) -> dict:
         "recruiters": [{"name": n, "ward": w, "signups": c} for n, w, c in recruiters],
         "labels": {"gender": [g.value for g in Gender], "support": [x.value for x in Support], "source": [x.value for x in Source]},
     }
+
+
+async def my_area(ctx: Ctx) -> dict:
+    """Field agent workspace. Ward totals are aggregates of the whole team (no one else's
+    records); everything personal is the agent's own."""
+    from fastapi import HTTPException
+
+    from app.core.clock import TZ
+    from app.modules.users.models import User
+    from app.modules.visits.models import Visit, VisitStatus
+
+    s, me = ctx.session, ctx.user
+    if not me.ward_id:
+        raise HTTPException(409, "You haven't been assigned a ward yet. Ask your coordinator.")
+    ward = await s.get(Ward, me.ward_id)
+    cons = await s.get(Constituency, ward.constituency_id)
+    live = Voter.status != Status.rejected
+    today, week = local_midnight(), local_midnight(6)
+    in_ward = (Voter.ward_id == ward.id) & live
+    team_total, team_today, team_week = (await s.execute(select(
+        func.count(), func.count(case((Voter.created_at >= today, 1))), func.count(case((Voter.created_at >= week, 1))),
+    ).where(in_ward))).one()
+    mine = Voter.captured_by_id == me.id
+    my_total, my_today, my_week, my_verified = (await s.execute(select(
+        func.count(), func.count(case((Voter.created_at >= today, 1))), func.count(case((Voter.created_at >= week, 1))),
+        func.count(case((Voter.status == Status.verified, 1))),
+    ).where(mine, live))).one()
+    board = (await s.execute(
+        select(User.id, User.full_name, func.count(Voter.id).label("n")).join(Voter, Voter.captured_by_id == User.id)
+        .where(in_ward, Voter.created_at >= week).group_by(User.id).order_by(func.count(Voter.id).desc())
+    )).all()
+    rank = next((i + 1 for i, (uid, _, _) in enumerate(board) if uid == me.id), None)
+    end_today = local_midnight(-1)
+    visits = (await s.execute(
+        select(Visit.id, Visit.title, Visit.venue, Visit.scheduled_at, Visit.status)
+        .where(Visit.ward_id == ward.id, Visit.status != VisitStatus.cancelled, Visit.scheduled_at >= today, Visit.scheduled_at < end_today)
+        .order_by(Visit.scheduled_at)
+    )).all()
+    done = (await s.execute(select(func.count()).where(Visit.ward_id == ward.id, Visit.status == VisitStatus.completed))).scalar_one()
+    recent = (await s.execute(
+        select(Voter.id, Voter.reference, Voter.full_name, Voter.status, Voter.created_at).where(mine).order_by(Voter.created_at.desc()).limit(5)
+    )).all()
+    return {
+        "ward": {"id": ward.id, "name": ward.name, "constituency": cons.name, "target": ward.target, "captured": team_total,
+                 "today": team_today, "week": team_week, "gap": max(ward.target - team_total, 0),
+                 "percent": round(team_total / ward.target * 100, 1) if ward.target else None, "visits_done": done},
+        "me": {"total": my_total, "today": my_today, "week": my_week, "verified": my_verified},
+        "rank": {"position": rank, "of": len(board), "top": [{"name": n.split(" ")[0], "week": c, "me": uid == me.id} for uid, n, c in board[:3]]},
+        "visits_today": [{"id": i, "title": t, "venue": v, "at": at.astimezone(TZ).strftime("%H:%M"), "status": st.value} for i, t, v, at, st in visits],
+        "recent": [{"id": i, "reference": r, "full_name": n, "status": st.value, "at": at.isoformat()} for i, r, n, st, at in recent],
+    }

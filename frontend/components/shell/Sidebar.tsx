@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import { CAMPAIGN_NAME, CANDIDATE_NAME } from "@/lib/config";
 import { num, pct } from "@/lib/format";
 import { useLive } from "@/lib/live";
-import { ROLE_LABEL } from "@/lib/roles";
+import { can, homeFor, ROLE_LABEL } from "@/lib/roles";
 
 export function isActive(pathname: string, href: string) {
   if (href === "/voters") return pathname === "/voters" || (/^\/voters\/[^/]+$/.test(pathname) && pathname !== "/voters/new");
@@ -50,7 +50,7 @@ export function Sidebar() {
   const user = useUser();
   const { logout } = useAuth();
   const { collapsed, toggle } = useShell();
-  const { data: d } = useDashboard();
+  const { data: d } = useDashboard(can.oversee(user.role));
   const { pulse, connected } = useLive();
   const items = NAV.filter((n) => n.show(user.role));
   const sections = [...new Set(items.map((i) => i.section))];
@@ -76,7 +76,7 @@ export function Sidebar() {
 
       {/* Identity */}
       <div className={cn("relative flex items-center gap-3 pt-6 pb-5", collapsed ? "justify-center px-3" : "px-6")}>
-        <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
+        <Link href={homeFor(user.role)} className="flex min-w-0 items-center gap-3">
           <BrandMark className="size-11 shrink-0 drop-shadow-[0_0_14px_rgba(201,162,39,.35)]" />
           {!collapsed && (
             <div className="min-w-0">

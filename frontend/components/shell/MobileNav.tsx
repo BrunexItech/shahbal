@@ -10,7 +10,7 @@ import type { Role } from "@/lib/types";
 
 export function MobileNav({ role }: { role: Role }) {
   const pathname = usePathname();
-  const items = MOBILE_NAV.map((h) => NAV.find((n) => n.href === h)!).filter((n) => n.show(role));
+  const items = MOBILE_NAV.map((h) => NAV.find((n) => n.href === h)!).filter((n) => n.show(role)).slice(0, 5);
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-navy-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
       <div className="flex justify-around">

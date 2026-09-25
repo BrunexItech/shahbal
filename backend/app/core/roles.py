@@ -16,6 +16,9 @@ class Role(str, enum.Enum):
 ADMINS = {Role.super_admin}
 MANAGERS = {Role.super_admin, Role.coordinator, Role.ward_coordinator}
 VERIFIERS = MANAGERS | {Role.call_agent}
+# Who sees campaign-wide overviews (Command Centre, plan, analytics). Agents get their own
+# workspace instead: field agents "My area", call agents the call centre.
+OVERSIGHT = MANAGERS | {Role.viewer}
 CAPTURERS = MANAGERS | {Role.field_agent, Role.call_agent}
 
 # Sign-in portals. HQ/management and field staff never share a sign-in page:

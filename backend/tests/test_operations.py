@@ -236,8 +236,14 @@ async def test_area_breakdown_rolls_up_and_is_scoped(client, admin, wards):
     assert (t["captured"], t["supporters"], t["today"], t["target"], t["gap"], t["percent"]) == (1, 1, 1, 10, 9, 10.0)
     assert t["no_station"] == 1 and mvita["captured"] == 1
     agent = await make_user(client, admin, "field_agent", ward=tudor)
-    mine = (await client.get("/api/v1/dashboard/breakdown", headers=agent)).json()
-    assert [w["name"] for c in mine["constituencies"] for w in c["wards"]] == ["Tudor"] and mine["county"]["captured"] == 0
+    # Agents don't get campaign-wide overviews; they have their own workspace.
+    for path in ("/api/v1/dashboard/breakdown", "/api/v1/dashboard/summary", "/api/v1/election/plan", "/api/v1/dashboard/trends"):
+        assert (await client.get(path, headers=agent)).status_code == 403
+    await client.post("/api/v1/voters", headers=agent, json=voter_payload(tudor, national_id="30000009", phone="0712000099"))
+    area = (await client.get("/api/v1/dashboard/my-area", headers=agent)).json()
+    assert area["ward"]["name"] == "Tudor" and area["ward"]["target"] == 10 and area["ward"]["captured"] == 2
+    assert area["me"]["today"] == 1 and area["rank"]["position"] == 1 and area["recent"][0]["full_name"]
+    assert (await client.get("/api/v1/dashboard/my-area", headers=admin)).status_code == 403
 
 
 async def test_csv_export_masks_ids_and_defuses_formulas(client, admin, wards):

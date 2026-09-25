@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
-from app.core.deps import Ctx, any_user
+from app.core.deps import Ctx, any_user, require
+from app.core.roles import OVERSIGHT
 from app.modules.election.schemas import MarkIn, ReminderPlanIn, RosterRow, SettingsIn, SettingsOut, TurnoutOut
 from app.modules.election.plan import PlanIn, plan_view, save_plan
 from app.modules.election.service import ElectionService
@@ -19,7 +20,7 @@ async def put_settings(payload: SettingsIn, ctx: Ctx = Depends(any_user)):
 
 
 @router.get("/plan")
-async def get_plan(ctx: Ctx = Depends(any_user)):
+async def get_plan(ctx: Ctx = Depends(require(*OVERSIGHT))):
     return await plan_view(ctx)
 
 

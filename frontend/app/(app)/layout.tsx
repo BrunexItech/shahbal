@@ -11,6 +11,9 @@ import { Topbar } from "@/components/shell/Topbar";
 import { useAuth } from "@/lib/auth";
 import { LiveProvider } from "@/lib/live";
 import { lastPortal, PORTAL_LOGIN } from "@/lib/portal";
+import { can, homeFor } from "@/lib/roles";
+
+const OVERSIGHT_PAGES = ["/dashboard", "/plan", "/targets", "/stations"];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuth();
@@ -18,13 +21,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const mustEnrol = !!user?.mfa_setup_required;
 
+  // Agents have their own workspace; campaign-wide pages send them home.
+  const offLimits = !!user && !can.oversee(user.role) && OVERSIGHT_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
   useEffect(() => {
     if (ready && !user) router.replace(PORTAL_LOGIN[lastPortal()]);
+    else if (offLimits && user) router.replace(homeFor(user.role));
     // Production policy: staff must turn on 2FA before touching anything else.
     else if (mustEnrol && pathname !== "/account") router.replace("/account?enrol=1");
-  }, [ready, user, router, mustEnrol, pathname]);
+  }, [ready, user, router, mustEnrol, pathname, offLimits]);
 
-  if (!ready || !user || (mustEnrol && pathname !== "/account")) return <BrandLoader />;
+  if (!ready || !user || offLimits || (mustEnrol && pathname !== "/account")) return <BrandLoader />;
 
   return (
     <LiveProvider>

@@ -14,7 +14,7 @@ import { LiveDot } from "@/components/ui/Motion";
 import { useAuth, useUser } from "@/lib/auth";
 import { CANDIDATE_NAME } from "@/lib/config";
 import { useLive } from "@/lib/live";
-import { can, ROLE_LABEL } from "@/lib/roles";
+import { can, homeFor, ROLE_LABEL } from "@/lib/roles";
 
 const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit", hour12: false });
 const day = new Intl.DateTimeFormat("en-KE", { timeZone: "Africa/Nairobi", weekday: "short", day: "numeric", month: "short" });
@@ -52,7 +52,7 @@ export function Topbar() {
       <div className="flex h-[62px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Where am I */}
         <div className="flex min-w-0 items-center gap-3">
-          <Link href="/dashboard" className="shrink-0 lg:hidden" aria-label="Command Centre"><BrandMark className="size-8" /></Link>
+          <Link href={homeFor(user.role)} className="shrink-0 lg:hidden" aria-label="Home"><BrandMark className="size-8" /></Link>
           <div className="min-w-0">
             <p className="hidden text-xs font-semibold tracking-[.18em] text-gold/90 uppercase sm:block">{here?.section ?? "Campaign"}</p>
             <p className="truncate font-display text-base leading-tight font-bold">{here?.label ?? CANDIDATE_NAME}</p>
