@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, UserPlus, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -10,27 +10,25 @@ import { NAV } from "@/components/shell/nav";
 import { isActive } from "@/components/shell/Sidebar";
 import { SyncStatus } from "@/components/shell/SyncStatus";
 import { Avatar } from "@/components/ui/Avatar";
-import { CountUp, LiveDot } from "@/components/ui/Motion";
-import { useDashboard } from "@/features/dashboard/api";
+import { LiveDot } from "@/components/ui/Motion";
 import { useAuth, useUser } from "@/lib/auth";
 import { CANDIDATE_NAME } from "@/lib/config";
 import { useLive } from "@/lib/live";
-import { ROLE_LABEL } from "@/lib/roles";
+import { can, ROLE_LABEL } from "@/lib/roles";
 
 const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit", hour12: false });
 const day = new Intl.DateTimeFormat("en-KE", { timeZone: "Africa/Nairobi", weekday: "short", day: "numeric", month: "short" });
 
 /**
- * The command strip: where you are, the live pulse of the campaign, the countdown to
- * election day, and who you are. Dark to frame the page like the sidebar, with a
- * Kenyan-flag edge.
+ * The command strip: where you are, whether data is live, a quick capture action, the
+ * time in Mombasa, and who you are. Campaign numbers live on the pages, not here.
+ * Dark to frame the page like the sidebar, with a Kenyan-flag edge.
  */
 export function Topbar() {
   const user = useUser();
   const { logout } = useAuth();
   const pathname = usePathname();
-  const { connected, pulse } = useLive();
-  const { data: d } = useDashboard();
+  const { connected, lastAt } = useLive();
   const [now, setNow] = useState<Date | null>(null);
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -48,12 +46,6 @@ export function Topbar() {
   }, [menu]);
 
   const here = [...NAV].sort((a, b) => b.href.length - a.href.length).find((n) => isActive(pathname, n.href));
-  const daysLeft = d?.insights.days_left;
-  const stats: [string, number, string][] = [
-    ["captured today", pulse?.captures_today ?? d?.totals.today ?? 0, "#ffffff"],
-    ["in the field", pulse?.online_field ?? 0, "#34c77b"],
-    ["on calls", pulse?.on_call ?? 0, "#ff8a7a"],
-  ];
 
   return (
     <header className="sticky top-0 z-20 bg-[#06101f]/95 text-white shadow-[0_10px_30px_-18px_rgba(6,16,31,.8)] backdrop-blur-xl">
@@ -67,26 +59,16 @@ export function Topbar() {
           </div>
         </div>
 
-        {/* Live pulse */}
-        <div className="hidden min-w-0 items-center gap-2 xl:flex">
-          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold tracking-wider uppercase ring-1 ${connected ? "bg-[#34c77b]/15 text-[#7ee2b0] ring-[#34c77b]/30" : "bg-white/5 text-slate-400 ring-white/10"}`}>
-            <LiveDot on={connected} className="size-2" /> {connected ? "Live" : "Connecting"}
-          </span>
-          {stats.map(([label, v, c]) => (
-            <span key={label} className="inline-flex items-center gap-2 rounded-full bg-white/[.05] px-3 py-1.5 text-xs text-slate-300 ring-1 ring-white/10">
-              <span className="size-1.5 rounded-full" style={{ background: c }} />
-              <b className="font-display text-sm text-white tabular-nums"><CountUp value={v} /></b> {label}
-            </span>
-          ))}
-        </div>
-
-        {/* Countdown, clock, me */}
+        {/* Status, quick action, clock, me */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {daysLeft != null && (
-            <span className="hidden items-baseline gap-1.5 rounded-xl bg-gradient-to-br from-gold to-[#a8861a] px-3 py-1.5 text-navy-950 shadow-[0_6px_18px_-8px_rgba(201,162,39,.8)] md:inline-flex" title="Days to election day">
-              <b className="font-display text-lg leading-none tabular-nums">{daysLeft}</b>
-              <span className="text-xs font-bold tracking-wider uppercase">days to vote</span>
-            </span>
+          <span className={`hidden items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold tracking-wider uppercase ring-1 md:inline-flex ${connected ? "bg-[#34c77b]/15 text-[#7ee2b0] ring-[#34c77b]/30" : "bg-white/5 text-slate-400 ring-white/10"}`}>
+            <LiveDot on={connected} className="size-2" /> {connected ? "Live" : "Connecting"}
+            {connected && lastAt && now && <span className="font-medium tracking-normal normal-case text-slate-400">· {Math.max(0, Math.round((now.getTime() - lastAt) / 1000))}s ago</span>}
+          </span>
+          {can.capture(user.role) && !pathname.startsWith("/voters/new") && (
+            <Link href="/voters/new" className="hidden items-center gap-1.5 rounded-xl bg-gradient-to-br from-gold to-[#a8861a] px-3 py-2 text-sm font-bold text-navy-950 shadow-[0_6px_18px_-8px_rgba(201,162,39,.8)] transition hover:brightness-110 lg:inline-flex">
+              <UserPlus className="size-4" /> Capture voter
+            </Link>
           )}
           <div className="hidden text-right leading-tight sm:block">
             <p className="font-mono text-sm font-semibold tabular-nums">{now ? clock.format(now) : "--:--"} <span className="text-xs text-slate-400">EAT</span></p>

@@ -43,9 +43,6 @@ export default function CommandCentrePage() {
           <p className="text-xs font-semibold tracking-[.18em] text-ocean uppercase">Command Centre</p>
           <h1 className="text-2xl font-extrabold text-navy-900 sm:text-3xl">Karibu, {user.full_name.split(" ")[0]}</h1>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-navy-900 ring-1 ring-line">
-          <LiveDot on={connected} className="size-2" /> {connected ? "Live" : "Reconnecting…"}
-        </span>
       </header>
 
       {/* 1 · Are we winning, how fast, and where? */}
