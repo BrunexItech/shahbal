@@ -14,6 +14,7 @@ import { Stepper } from "@/features/voters/components/Stepper";
 import { SuccessPanel } from "@/features/voters/components/SuccessPanel";
 import { ApiError } from "@/lib/api";
 import { newClientRef, outbox } from "@/lib/outbox";
+import { BirthYearInput, birthYearError } from "@/components/ui/BirthYearInput";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import type { Gender, Support, Voter } from "@/lib/types";
@@ -45,10 +46,10 @@ type Errors = Partial<Record<string, string>>;
 // Client-side checks mirror the API so agents get instant feedback; the API stays authoritative.
 function validate(step: number, f: Form): Errors {
   const e: Errors = {};
-  const maxYear = new Date().getFullYear() - 18;
   if (step === 0) {
     if (f.full_name.trim().split(/\s+/).length < 2) e.full_name = "Enter at least two names";
-    if (f.birth_year && (+f.birth_year < 1900 || +f.birth_year > maxYear)) e.birth_year = `Must be 1900–${maxYear} (18+)`;
+    const by = birthYearError(f.birth_year);
+    if (by) e.birth_year = by;
   }
   if (step === 1) {
     if (!/^\d{6,12}$/.test(f.national_id)) e.national_id = "6–12 digits";
@@ -161,7 +162,7 @@ export function VoterWizard() {
       national_id: form.national_id,
       voter_card_no: form.voter_card_no || undefined,
       gender: form.gender || undefined,
-      birth_year: form.birth_year ? +form.birth_year : undefined,
+      birth_year: +form.birth_year,
       ward_id: form.loc.ward_id,
       station_id: form.loc.station_id || undefined,
       support: form.support,
@@ -270,8 +271,7 @@ export function VoterWizard() {
             <div className="grid gap-5 sm:grid-cols-2">
               <Segmented<Gender> label="Gender" value={form.gender} onChange={(v) => set("gender", v)}
                 options={[{ value: "female", label: "Female" }, { value: "male", label: "Male" }]} />
-              <Input label="Year of birth" inputMode="numeric" maxLength={4} value={form.birth_year} error={errors.birth_year}
-                onChange={(e) => set("birth_year", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 1994" />
+              <BirthYearInput value={form.birth_year} error={errors.birth_year} onChange={(v) => set("birth_year", v)} />
             </div>
           </div>
         )}

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { BrandMark, Spinner } from "@/components/loaders";
 import { FlagStripe } from "@/components/shell/FlagStripe";
 import { Button, Input, Segmented } from "@/components/ui";
+import { BirthYearInput, birthYearError } from "@/components/ui/BirthYearInput";
 import { usePortalGeo, usePortalStations } from "@/features/geo/api";
 import { LocationPicker, type LocationValue } from "@/features/geo/LocationPicker";
 import { api, ApiError, apiUrl } from "@/lib/api";
@@ -85,6 +86,8 @@ export default function JoinPage() {
       if (f.full_name.trim().split(/\s+/).length < 2) e.full_name = lang === "sw" ? "Andika angalau majina mawili" : "Enter at least two names";
       if (!/^(\+?254|0)?[17]\d{8}$/.test(f.phone.replace(/\s/g, ""))) e.phone = lang === "sw" ? "Andika nambari sahihi ya simu" : "Enter a valid Kenyan mobile number";
       if (!/^\d{6,12}$/.test(f.national_id)) e.national_id = lang === "sw" ? "Andika nambari ya kitambulisho (tarakimu tu)" : "Enter your national ID number (digits only)";
+      const by = birthYearError(f.birth_year, lang);
+      if (by) e.birth_year = by;
     }
     if (s === 1) {
       if (!f.loc.constituency_id) e.constituency_id = lang === "sw" ? "Chagua eneo bunge" : "Select your constituency";
@@ -104,7 +107,7 @@ export default function JoinPage() {
         body: {
           full_name: f.full_name, phone: f.phone, national_id: f.national_id,
           voter_card_no: f.voter_card_no || undefined, gender: f.gender || undefined,
-          birth_year: f.birth_year ? +f.birth_year : undefined,
+          birth_year: +f.birth_year,
           ward_id: f.loc.ward_id, station_id: f.loc.station_id || undefined,
           consent: true, website: f.website || undefined, ref: ref ?? undefined,
         },
@@ -190,8 +193,7 @@ export default function JoinPage() {
                         onChange={(e) => set("national_id", e.target.value.replace(/\D/g, ""))} autoComplete="off" />
                       <Segmented<Gender> label={lang === "sw" ? "Jinsia" : "Gender"} value={f.gender} onChange={(v) => set("gender", v)}
                         options={[{ value: "female", label: lang === "sw" ? "Mwanamke" : "Female" }, { value: "male", label: lang === "sw" ? "Mwanaume" : "Male" }]} />
-                      <Input label={lang === "sw" ? "Mwaka wa kuzaliwa" : "Year of birth"} inputMode="numeric" maxLength={4} value={f.birth_year} error={errors.birth_year}
-                        onChange={(e) => set("birth_year", e.target.value.replace(/\D/g, ""))} placeholder="1994" />
+                      <BirthYearInput lang={lang} value={f.birth_year} error={errors.birth_year} onChange={(v) => set("birth_year", v)} />
                     </div>
                     <p className="flex items-start gap-2 rounded-2xl bg-ocean-50 px-4 py-3 text-sm text-navy-900 ring-1 ring-ocean/15"><Lock className="mt-0.5 size-4 shrink-0 text-ocean" />{t.secure} {t.notIebc}</p>
                   </section>

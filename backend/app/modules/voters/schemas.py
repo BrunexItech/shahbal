@@ -2,20 +2,33 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.clock import TZ
 from app.core.phone import to_e164
 from app.modules.voters.models import Gender, Source, Status, Support
 
-CURRENT_YEAR = datetime.now().year
+ADULT_AGE = 18
 
+
+def check_adult(year: int | None) -> int | None:
+    """Only adults (18+) can vote. Judged on the current year, so someone born in
+    2008 qualifies from 1 January 2026; checked at request time, never at start-up."""
+    if year is not None and year > datetime.now(TZ).year - ADULT_AGE:
+        raise ValueError(f"Must be {ADULT_AGE} or older")
+    return year
 
 class VoterBase(BaseModel):
     full_name: str = Field(min_length=3, max_length=160)
     phone: str
     voter_card_no: str | None = Field(default=None, max_length=40)
     gender: Gender | None = None
-    birth_year: int | None = Field(default=None, ge=1900, le=CURRENT_YEAR - 18)
+    birth_year: int | None = Field(default=None, ge=1900)
     ward_id: str
     station_id: str | None = None
+
+    @field_validator("birth_year")
+    @classmethod
+    def _adult(cls, v: int | None) -> int | None:
+        return check_adult(v)
 
     @field_validator("full_name")
     @classmethod
@@ -55,6 +68,8 @@ class ConsentMixin(BaseModel):
 
 
 class VoterCreate(VoterBase, NationalIdMixin, ConsentMixin):
+    # Everyone new must give a year of birth, so we know they're 18+ (VoterBase checks it).
+    birth_year: int = Field(ge=1900)
     client_ref: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
     support: Support = Support.unknown
     notes: str | None = Field(default=None, max_length=2000)
@@ -67,13 +82,18 @@ class VoterUpdate(BaseModel):
     phone: str | None = None
     voter_card_no: str | None = Field(default=None, max_length=40)
     gender: Gender | None = None
-    birth_year: int | None = Field(default=None, ge=1900, le=CURRENT_YEAR - 18)
+    birth_year: int | None = Field(default=None, ge=1900)
     ward_id: str | None = None
     station_id: str | None = None
     support: Support | None = None
     notes: str | None = Field(default=None, max_length=2000)
     opted_out: bool | None = None
     do_not_call: bool | None = None
+
+    @field_validator("birth_year")
+    @classmethod
+    def _adult(cls, v: int | None) -> int | None:
+        return check_adult(v)
 
     @field_validator("phone")
     @classmethod

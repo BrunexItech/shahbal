@@ -139,4 +139,4 @@ async def make_user(client, admin_headers, role: str, ward=None, constituency_id
 
 def voter_payload(ward, national_id="12345678", **kw) -> dict:
     return {"full_name": "amina  wanjiku", "phone": "0712345678", "national_id": national_id,
-            "ward_id": ward.id, "consent": True, **kw}
+            "ward_id": ward.id, "consent": True, "birth_year": 1990, **kw}

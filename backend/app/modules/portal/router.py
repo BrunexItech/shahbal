@@ -24,6 +24,8 @@ _limiter = RateLimiter(limit=settings.portal_rate_limit_per_hour, window_seconds
 
 class SignupIn(VoterBase, NationalIdMixin, ConsentMixin):
     website: str | None = None  # honeypot: humans never see or fill this
+    birth_year: int = Field(ge=1900)  # required: only adults (18+) can join (checked in VoterBase)
+
     ref: str | None = Field(default=None, pattern=r"^[A-Z2-7]{8}$")  # invite link code of whoever shared it
 
 
