@@ -185,19 +185,26 @@ function InviteIssued({ name, invite, onClose }: { name: string; invite: InviteI
   return (
     <Modal open onClose={onClose} title={`Invitation ready for ${name.split(" ")[0]}`} subtitle={`Works once · expires ${dateTime(invite.expires_at)}`}
       footer={<Button onClick={onClose}>Done</Button>}>
-      <div className="grid gap-5 sm:grid-cols-[auto_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 sm:grid-cols-[auto_minmax(0,1fr)]">
         <img alt="Invitation QR code" className="mx-auto size-44 rounded-2xl bg-white p-2 ring-1 ring-line"
           src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(invite.qr_svg)}`} />
-        <div className="space-y-3 text-sm">
+        <div className="min-w-0 space-y-3 text-sm">
           <p className="text-slate-700">In person? Let them <b>scan this code with their phone camera</b>. Otherwise share the link:</p>
           <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-2 ring-1 ring-line">
             <code className="min-w-0 flex-1 truncate px-1 text-xs text-navy-900">{invite.url}</code>
             <Button size="sm" variant="secondary" onClick={copy} icon={copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}>{copied ? "Copied" : "Copy"}</Button>
           </div>
+          <a href={`https://wa.me/?text=${encodeURIComponent(`Hello ${name.split(" ")[0]}, here is your personal invitation to the Team Shahbal platform. Open it on your own phone to set up your account (it works once and expires ${dateTime(invite.expires_at)}): ${invite.url}`)}`}
+            target="_blank" rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1fa463] px-4 py-2.5 text-sm font-bold text-white hover:brightness-110">
+            <MessageSquare className="size-4" /> Share on WhatsApp
+          </a>
           <div className="flex flex-wrap gap-2">
             {invite.sent_via.includes("email") && <Badge tone="green"><Mail className="size-3" /> Emailed</Badge>}
             {invite.sent_via.includes("sms") && <Badge tone="green"><MessageSquare className="size-3" /> Sent by SMS</Badge>}
-            {!invite.sent_via.length && <Badge tone="amber">Not sent automatically. Share it yourself</Badge>}
+            {!invite.sent_via.some((v) => v === "email" || v === "sms") && (
+              <Badge tone="amber">{invite.sent_via.includes("sms_test") ? "SMS is in test mode, so nothing was sent. Share it yourself." : "Not sent automatically. Share it yourself."}</Badge>
+            )}
           </div>
           <p className="text-xs text-muted">This link is shown once. If it&apos;s lost, use <b>Resend invitation</b> on their profile.</p>
         </div>

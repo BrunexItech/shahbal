@@ -1,3 +1,5 @@
+import io
+
 import segno
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +32,11 @@ async def user_out(session: AsyncSession, u: User, invite: UserInvite | None = N
 
 async def _invite_out(u: User, token: str, inv: UserInvite) -> InviteOut:
     url = onboarding.invite_url(token)
-    qr = segno.make(url, error="m").svg_inline(scale=5, border=2, dark="#0b1f3a")
+    # Full SVG with its namespace: the browser shows it as an image (data: URI); the
+    # "inline" variant has no xmlns and renders as a broken image there.
+    buf = io.BytesIO()
+    segno.make(url, error="m").save(buf, kind="svg", xmldecl=False, svgns=True, scale=5, border=2, dark="#0b1f3a")
+    qr = buf.getvalue().decode()
     return InviteOut(url=url, expires_at=inv.expires_at, sent_via=await onboarding.deliver_invite(u, url), qr_svg=qr)
 
 

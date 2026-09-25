@@ -112,7 +112,8 @@ async def deliver_invite(user: User, url: str) -> list[str]:
             log.exception("invite email to %s failed", user.email)
     if user.phone:
         await send_system_sms(user.phone, f"{settings.app_name}: you've been invited. Open {url} to set up your account (expires in {settings.invite_hours}h).")
-        sent.append("sms")
+        # With the sandbox provider nothing actually leaves the building: say so.
+        sent.append("sms" if settings.sms_provider != "sandbox" else "sms_test")
     return sent
 
 
