@@ -41,6 +41,10 @@ class User(Base):
     photo_updated_at: Mapped[datetime | None]
 
     @property
+    def has_photo(self) -> bool:
+        return bool(self.photo_path)
+
+    @property
     def mfa_exempt(self) -> bool:
         """HQ let this person skip two-step sign-in for now (temporary, expires by itself)."""
         return self.mfa_exempt_until is not None and self.mfa_exempt_until > utcnow()

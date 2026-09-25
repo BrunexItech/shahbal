@@ -91,6 +91,7 @@ async def test_photo_required_for_collectors_and_cleaned(client, admin, wards):
                           files={"photo": ("gps.jpg", buf.getvalue(), "image/jpeg")})
     assert r.status_code == 200
     me = await login(client, "new.agent@campaign.co.ke", "Password!1")
+    assert (await client.get("/api/v1/auth/me", headers=me)).json()["has_photo"] is True  # their own account page shows it
     stored = (await client.get("/api/v1/users/me/photo", headers=me)).content
     out = Image.open(io.BytesIO(stored))
     assert out.size == (512, 512) and not out.getexif().get_ifd(0x8825)
