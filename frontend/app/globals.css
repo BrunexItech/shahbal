@@ -132,3 +132,8 @@ html { font-size: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; 
 @keyframes radar-wave { 0% { transform: scale(.35); opacity: .95; } 100% { transform: scale(3.6); opacity: 0; } }
 .radar-wave { transform-box: fill-box; transform-origin: center; animation: radar-wave 2.7s cubic-bezier(.15,.6,.3,1) infinite; }
 @media (prefers-reduced-motion: reduce) { .radar-wave { animation: none; opacity: .35; } }
+
+/* ---- election countdown --------------------------------------------------------- */
+@keyframes digit-in { from { transform: translateY(-40%) rotateX(70deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.digit-in { animation: digit-in .45s cubic-bezier(.2,.8,.2,1) both; transform-origin: 50% 0; }
+@media (prefers-reduced-motion: reduce) { .digit-in { animation: none; } }

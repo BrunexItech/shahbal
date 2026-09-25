@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import type { AgentStat, CallLog, CallOutcome, CallQueue, Claim, QueueCounts, Support } from "@/lib/types";
@@ -36,3 +36,22 @@ export function useLogCall() {
     },
   });
 }
+
+export type DirectoryRow = {
+  id: string; reference: string; full_name: string; phone: string; support: Support; status: string;
+  ward: string; constituency: string; station: string | null; calls: number; last_call_at: string | null;
+  last_outcome: CallOutcome | null; last_agent: string | null; busy_with: string | null;
+};
+export type DirectoryFilters = { constituency_id?: string; ward_id?: string; station_id?: string; q?: string; called?: string; page?: number };
+
+/** People to call, by place, with their call record. */
+export const useCallDirectory = (f: DirectoryFilters) =>
+  useQuery({
+    queryKey: ["calls", "directory", f],
+    queryFn: () => api<{ total: number; page: number; size: number; items: DirectoryRow[] }>("/calls/directory", { query: { ...f, size: 50 } }),
+    placeholderData: keepPreviousData,
+    refetchInterval: 20_000,
+  });
+
+/** Reserve one specific person to call (409 if a colleague is already on the line). */
+export const claimVoter = (voterId: string) => api<Claim>(`/calls/claim/${voterId}`, { method: "POST" });

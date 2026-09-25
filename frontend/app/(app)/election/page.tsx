@@ -1,11 +1,11 @@
 "use client";
 
-import { BellRing, CalendarDays, Check, Flag, Search, Vote } from "lucide-react";
+import { BellRing, CalendarDays, Check, Search, Vote } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { SkeletonRows } from "@/components/loaders";
-import { FlagStripe } from "@/components/shell/FlagStripe";
+import { ElectionCountdown } from "@/components/ui/ElectionCountdown";
 import { Button, Card, CardHeader, EmptyState, ErrorState, Input, PageHeader, ProgressBar, Select, SupportBadge } from "@/components/ui";
 import { useGeoTree, useStations } from "@/features/geo/api";
 import { useElectionSettings, useMarkVoted, usePlanReminders, useRoster, useSaveElectionSettings, useTurnout } from "@/features/election/api";
@@ -26,30 +26,14 @@ export default function ElectionPage() {
       <PageHeader eyebrow="Election" title="Election day command"
         subtitle="Turnout here counts supporters and leaners marked as voted. That's the number that decides the result." />
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-        <Card className="relative overflow-hidden bg-navy-950 text-white">
-          <FlagStripe />
-          <div className="pointer-events-none absolute -top-20 -right-16 size-72 rounded-full bg-ocean/25 blur-3xl" />
-          <div className="relative grid gap-6 p-6 sm:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold tracking-[.16em] text-gold uppercase">{s?.is_election_day ? "Polls are open" : "Countdown"}</p>
-              <p className="mt-2 font-display text-6xl font-extrabold tabular-nums">
-                {s?.is_election_day ? <Flag className="inline size-12 text-gold" /> : s?.days_to_go != null ? Math.max(s.days_to_go, 0) : "—"}
-              </p>
-              <p className="text-sm text-slate-400">
-                {s?.is_election_day ? `Polls ${s.polls_open}–${s.polls_close}` : s?.election_date
-                  ? `days to ${new Date(`${s.election_date}T00:00:00+03:00`).toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`
-                  : "Set the election date to start the countdown"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold tracking-[.16em] text-gold uppercase">Supporter turnout</p>
-              <p className="mt-2 font-display text-5xl font-extrabold tabular-nums">{turnout.data ? pct(turnout.data.overall.percent) : "—"}</p>
-              <p className="text-sm text-slate-400">{turnout.data ? `${num(turnout.data.overall.voted)} of ${num(turnout.data.overall.targets)} · +${num(turnout.data.last_hour)} in the last hour` : " "}</p>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-gold transition-all duration-700" style={{ width: `${Math.min(turnout.data?.overall.percent ?? 0, 100)}%` }} />
-              </div>
-            </div>
+      <ElectionCountdown date={s?.election_date ?? null} pollsOpen={s?.polls_open} pollsClose={s?.polls_close} />
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+        <Card className="relative overflow-hidden p-6">
+          <p className="text-xs font-bold tracking-[.16em] text-slate-500 uppercase">Supporter turnout</p>
+          <p className="mt-2 font-display text-5xl font-extrabold text-navy-900 tabular-nums">{turnout.data ? pct(turnout.data.overall.percent) : "—"}</p>
+          <p className="text-sm text-slate-500">{turnout.data ? `${num(turnout.data.overall.voted)} of ${num(turnout.data.overall.targets)} · +${num(turnout.data.last_hour)} in the last hour` : "Counts supporters and leaners marked as voted."}</p>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-gradient-to-r from-kenya-green to-[#34c77b] transition-all duration-700" style={{ width: `${Math.min(turnout.data?.overall.percent ?? 0, 100)}%` }} />
           </div>
         </Card>
         {can.electionAdmin(user.role) ? <SettingsCard /> : (

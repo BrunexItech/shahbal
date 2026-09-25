@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Spinner } from "@/components/loaders";
 import { Badge, Button, Card, CardHeader, EmptyState, Input, PageHeader, StatusBadge, SUPPORT, SupportBadge, Textarea } from "@/components/ui";
 import { claimNext, releaseClaim, useAgentStats, useLogCall, useQueueCounts } from "@/features/calls/api";
+import { Directory } from "@/features/calls/Directory";
 import { RecordingsPanel } from "@/features/calls/RecordingsPanel";
 import { SoftphonePanel } from "@/features/calls/SoftphonePanel";
 import { type Softphone, uploadRecording, useSoftphone } from "@/features/calls/useSoftphone";
@@ -79,27 +80,31 @@ const OUTCOMES: { id: CallOutcome; label: string; tone: string }[] = [
 export default function CallCentrePage() {
   const user = useUser();
   const supervisor = can.manageUsers(user.role);
-  const [tab, setTab] = useState<"console" | "recordings">("console");
+  const [tab, setTab] = useState<"console" | "directory" | "recordings">("console");
+  const [picked, setPicked] = useState<Claim | null>(null);
   const phone = useSoftphone();
+  const tabs = supervisor ? (["console", "directory", "recordings"] as const) : (["console", "directory"] as const);
 
   return (
     <>
       <PageHeader eyebrow="Outreach" title="Call centre"
         subtitle="Built-in softphone, recorded calls and live queues. One voter per agent at a time, logged against the voter's record."
-        actions={supervisor && (
+        actions={(
           <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
-            {(["console", "recordings"] as const).map((t) => (
+            {tabs.map((t) => (
               <button key={t} onClick={() => setTab(t)}
                 className={cn("rounded-lg px-4 py-1.5 text-sm font-semibold capitalize transition", tab === t ? "bg-white text-navy-900 shadow-sm" : "text-muted")}>{t}</button>
             ))}
           </div>
         )} />
-      {tab === "recordings" ? <RecordingsPanel /> : <Console phone={phone} canManualDial={supervisor} />}
+      {tab === "recordings" ? <RecordingsPanel />
+        : tab === "directory" ? <Directory disabled={["dialing", "ringing", "in_call"].includes(phone.state)} onPicked={(c) => { setPicked(c); setTab("console"); }} />
+        : <Console phone={phone} canManualDial={supervisor} picked={picked} />}
     </>
   );
 }
 
-function Console({ phone, canManualDial }: { phone: Softphone; canManualDial: boolean }) {
+function Console({ phone, canManualDial, picked }: { phone: Softphone; canManualDial: boolean; picked: Claim | null }) {
   const counts = useQueueCounts();
   const stats = useAgentStats();
   const [queue, setQueue] = useState<CallQueue>("verify");
@@ -122,6 +127,16 @@ function Console({ phone, canManualDial }: { phone: Softphone; canManualDial: bo
       void counts.refetch();
     }
   }
+
+  // Picked from the directory: load that person straight into the console.
+  useEffect(() => {
+    if (!picked) return;
+    phone.clearFinished();
+    setClaim(picked);
+    setEmpty(false);
+    setQueue(picked.voter.status === "pending" ? "verify" : "persuade");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when a new person is picked
+  }, [picked]);
 
   // Leaving the page releases the claim so a colleague can take the voter.
   useEffect(() => () => void releaseClaim().catch(() => {}), []);

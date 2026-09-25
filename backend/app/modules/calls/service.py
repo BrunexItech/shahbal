@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import and_, case, func, or_, select, update
+from sqlalchemy.orm import aliased
 
 from app.core import audit
 from app.core.clock import local_midnight, utcnow
@@ -11,6 +12,7 @@ from app.core.scope import voter_scope
 from app.modules.calls.models import CallLog, CallRecording, Outcome, Queue
 from app.modules.calls.schemas import AgentStat, CallIn, CallOut, Claim, NextIn, QueueCounts
 from app.modules.messaging.service import as_utc
+from app.modules.geo.models import Constituency, PollingStation, Ward
 from app.modules.users.models import User
 from app.modules.voters.audience import Audience, audience_filter
 from app.modules.voters.models import Status, Support, Voter
@@ -77,6 +79,64 @@ class CallService:
         remaining = (await self.s.execute(select(func.count(Voter.id)).where(*self._queue_filter(data.queue, data.ward_id, data.constituency_id)))).scalar_one()
         voter = await VoterService(self.ctx).get(v.id)  # audited VIEW
         return Claim(voter=voter, history=await self._history(v.id), locked_until=v.call_locked_until, remaining=remaining)
+
+    async def directory(self, *, constituency_id: str | None, ward_id: str | None, station_id: str | None, q: str | None,
+                        called: str | None, page: int, size: int) -> dict:
+        """Everyone this agent may call, by place, with their call record: how many times,
+        when last, what happened, and whether a colleague is on the line with them now."""
+        a = Audience(constituency_ids=[constituency_id] if constituency_id else [], ward_ids=[ward_id] if ward_id else [],
+                     station_ids=[station_id] if station_id else [])
+        conds = audience_filter(self.user, a, for_calls=True)
+        if q:
+            like = f"%{q.strip()}%"
+            conds.append(or_(Voter.full_name.ilike(like), Voter.reference.ilike(like), Voter.phone.ilike(like)))
+        stats = (select(CallLog.voter_id, func.count().label("calls"), func.max(CallLog.created_at).label("last_at"))
+                 .group_by(CallLog.voter_id).subquery())
+        last = (select(CallLog.voter_id, CallLog.outcome, User.full_name.label("agent"),
+                       func.row_number().over(partition_by=CallLog.voter_id, order_by=CallLog.created_at.desc()).label("rn"))
+                .join(User, User.id == CallLog.agent_id).subquery())
+        if called == "never":
+            conds.append(stats.c.calls.is_(None))
+        elif called == "called":
+            conds.append(stats.c.calls.is_not(None))
+        elif called in {o.value for o in Outcome}:
+            conds.append(last.c.outcome == Outcome(called))
+        locker = aliased(User)
+        base = (select(Voter, Ward.name, Constituency.name, PollingStation.name, stats.c.calls, stats.c.last_at, last.c.outcome, last.c.agent, locker.full_name)
+                .join(Ward, Ward.id == Voter.ward_id).join(Constituency, Constituency.id == Ward.constituency_id)
+                .outerjoin(PollingStation, PollingStation.id == Voter.station_id)
+                .outerjoin(stats, stats.c.voter_id == Voter.id)
+                .outerjoin(last, and_(last.c.voter_id == Voter.id, last.c.rn == 1))
+                .outerjoin(locker, and_(locker.id == Voter.call_locked_by_id, Voter.call_locked_until > utcnow()))
+                .where(*conds))
+        total = (await self.s.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+        rows = (await self.s.execute(base.order_by(stats.c.last_at.asc().nulls_first(), Voter.full_name).offset((page - 1) * size).limit(size))).all()
+        audit.record(self.s, actor_id=self.user.id, action="DIRECTORY", entity="calls", entity_id="directory", ip=self.ctx.ip,
+                     ward_id=ward_id, constituency_id=constituency_id, station_id=station_id, results=len(rows))
+        await self.s.commit()
+        return {"total": total, "page": page, "size": size, "items": [{
+            "id": v.id, "reference": v.reference, "full_name": v.full_name, "phone": v.phone, "support": v.support.value,
+            "status": v.status.value, "ward": w, "constituency": c, "station": st, "calls": n or 0,
+            "last_call_at": la.isoformat() if la else None, "last_outcome": lo.value if lo else None, "last_agent": ag,
+            "busy_with": lk if lk and v.call_locked_by_id != self.user.id else None,
+        } for v, w, c, st, n, la, lo, ag, lk in rows]}
+
+    async def claim_one(self, voter_id: str) -> Claim:
+        """Pick a specific person from the directory: reserved for this agent unless a
+        colleague is already on the line with them."""
+        v = (await self.s.execute(select(Voter).where(Voter.id == voter_id, *audience_filter(self.user, Audience(), for_calls=True))
+                                  .with_for_update())).scalar_one_or_none()
+        if v is None:
+            raise HTTPException(404, "Not found, or this person asked not to be called")
+        now = utcnow()
+        if v.call_locked_by_id and v.call_locked_by_id != self.user.id and v.call_locked_until and v.call_locked_until > now:
+            other = await self.s.get(User, v.call_locked_by_id)
+            raise HTTPException(409, f"{other.full_name if other else 'A colleague'} is calling this person right now")
+        await self._release_mine()
+        v.call_locked_by_id, v.call_locked_until = self.user.id, now + LOCK
+        await self.s.commit()
+        voter = await VoterService(self.ctx).get(v.id)  # audited VIEW
+        return Claim(voter=voter, history=await self._history(v.id), locked_until=v.call_locked_until, remaining=0)
 
     async def _release_mine(self) -> None:
         await self.s.execute(update(Voter).where(Voter.call_locked_by_id == self.user.id).values(call_locked_by_id=None, call_locked_until=None))

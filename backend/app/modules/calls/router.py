@@ -23,6 +23,19 @@ async def claim_next(payload: NextIn, response: Response, ctx: Ctx = Depends(any
     return claim
 
 
+@router.get("/directory")
+async def directory(constituency_id: str | None = None, ward_id: str | None = None, station_id: str | None = None,
+                    q: str | None = Query(default=None, max_length=80), called: str | None = None,
+                    page: int = Query(1, ge=1), size: int = Query(50, ge=1, le=200), ctx: Ctx = Depends(any_user)):
+    return await CallService(ctx).directory(constituency_id=constituency_id, ward_id=ward_id, station_id=station_id, q=q,
+                                            called=called, page=page, size=size)
+
+
+@router.post("/claim/{voter_id}", response_model=Claim)
+async def claim_one(voter_id: str, ctx: Ctx = Depends(any_user)):
+    return await CallService(ctx).claim_one(voter_id)
+
+
 @router.post("/release", status_code=204)
 async def release(ctx: Ctx = Depends(any_user)):
     await CallService(ctx).release()

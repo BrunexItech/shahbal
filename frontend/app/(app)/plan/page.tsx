@@ -1,12 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Check, Flag, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { CalendarDays, Check, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 
 import { Skeleton } from "@/components/loaders";
+import { ElectionCountdown } from "@/components/ui/ElectionCountdown";
 import { Button, Card, ErrorState, PageHeader, useConfirm } from "@/components/ui";
 import { useElectionSettings, useSaveElectionSettings } from "@/features/election/api";
 import { api } from "@/lib/api";
@@ -93,30 +94,21 @@ export default function PlanPage() {
       <PageHeader eyebrow="Planning" title="Campaign plan"
         subtitle="Set election day, then plan how many people to capture each week. Every week is measured against what the team actually did." />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {/* Election day */}
-        <div className="relative overflow-hidden rounded-3xl bg-[#06101f] p-5 text-white">
-          <div aria-hidden className="absolute inset-x-0 top-0 flex h-1"><i className="flex-[3] bg-kenya-black" /><i className="flex-1 bg-white" /><i className="flex-[3] bg-kenya-red" /><i className="flex-1 bg-white" /><i className="flex-[3] bg-kenya-green" /></div>
-          <p className="flex items-center gap-2 text-xs font-bold tracking-[.16em] text-gold uppercase"><Flag className="size-4" /> Election day</p>
-          {p.election_date ? (
-            <>
-              <p className="mt-3 font-display text-5xl leading-none font-extrabold tabular-nums">{p.days_left}<span className="ml-2 text-lg font-bold text-slate-300">days</span></p>
-              <p className="mt-1 text-sm text-slate-300">{fmt(p.election_date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · {Math.ceil((p.days_left ?? 0) / 7)} weeks</p>
-            </>
-          ) : <p className="mt-3 text-sm text-slate-300">Not set yet. The countdown, required pace and plan all start from this date.</p>}
-          {hq && (
-            <div className="mt-4 flex gap-2">
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Election date"
-                className="h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/10 px-3 text-base text-white [color-scheme:dark] focus:border-gold focus:outline-none" />
-              <Button variant="gold" size="sm" disabled={!date || date === p.election_date || !settings.data} loading={saveSettings.isPending}
-                onClick={() => saveSettings.mutate({ ...settings.data!, election_date: date }, {
-                  onSuccess: () => { toast.success("Election day set"); qc.invalidateQueries({ queryKey: ["plan"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); },
-                  onError: (e) => toast.error(e.message),
-                })}>Save</Button>
-            </div>
-          )}
-        </div>
+      <ElectionCountdown date={p.election_date} pollsOpen={settings.data?.polls_open} pollsClose={settings.data?.polls_close} start={p.weeks[0]?.week_start ?? null}>
+        {hq && (
+          <div className="flex gap-2">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Election date"
+              className="h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/10 px-3 text-base text-white [color-scheme:dark] focus:border-gold focus:outline-none" />
+            <Button variant="gold" size="sm" disabled={!date || date === p.election_date || !settings.data} loading={saveSettings.isPending}
+              onClick={() => saveSettings.mutate({ ...settings.data!, election_date: date }, {
+                onSuccess: () => { toast.success("Election day set"); qc.invalidateQueries({ queryKey: ["plan"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); },
+                onError: (e) => toast.error(e.message),
+              })}>Save</Button>
+          </div>
+        )}
+      </ElectionCountdown>
 
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
         {/* Target */}
         <div className="rounded-3xl bg-white p-5 ring-1 ring-line">
           <p className="flex items-center gap-2 text-xs font-bold tracking-[.16em] text-slate-500 uppercase"><Target className="size-4 text-kenya-green" /> County target</p>
