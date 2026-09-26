@@ -43,6 +43,12 @@ export const STATION_LOOK: Record<string, { fill: string; stroke: string; label:
   approximate: { fill: "#ffffff", stroke: "#64748b", label: "Approximate", hint: "Right neighbourhood; needs a field pin" },
 };
 
+/** Overlays fade out as you zoom in, so street level shows the place itself, not our colours. */
+const fade = (at10: number, at13: number, at15: number, hover = 0) =>
+  ["interpolate", ["linear"], ["zoom"], 10, ["case", ["boolean", ["feature-state", "hover"], false], at10 + hover, at10],
+    13, ["case", ["boolean", ["feature-state", "hover"], false], at13 + hover, at13], 15, at15] as unknown as ExpressionSpecification;
+const zoomFade = (at10: number, at13: number, at15: number) => ["interpolate", ["linear"], ["zoom"], 10, at10, 13, at13, 15, at15] as unknown as ExpressionSpecification;
+
 const IMAGERY = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] };
 const placeKey = (p: { lat: number; lng: number }) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
@@ -69,8 +75,10 @@ export const GisMap = forwardRef<GisMapHandle, {
   onSelect: (s: Selection) => void;
   selected: Selection;
   focus: { lng: number; lat: number; zoom?: number; key: number } | null;
+  /** A place picked in the search box: marked with a pin. */
+  pin?: { lng: number; lat: number; label: string } | null;
 }>(function GisMap(props, ref) {
-  const { data, issues, wards, constituencies, density, base, threeD, theme, layers, measuring, measureReset, onMeasure, replayAt, onSelect, selected, focus } = props;
+  const { data, issues, wards, constituencies, density, base, threeD, theme, layers, measuring, measureReset, onMeasure, replayAt, onSelect, selected, focus, pin } = props;
   // The ward being looked at: the selected ward, or the ward of the selected station.
   const focusWard = selected?.kind === "ward" ? selected.id : selected?.kind === "station" ? data.stations.find((s) => s.id === selected.id)?.ward_id ?? null : null;
   const el = useRef<HTMLDivElement>(null);
@@ -202,7 +210,7 @@ export const GisMap = forwardRef<GisMapHandle, {
       m.addLayer({ id: "ward-line", type: "line", source: "wards", paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1, 14, 2.5] } });
       m.addLayer({ id: "cons-line", type: "line", source: "cons", paint: { "line-color": "#0b1f3a", "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2, 14, 4] } });
       // Focus: everything outside the ward being looked at goes dark.
-      m.addLayer({ id: "mask", type: "fill", source: "mask", paint: { "fill-color": "#06101f", "fill-opacity": 0.55 } });
+      m.addLayer({ id: "mask", type: "fill", source: "mask", paint: { "fill-color": "#06101f", "fill-opacity": zoomFade(0.55, 0.4, 0.18) } });
       m.addLayer({ id: "ward-selected", type: "line", source: "wards", filter: ["==", ["get", "ward_id"], ""], paint: { "line-color": "#c9a227", "line-width": 4.5 } });
       if (MAPILLARY_TOKEN) {
         m.addLayer({ id: "mly-seq", type: "line", source: "mly", "source-layer": "sequence", layout: { visibility: "none", "line-cap": "round" }, paint: { "line-color": "#05cb63", "line-width": 2, "line-opacity": 0.8 } });
@@ -358,7 +366,13 @@ export const GisMap = forwardRef<GisMapHandle, {
     const vis = (id: string, on: boolean) => m.getLayer(id) && m.setLayoutProperty(id, "visibility", on ? "visible" : "none");
     m.setPaintProperty("ward-fill", "fill-color", THEME_FILL[theme]);
     m.setPaintProperty("ward-3d", "fill-extrusion-color", THEME_FILL[theme]);
-    m.setPaintProperty("ward-fill", "fill-opacity", ["case", ["boolean", ["feature-state", "hover"], false], base === "satellite" ? 0.7 : 0.85, base === "satellite" ? 0.42 : 0.62]);
+    const sat = base === "satellite";
+    m.setPaintProperty("ward-fill", "fill-opacity", sat ? fade(0.4, 0.14, 0, 0.2) : fade(0.62, 0.4, 0.14, 0.2));
+    m.setPaintProperty("mask", "fill-opacity", sat ? zoomFade(0.45, 0.28, 0.1) : zoomFade(0.55, 0.4, 0.18));
+    // Real roofs are in the photo: 3D blocks become light glass over it instead of grey slabs.
+    m.setPaintProperty("buildings-3d", "fill-extrusion-color", sat ? "#ffffff" : "#cbd5e1");
+    m.setPaintProperty("buildings-3d", "fill-extrusion-opacity", sat ? 0.28 : 0.85);
+    m.setPaintProperty("ward-3d", "fill-extrusion-opacity", sat ? 0.55 : 0.88);
     vis("imagery", base === "satellite");
     vis("ward-fill", layers.wards && !threeD);
     vis("ward-3d", layers.wards && threeD);
@@ -421,6 +435,28 @@ export const GisMap = forwardRef<GisMapHandle, {
     if (!loaded || !m || !focus) return;
     m.flyTo({ center: [focus.lng, focus.lat], zoom: focus.zoom ?? 16.5, speed: 1.3 });
   }, [loaded, focus]);
+
+  // Search result pin.
+  useEffect(() => {
+    const m = map.current;
+    if (!loaded || !m || !pin) return;
+    const el = document.createElement("div");
+    el.className = "gis-search-pin";
+    el.setAttribute("aria-label", pin.label);
+    el.innerHTML = '<span></span>';
+    const marker = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([pin.lng, pin.lat])
+      .setPopup(new maplibregl.Popup({ offset: 28, closeButton: false, className: "chq-popup" }).setDOMContent(tooltip(pin.label, "Search result"))).addTo(m);
+    return () => { marker.remove(); };
+  }, [loaded, pin]);
+
+  // A soft sky behind 3D views.
+  useEffect(() => {
+    const m = map.current;
+    if (!loaded || !m) return;
+    try {
+      m.setSky(threeD ? { "sky-color": "#9fd3ee", "horizon-color": "#e8f4fb", "fog-color": "#e8f4fb", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.5, "fog-ground-blend": 0.9 } : undefined as never);
+    } catch { /* older engines: no sky, no harm */ }
+  }, [loaded, threeD]);
 
   return (
     <div className="absolute inset-0">

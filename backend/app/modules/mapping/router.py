@@ -20,6 +20,8 @@ from app.modules.audit.models import AuditLog
 from app.modules.auth.models import AuthChallenge, ChallengePurpose
 from app.modules.geo.models import Constituency, PollingStation, Ward
 from app.modules.mapping.project import build_project
+from app.core.ratelimit import RateLimiter
+from app.modules.mapping.search import local_matches, osm_matches
 from app.modules.mapping.service import MapService, constituency_boundaries, ward_boundaries
 from app.modules.users.models import User
 from app.modules.voters.models import Voter
@@ -28,6 +30,20 @@ router = APIRouter(prefix="/api/v1/map", tags=["map"])
 admins = require(*ADMINS)
 # Anything that leaves the system needs a fresh re-confirmation.
 exporters = require_step_up(*ADMINS)
+
+
+_search_limit = RateLimiter(limit=60, window_seconds=60)
+
+
+@router.get("/search")
+async def search(q: str = Query(min_length=2, max_length=80), ctx: Ctx = Depends(any_user)):
+    """Wards and polling centres first, then real places in Mombasa."""
+    _search_limit.hit(ctx.user.id)
+    q = " ".join(q.split())
+    local = await local_matches(ctx.session, ctx.user, q)
+    seen = {(round(r["lat"], 4), round(r["lng"], 4)) for r in local}
+    places = [p for p in await osm_matches(q) if (round(p["lat"], 4), round(p["lng"], 4)) not in seen]
+    return (local + places)[:10]
 
 
 @router.get("/boundaries")

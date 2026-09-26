@@ -46,23 +46,29 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
 
 export const SIDEBAR_W = { open: 280, rail: 88 };
 
+/** Work waiting for this person, shown as badges on the nav (sidebar and phone menu). */
+export function useNavBadges(): Record<string, number | undefined> {
+  const user = useUser();
+  const { data: d } = useDashboard(can.oversee(user.role));
+  const voice = useIssueStats(can.manageStations(user.role)); // cases nobody has picked up yet
+  return {
+    "/verification": d?.totals.pending,
+    "/messaging": d?.ops.approvals_pending || undefined,
+    "/issues": voice.data?.new || undefined,
+  };
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const user = useUser();
   const { logout } = useAuth();
   const { collapsed, toggle } = useShell();
   const { data: d } = useDashboard(can.oversee(user.role));
-  const voice = useIssueStats(can.manageStations(user.role)); // cases nobody has picked up yet
   const { pulse, connected } = useLive();
   const items = NAV.filter((n) => n.show(user.role));
   const sections = [...new Set(items.map((i) => i.section))];
 
-  // Work waiting for this person, shown as badges on the nav.
-  const badges: Record<string, number | undefined> = {
-    "/verification": d?.totals.pending,
-    "/messaging": d?.ops.approvals_pending || undefined,
-    "/issues": voice.data?.new || undefined,
-  };
+  const badges = useNavBadges();
 
   return (
     <aside

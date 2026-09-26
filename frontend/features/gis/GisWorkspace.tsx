@@ -26,6 +26,7 @@ import type { MapOverview, Station } from "@/lib/types";
 
 import { downloadCsv, placeRows, printMap, save, wardRows } from "./exports";
 import { CAPTURE_STEPS, type Base, type GisLayers, type GisMapHandle, type MeasureResult, type Selection, STATION_LOOK, type Theme, VISIT_STEPS } from "./GisMap";
+import { MapSearch } from "./MapSearch";
 import { fmtArea, fmtDistance } from "./measure";
 
 const GisMap = dynamic(() => import("./GisMap").then((m) => m.GisMap), {
@@ -67,6 +68,7 @@ export function GisWorkspace() {
   const [measure, setMeasure] = useState<MeasureResult>({ points: 0, distance: 0, area: 0 });
   const [selected, setSelected] = useState<Selection>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; zoom?: number; key: number } | null>(null);
+  const [pin, setPin] = useState<{ lng: number; lat: number; label: string } | null>(null);
   const [replay, setReplay] = useState<{ on: boolean; t: number; playing: boolean }>({ on: false, t: 0, playing: false });
   const [menu, setMenu] = useState(false);
 
@@ -121,7 +123,7 @@ export function GisWorkspace() {
       {d && wards.data && cons.data ? (
         <GisMap ref={mapRef} data={d} issues={issuePins.data ?? []} wards={wards.data} constituencies={cons.data} density={density.data ?? null}
           base={base} threeD={threeD} theme={theme} layers={layers} measuring={measuring} measureReset={measureReset} onMeasure={setMeasure}
-          replayAt={replay.on ? replay.t : null} onSelect={setSelected} selected={selected} focus={focus} />
+          replayAt={replay.on ? replay.t : null} onSelect={setSelected} selected={selected} focus={focus} pin={pin} />
       ) : <Skeleton className="absolute inset-0 rounded-none" />}
 
       {/* Title + actions */}
@@ -130,6 +132,15 @@ export function GisWorkspace() {
           <div aria-hidden className="mb-1.5 flex h-1 w-16 overflow-hidden rounded-full"><i className="flex-1 bg-kenya-black" /><i className="flex-1 bg-kenya-red" /><i className="flex-1 bg-kenya-green" /></div>
           <p className="text-xs font-semibold tracking-[.18em] text-gold uppercase">GIS Lab</p>
           <p className="font-display text-lg leading-tight font-bold">Mombasa County</p>
+        </div>
+        <div className="pointer-events-auto order-3 w-full sm:order-none sm:mx-3 sm:w-auto sm:max-w-md sm:flex-1">
+          <MapSearch onPick={(h) => {
+            if (h.kind === "ward") { setSelected({ kind: "ward", id: h.id }); setPin(null); return; }
+            if (h.kind === "station" && d?.stations.some((st) => st.id === h.id)) setSelected({ kind: "station", id: h.id });
+            else setSelected(null);
+            setPin({ lng: h.lng, lat: h.lat, label: h.label });
+            setFocus({ lng: h.lng, lat: h.lat, zoom: 17, key: Date.now() });
+          }} />
         </div>
         <div className="pointer-events-auto mr-12 flex items-center gap-2">
           <div className="relative">
@@ -157,7 +168,7 @@ export function GisWorkspace() {
       </div>
 
       {/* Tool rail */}
-      <nav aria-label="Map tools" className="absolute top-24 left-3 flex flex-col gap-1.5 rounded-2xl bg-navy-950/90 p-1.5 shadow-xl ring-1 ring-white/10 backdrop-blur sm:left-4">
+      <nav aria-label="Map tools" className="absolute top-[8.75rem] left-3 sm:top-24 flex flex-col gap-1.5 rounded-2xl bg-navy-950/90 p-1.5 shadow-xl ring-1 ring-white/10 backdrop-blur sm:left-4">
         <Tool icon={LayersIcon} label="Layers & colours" on={panel === "layers"} onClick={() => { setPanel(panel === "layers" ? null : "layers"); if (measuring !== "off") setMeasuring("off"); }} />
         <Tool icon={Ruler} label="Measure distance or area" on={measuring !== "off"} onClick={toggleMeasure} />
         <Tool icon={Box} label="3D view" on={threeD} onClick={() => setThreeD((v) => !v)} />
@@ -171,7 +182,7 @@ export function GisWorkspace() {
 
       {/* Layers panel */}
       {panel === "layers" && (
-        <section className="absolute top-24 left-[4.5rem] w-[min(300px,calc(100vw-6rem))] animate-fade-up rounded-2xl bg-white/95 p-4 shadow-2xl ring-1 ring-line backdrop-blur sm:left-20">
+        <section className="absolute top-[8.75rem] left-[4.5rem] sm:top-24 w-[min(300px,calc(100vw-6rem))] animate-fade-up rounded-2xl bg-white/95 p-4 shadow-2xl ring-1 ring-line backdrop-blur sm:left-20">
           <PanelHead title="Colour wards by" onClose={() => setPanel(null)} />
           <div className="grid grid-cols-2 gap-1.5">
             {THEMES.map((t) => (
@@ -193,7 +204,7 @@ export function GisWorkspace() {
 
       {/* Measure panel */}
       {panel === "measure" && measuring !== "off" && (
-        <section className="absolute top-24 left-[4.5rem] w-[min(300px,calc(100vw-6rem))] animate-fade-up rounded-2xl bg-white/95 p-4 shadow-2xl ring-1 ring-line backdrop-blur sm:left-20">
+        <section className="absolute top-[8.75rem] left-[4.5rem] sm:top-24 w-[min(300px,calc(100vw-6rem))] animate-fade-up rounded-2xl bg-white/95 p-4 shadow-2xl ring-1 ring-line backdrop-blur sm:left-20">
           <PanelHead title="Measure" onClose={() => { setMeasuring("off"); setPanel(null); }} />
           <div className="inline-flex rounded-xl bg-slate-100 p-1">
             {(["distance", "area"] as const).map((k) => (

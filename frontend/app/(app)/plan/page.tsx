@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { CalendarDays, Check, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -53,6 +54,7 @@ export default function PlanPage() {
   const [date, setDate] = useState("");
   const [draft, setDraft] = useState<{ week_start: string; target: number }[] | null>(null);
   const [shape, setShape] = useState<Shape>("ramp");
+  const [total, setTotal] = useState("");
 
   useEffect(() => { if (settings.data?.election_date) setDate(settings.data.election_date); }, [settings.data?.election_date]);
 
@@ -70,10 +72,11 @@ export default function PlanPage() {
     return out;
   }, [p?.election_date]);
 
+  const remaining = p ? Math.max(p.target_total - p.achieved, 0) : 0;
+  const toPlan = total === "" ? remaining : Number(total);
   const build = () => {
     if (!p) return;
-    const remaining = Math.max(p.target_total - p.achieved, 0);
-    const parts = spread(remaining, weeksToVote.length, shape);
+    const parts = spread(toPlan, weeksToVote.length, shape);
     setDraft(weeksToVote.map((w, i) => ({ week_start: w, target: parts[i] })));
   };
 
@@ -94,19 +97,7 @@ export default function PlanPage() {
       <PageHeader eyebrow="Planning" title="Campaign plan"
         subtitle="Set election day, then plan how many people to capture each week. Every week is measured against what the team actually did." />
 
-      <ElectionCountdown date={p.election_date} pollsOpen={settings.data?.polls_open} pollsClose={settings.data?.polls_close} start={p.weeks[0]?.week_start ?? null}>
-        {hq && (
-          <div className="flex gap-2">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Election date"
-              className="h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/10 px-3 text-base text-white [color-scheme:dark] focus:border-gold focus:outline-none" />
-            <Button variant="gold" size="sm" disabled={!date || date === p.election_date || !settings.data} loading={saveSettings.isPending}
-              onClick={() => saveSettings.mutate({ ...settings.data!, election_date: date }, {
-                onSuccess: () => { toast.success("Election day set"); qc.invalidateQueries({ queryKey: ["plan"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); },
-                onError: (e) => toast.error(e.message),
-              })}>Save</Button>
-          </div>
-        )}
-      </ElectionCountdown>
+      <ElectionCountdown date={p.election_date} pollsOpen={settings.data?.polls_open} pollsClose={settings.data?.polls_close} start={p.weeks[0]?.week_start ?? null} />
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         {/* Target */}
@@ -161,29 +152,58 @@ export default function PlanPage() {
         </Card>
       )}
 
-      {/* Builder */}
+      {/* Builder: three steps, each ticked when done */}
       {hq && (
-        <Card className="mt-6 p-5">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="font-bold text-navy-900">Build the plan</p>
-              <p className="text-sm text-slate-500">
-                {p.election_date ? <>Share the remaining <b>{num(Math.max(p.target_total - p.achieved, 0))}</b> over the {weeksToVote.length} weeks to election day. You can edit any week after.</> : "Set election day first."}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div role="tablist" aria-label="Plan shape" className="inline-flex rounded-xl bg-slate-100 p-1">
-                {([["even", "Even"], ["ramp", "Build up"], ["front", "Early push"]] as const).map(([k, l]) => (
-                  <button key={k} role="tab" aria-selected={shape === k} onClick={() => setShape(k)}
-                    className={cn("rounded-lg px-3 py-1.5 text-sm font-semibold", shape === k ? "bg-white text-navy-900 shadow-sm" : "text-slate-500")}>{l}</button>
-                ))}
-              </div>
-              <Button variant="secondary" disabled={!p.election_date || !weeksToVote.length} onClick={build}>Fill the weeks</Button>
-            </div>
+        <Card className="mt-6 overflow-hidden">
+          <div className="border-b border-line px-5 py-4">
+            <p className="font-bold text-navy-900">{rows.length ? "Rebuild the weekly plan" : "Build the weekly plan"}</p>
+            <p className="text-sm text-slate-500">Three steps. Nothing is saved until you press “Save plan”, and you can edit any week afterwards.</p>
           </div>
+          <ol className="grid divide-y divide-line lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+            <Step n={1} done={!!p.election_date} title="Election day">
+              <div className="flex gap-2">
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Election date"
+                  className="h-10 min-w-0 flex-1 rounded-xl border border-line px-3 text-base text-navy-900 focus:border-ocean focus:outline-none" />
+                <Button size="sm" disabled={!date || date === p.election_date || !settings.data} loading={saveSettings.isPending}
+                  onClick={() => saveSettings.mutate({ ...settings.data!, election_date: date }, {
+                    onSuccess: () => { toast.success("Election day set"); qc.invalidateQueries({ queryKey: ["plan"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); },
+                    onError: (e) => toast.error(e.message),
+                  })}>Save</Button>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">{p.election_date ? `${weeksToVote.length} weeks from this week to election day.` : "Pick the date and press Save."}</p>
+            </Step>
+            <Step n={2} done={toPlan > 0} title="How many people to capture">
+              <input inputMode="numeric" aria-label="People to capture" value={total === "" ? (remaining || "") : total} placeholder="e.g. 250000"
+                onChange={(e) => setTotal(e.target.value.replace(/\D/g, ""))}
+                className="h-10 w-full rounded-xl border border-line px-3 text-base font-semibold text-navy-900 tabular-nums focus:border-ocean focus:outline-none" />
+              <p className="mt-2 text-xs text-slate-500">
+                {p.target_total > 0
+                  ? <>Ward targets add up to <b className="text-navy-900">{num(p.target_total)}</b>; {num(p.achieved)} are already captured, so <b className="text-navy-900">{num(remaining)}</b> remain. Type another number to plan for a different total.</>
+                  : <>No ward targets yet. Type a total here, or set targets per ward in <Link href="/targets" className="font-semibold text-ocean hover:underline">Targets &amp; Captures</Link>.</>}
+              </p>
+            </Step>
+            <Step n={3} done={!!draft || rows.length > 0} title="Pace, then fill the weeks">
+              <div role="radiogroup" aria-label="Plan shape" className="grid grid-cols-3 gap-1.5">
+                {([["even", "Even", "Same every week"], ["ramp", "Build up", "Grow towards the vote"], ["front", "Early push", "Big start, then steady"]] as const).map(([k, l, hint]) => {
+                  const bars = spread(100, 6, k);
+                  return (
+                    <button key={k} role="radio" aria-checked={shape === k} onClick={() => setShape(k)} title={hint}
+                      className={cn("rounded-xl p-2 text-left ring-1 transition", shape === k ? "bg-navy-950 text-white ring-navy-950" : "text-navy-900 ring-line hover:bg-slate-50")}>
+                      <span className="flex h-7 items-end gap-0.5" aria-hidden>
+                        {bars.map((b, i) => <span key={i} className={cn("flex-1 rounded-sm", shape === k ? "bg-gold" : "bg-slate-300")} style={{ height: `${(b / Math.max(...bars)) * 100}%` }} />)}
+                      </span>
+                      <span className="mt-1.5 block text-xs font-bold">{l}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <Button className="mt-3 w-full" disabled={!p.election_date || !weeksToVote.length || toPlan <= 0} onClick={build}>Fill the weeks</Button>
+              {(!p.election_date || toPlan <= 0) && <p className="mt-2 text-xs text-amber-700">{!p.election_date ? "Do step 1 first." : "Do step 2 first."}</p>}
+            </Step>
+          </ol>
           {draft && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gold-50 px-4 py-3 ring-1 ring-gold/30">
-              <p className="text-sm text-navy-900">Draft: <b>{num(draft.reduce((a, w) => a + w.target, 0))}</b> across {draft.length} weeks. Nothing is saved yet.</p>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-gold-50 px-5 py-3">
+              <p className="text-sm text-navy-900">Draft: <b>{num(draft.reduce((a, w) => a + w.target, 0))}</b> across {draft.length} weeks, shown below. Nothing is saved yet.</p>
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>Discard</Button>
                 <Button size="sm" icon={<Check className="size-3.5" />} loading={save.isPending}
@@ -199,7 +219,7 @@ export default function PlanPage() {
         <div className="hidden border-b border-line bg-slate-50 px-5 py-2.5 text-xs font-bold tracking-wider text-slate-500 uppercase sm:grid sm:grid-cols-[minmax(0,1.3fr)_7rem_6rem_6rem_minmax(0,1fr)_7rem] sm:gap-4">
           <span>Week</span><span className="text-right">Plan</span><span className="text-right">Per day</span><span className="text-right">Actual</span><span>Progress</span><span>Status</span>
         </div>
-        {rows.length === 0 ? <p className="px-5 py-10 text-center text-sm text-slate-500">No plan yet. {hq ? "Set election day and press “Fill the weeks”." : "HQ hasn't built one yet."}</p> : (
+        {rows.length === 0 ? <p className="px-5 py-10 text-center text-sm text-slate-500">No plan yet. {hq ? "Follow the three steps above." : "HQ hasn't built one yet."}</p> : (
           <ul className="divide-y divide-line">
             {rows.map((w, i) => {
               const status = w.current ? ["This week", "bg-ocean-50 text-ocean ring-ocean/20"] : !w.past ? ["Upcoming", "bg-slate-100 text-slate-600 ring-slate-200"]
@@ -232,5 +252,19 @@ export default function PlanPage() {
         )}
       </Card>
     </>
+  );
+}
+
+function Step({ n, done, title, children }: { n: number; done: boolean; title: string; children: React.ReactNode }) {
+  return (
+    <li className="p-5">
+      <p className="mb-3 flex items-center gap-2 text-sm font-bold text-navy-900">
+        <span className={cn("grid size-6 place-items-center rounded-full text-xs font-extrabold", done ? "bg-kenya-green text-white" : "bg-navy-950 text-gold")}>
+          {done ? <Check className="size-3.5" strokeWidth={3} /> : n}
+        </span>
+        {title}
+      </p>
+      {children}
+    </li>
   );
 }
