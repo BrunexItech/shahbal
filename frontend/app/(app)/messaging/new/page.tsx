@@ -16,6 +16,7 @@ import { CAMPAIGN_NAME } from "@/lib/config";
 import { num } from "@/lib/format";
 import { can } from "@/lib/roles";
 import type { Audience, Channel, Preview, Support, VoterStatus } from "@/lib/types";
+import { SmsDraftButton } from "@/features/ai/SmsDraftButton";
 
 const PLACEHOLDERS = [
   ["{first_name}", "First name"],
@@ -167,6 +168,7 @@ export default function ComposeMessagePage() {
                     <button key={token} type="button" onClick={() => insert(token)}
                       className="rounded-lg bg-ocean-50 px-2 py-1 text-xs font-semibold text-ocean ring-1 ring-ocean/15 hover:bg-ocean/10">{label}</button>
                   ))}
+                  <span className="ml-auto"><SmsDraftButton channel={channel} onUse={setBody} /></span>
                 </div>
                 <Textarea ref={bodyRef} label="Text" required rows={5} maxLength={1000} value={body} error={errors.body} onChange={(e) => setBody(e.target.value)} />
                 <p className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-muted">

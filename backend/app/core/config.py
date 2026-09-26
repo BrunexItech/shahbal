@@ -100,6 +100,12 @@ class Settings(BaseSettings):
     turn_password: str = ""
     # The PBX (pbx/) pulls agents' SIP lines from GET /api/v1/calls/pbx/lines with this secret.
     pbx_sync_secret: str = ""
+
+    # AI assistant (OpenAI). Empty key = every AI button stays hidden; nothing else changes.
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
+    ai_requests_per_hour: int = 60  # per person
     stun_servers: list[str] = ["stun:stun.l.google.com:19302"]
     recordings_dir: str = "./data/recordings"  # a persistent volume in production (photos live in a sibling folder)
     recording_retention_days: int = 90

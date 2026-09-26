@@ -57,6 +57,9 @@ async def clean():
     from app.modules.issues import router as issues_router
 
     issues_router._submit_limit._hits.clear()
+    from app.modules.ai import router as ai_router
+
+    ai_router._limit._hits.clear()
     issues_router._track_limit._hits.clear()
 
 

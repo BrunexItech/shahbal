@@ -1,12 +1,17 @@
 "use client";
 
-import { Check, Lock, MapPin, Repeat, Trash2, Users, X } from "lucide-react";
+import { Bot, Check, Lock, MapPin, Repeat, Trash2, Users, X } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Badge, Button, Modal } from "@/components/ui";
 import { useConfirm } from "@/components/ui/Confirm";
+import { talkingPoints, useAiStatus } from "@/features/ai/api";
+import { Markdown } from "@/features/ai/Markdown";
+import { useUser } from "@/lib/auth";
 import { num } from "@/lib/format";
+import { can } from "@/lib/roles";
 
 import { useDeleteEvent, useUpdateEvent } from "./api";
 import { type Entry, FAMILY, kindOf } from "./meta";
@@ -58,6 +63,7 @@ export function EntryDetails({ entry: e, onClose }: { entry: Entry; onClose: () 
           {e.target != null && <div><dt className="text-xs text-slate-500">{e.source === "sms" ? "Recipients" : "Target"}</dt><dd className="font-semibold text-navy-900">{num(e.target)}</dd></div>}
         </dl>
         {e.notes && <p className="rounded-xl bg-slate-50 p-3 text-sm whitespace-pre-line text-slate-700 ring-1 ring-line">{e.notes}</p>}
+        {e.source === "visit" && e.ward_id && <TalkingPoints wardId={e.ward_id} event={`${m.label}: ${e.title}`} />}
 
         <div className="flex flex-wrap gap-2 border-t border-line pt-4">
           {e.source === "visit" && <Link href="/visits" className="inline-flex h-9 items-center rounded-xl bg-navy-950 px-3 text-sm font-semibold text-white">Open in Campaign Visits</Link>}
@@ -74,5 +80,23 @@ export function EntryDetails({ entry: e, onClose }: { entry: Entry; onClose: () 
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Optional: what to speak about at this event, from what the ward has been raising. */
+function TalkingPoints({ wardId, event }: { wardId: string; event: string }) {
+  const user = useUser();
+  const status = useAiStatus();
+  const [busy, setBusy] = useState(false);
+  const [text, setText] = useState("");
+  if (!status.data?.enabled || !can.manageStations(user.role)) return null;
+  if (text) return <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-line"><p className="mb-1 flex items-center gap-1.5 text-xs font-bold tracking-wider text-slate-500 uppercase"><Bot className="size-3.5" /> Talking points (a draft to adapt)</p><Markdown text={text} /></div>;
+  return (
+    <button type="button" disabled={busy} onClick={async () => {
+      setBusy(true);
+      try { setText((await talkingPoints(wardId, event)).points); } catch (err) { toast.error(err instanceof Error ? err.message : "Couldn't prepare talking points"); } finally { setBusy(false); }
+    }} className="inline-flex items-center gap-1.5 rounded-lg bg-navy-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-navy-900 disabled:opacity-60">
+      <Bot className="size-3.5 text-gold" /> {busy ? "Preparing…" : "Talking points for this event"}
+    </button>
   );
 }

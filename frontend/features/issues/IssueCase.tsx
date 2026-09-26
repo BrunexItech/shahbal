@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ExternalLink, MapPin, MessageSquareText, Phone, UserRound } from "lucide-react";
+import { Bot, Camera, ExternalLink, MapPin, MessageSquareText, Phone, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -9,6 +9,8 @@ import { Badge, Button, Modal, Select, Textarea } from "@/components/ui";
 import { PhotoImg } from "@/features/visits/photos";
 import { cn } from "@/lib/cn";
 import { dateTime, timeAgo } from "@/lib/format";
+
+import { issueAssist, useAiStatus } from "@/features/ai/api";
 
 import { useAssignees, useIssue, useIssuePhoto, useUpdateIssue } from "./api";
 import { CATEGORIES, CATEGORY, type IssuePriority, type IssueStatus, PRIORITY, SOURCE, STATUS, STATUS_FLOW } from "./meta";
@@ -123,7 +125,12 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
           {/* Coordinator controls */}
           {d.can_manage && (
             <section className="space-y-3 rounded-2xl p-4 ring-1 ring-line">
-              <p className="text-sm font-bold text-navy-900">Move the case on</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold text-navy-900">Move the case on</p>
+                <AiAssist id={d.id} onReply={(text) => { setNote(text); setShare(true); }}
+                  onTopic={(topic) => run({ category: topic as typeof d.category }, "Topic updated")}
+                  onUrgent={() => run({ priority: "urgent" }, "Marked urgent")} current={{ category: d.category, priority: d.priority }} />
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Select label="Priority" value={d.priority} disabled={update.isPending} onChange={(e) => run({ priority: e.target.value as IssuePriority }, "Priority updated")}>
                   {(Object.keys(PRIORITY) as IssuePriority[]).map((p) => <option key={p} value={p}>{PRIORITY[p].label}</option>)}
@@ -173,5 +180,45 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Optional help: topic, urgency, likely duplicates and a draft reply. Nothing changes until you apply it. */
+function AiAssist({ id, current, onReply, onTopic, onUrgent }: {
+  id: string; current: { category: string; priority: string }; onReply: (t: string) => void; onTopic: (t: string) => void; onUrgent: () => void;
+}) {
+  const status = useAiStatus();
+  const [busy, setBusy] = useState(false);
+  const [r, setR] = useState<Awaited<ReturnType<typeof issueAssist>> | null>(null);
+  if (!status.data?.enabled) return null;
+  if (!r) {
+    return (
+      <button type="button" disabled={busy} onClick={async () => {
+        setBusy(true);
+        try { setR(await issueAssist(id)); } catch (e) { toast.error(e instanceof Error ? e.message : "The assistant couldn't help"); } finally { setBusy(false); }
+      }} className="inline-flex items-center gap-1.5 rounded-lg bg-navy-950 px-2.5 py-1 text-xs font-semibold text-white hover:bg-navy-900 disabled:opacity-60">
+        {busy ? <Spinner size="sm" /> : <Bot className="size-3.5 text-gold" />} Help from AI
+      </button>
+    );
+  }
+  const topic = r.topic ? CATEGORY[r.topic as keyof typeof CATEGORY] : null;
+  return (
+    <div className="w-full space-y-2 rounded-xl bg-navy-950/[.03] p-3 text-sm ring-1 ring-line">
+      <p className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-slate-500 uppercase"><Bot className="size-3.5" /> Suggestions (check before applying)</p>
+      {topic && topic.id !== current.category && (
+        <p className="flex flex-wrap items-center justify-between gap-2"><span>Topic looks like <b>{topic.en}</b></span><button type="button" onClick={() => onTopic(topic.id)} className="text-xs font-semibold text-ocean hover:underline">Apply</button></p>
+      )}
+      {r.urgent && current.priority !== "urgent" && (
+        <p className="flex flex-wrap items-center justify-between gap-2 text-kenya-red"><span>Looks urgent: {r.why}</span><button type="button" onClick={onUrgent} className="text-xs font-semibold text-ocean hover:underline">Mark urgent</button></p>
+      )}
+      {r.duplicates.length > 0 && <p>Possibly the same problem as <b>{r.duplicates.join(", ")}</b>.</p>}
+      {r.reply && (
+        <div className="rounded-lg bg-white p-2.5 ring-1 ring-line">
+          <p className="text-slate-700">{r.reply}</p>
+          <button type="button" onClick={() => onReply(r.reply)} className="mt-1 text-xs font-semibold text-ocean hover:underline">Use as the update to the resident</button>
+        </div>
+      )}
+      {!topic && !r.urgent && !r.duplicates.length && !r.reply && <p className="text-slate-500">No suggestions for this case.</p>}
+    </div>
   );
 }
