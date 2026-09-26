@@ -12,6 +12,8 @@ import { toast } from "sonner";
 
 import { Skeleton, Spinner } from "@/components/loaders";
 import { useStations } from "@/features/geo/api";
+import { useIssuePins } from "@/features/issues/api";
+import { CATEGORY, STATUS } from "@/features/issues/meta";
 import { useBoundaries, useConstituencyOutlines, useMapOverview } from "@/features/map/api";
 import { CONSTITUENCY_COLORS, PROGRESS_STEPS } from "@/features/map/regions";
 import { PhotoImg, useVisitPhotos } from "@/features/visits/photos";
@@ -19,6 +21,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { API_URL, GIS_URL, MAPILLARY_TOKEN, REGISTER, REGISTER_YEAR } from "@/lib/config";
 import { dateTime, num, pct } from "@/lib/format";
+import type { IssuePin } from "@/features/issues/api";
 import type { MapOverview, Station } from "@/lib/types";
 
 import { downloadCsv, placeRows, printMap, save, wardRows } from "./exports";
@@ -52,11 +55,12 @@ export function GisWorkspace() {
   const cons = useConstituencyOutlines();
   const density = useQuery({ queryKey: ["map", "density"], queryFn: () => api<FeatureCollection>("/map/density"), staleTime: 5 * 60_000 });
   const mapRef = useRef<GisMapHandle>(null);
+  const issuePins = useIssuePins();
 
   const [base, setBase] = useState<Base>("streets");
   const [threeD, setThreeD] = useState(false);
   const [theme, setTheme] = useState<Theme>("captures");
-  const [layers, setLayers] = useState<GisLayers>({ wards: true, labels: true, stations: false, places: true, density: false, street: false });
+  const [layers, setLayers] = useState<GisLayers>({ wards: true, labels: true, stations: false, places: true, density: false, street: false, issues: true });
   const [panel, setPanel] = useState<Panel>(null);
   const [measuring, setMeasuring] = useState<"off" | "distance" | "area">("off");
   const [measureReset, setMeasureReset] = useState(0);
@@ -115,7 +119,7 @@ export function GisWorkspace() {
   return (
     <div className="relative -mx-4 -mt-6 -mb-24 h-[calc(100dvh-9rem)] overflow-hidden sm:-mx-6 lg:-mx-8 lg:-mb-12 lg:h-[calc(100dvh-4rem)]">
       {d && wards.data && cons.data ? (
-        <GisMap ref={mapRef} data={d} wards={wards.data} constituencies={cons.data} density={density.data ?? null}
+        <GisMap ref={mapRef} data={d} issues={issuePins.data ?? []} wards={wards.data} constituencies={cons.data} density={density.data ?? null}
           base={base} threeD={threeD} theme={theme} layers={layers} measuring={measuring} measureReset={measureReset} onMeasure={setMeasure}
           replayAt={replay.on ? replay.t : null} onSelect={setSelected} selected={selected} focus={focus} />
       ) : <Skeleton className="absolute inset-0 rounded-none" />}
@@ -178,7 +182,7 @@ export function GisWorkspace() {
             ))}
           </div>
           <p className="mt-4 mb-2 text-xs font-bold tracking-wider text-slate-500 uppercase">Show on map</p>
-          {([["wards", "Ward colours"], ["places", "Places visited"], ["stations", "Polling stations"], ["labels", "Names"], ["density", "Capture heatmap"]] as const).map(([k, label]) => (
+          {([["wards", "Ward colours"], ["places", "Places visited"], ["issues", "Community issues"], ["stations", "Polling stations"], ["labels", "Names"], ["density", "Capture heatmap"]] as const).map(([k, label]) => (
             <label key={k} className="flex cursor-pointer items-center justify-between rounded-lg px-1 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
               {label}
               <Switch on={layers[k]} onChange={() => setLayers((l) => ({ ...l, [k]: !l[k] }))} />
@@ -218,6 +222,14 @@ export function GisWorkspace() {
           ))}
         </div>
         {threeD && layers.wards && <p className="mt-1.5 text-xs text-slate-500">Column height = people captured</p>}
+        {layers.issues && !!issuePins.data?.length && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-line pt-2">
+            <span className="text-xs font-semibold text-slate-500">Issues:</span>
+            {(["new", "acknowledged", "in_progress", "resolved"] as const).map((k) => (
+              <span key={k} className="inline-flex items-center gap-1.5 text-xs text-slate-700"><span className="size-3 rounded-full ring-2 ring-white" style={{ background: STATUS[k].color }} />{STATUS[k].en}</span>
+            ))}
+          </div>
+        )}
         {(layers.stations || selected?.kind === "ward" || selected?.kind === "station") && (
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-line pt-2">
             {Object.values(STATION_LOOK).map((l) => (
@@ -251,7 +263,7 @@ export function GisWorkspace() {
       )}
 
       {/* Details */}
-      {selected && d && <Details d={d} selected={selected} onClose={() => setSelected(null)} onSelect={setSelected}
+      {selected && d && <Details d={d} issues={issuePins.data ?? []} selected={selected} onClose={() => setSelected(null)} onSelect={setSelected}
         onFocus={(p, zoom) => setFocus({ lng: p.lng, lat: p.lat, zoom, key: Date.now() })} />}
     </div>
   );
@@ -286,15 +298,17 @@ function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
 
 type Pt = { lat: number; lng: number };
 
-function Details({ d, selected, onClose, onFocus, onSelect }: {
-  d: MapOverview; selected: NonNullable<Selection>; onClose: () => void; onFocus: (p: Pt, zoom?: number) => void; onSelect: (s: Selection) => void;
+function Details({ d, issues, selected, onClose, onFocus, onSelect }: {
+  d: MapOverview; issues: IssuePin[]; selected: NonNullable<Selection>; onClose: () => void; onFocus: (p: Pt, zoom?: number) => void; onSelect: (s: Selection) => void;
 }) {
   const ward = selected.kind === "ward" ? d.wards.find((w) => w.id === selected.id) : null;
   const station = selected.kind === "station" ? d.stations.find((s) => s.id === selected.id) : null;
   const stationWard = station ? d.wards.find((w) => w.id === station.ward_id) : null;
+  const issue = selected.kind === "issue" ? issues.find((i) => i.id === selected.id) : null;
   const place = selected.kind === "place" ? d.places.find((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}` === selected.key) : null;
-  const eyebrow = ward ? ward.constituency : station ? `${stationWard?.name ?? ""} ward` : place ? place.ward : "Street level";
-  const title = ward?.name ?? station?.name ?? place?.venue ?? "Street photo";
+  const issueWard = issue ? d.wards.find((w) => w.id === issue.ward_id) : null;
+  const eyebrow = ward ? ward.constituency : station ? `${stationWard?.name ?? ""} ward` : issue ? `${CATEGORY[issue.category].en} · ${issue.reference}` : place ? place.ward : "Street level";
+  const title = ward?.name ?? station?.name ?? issue?.summary ?? place?.venue ?? "Street photo";
   return (
     <aside className="absolute inset-x-3 bottom-3 max-h-[60%] animate-fade-up overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-line sm:inset-x-auto sm:top-24 sm:right-4 sm:bottom-auto sm:max-h-[calc(100%-7rem)] sm:w-[380px]">
       <div className="sticky top-0 z-10 flex items-start justify-between gap-3 bg-navy-950 px-4 py-3 text-white">
@@ -323,6 +337,17 @@ function Details({ d, selected, onClose, onFocus, onSelect }: {
               ))}
             </div>
             <p className="text-xs text-slate-500">Last visit: {ward.last_visit_at ? dateTime(ward.last_visit_at) : "never"}</p>
+            {(() => {
+              const open = issues.filter((i) => i.ward_id === ward.id && i.status !== "resolved");
+              if (!open.length) return null;
+              const top = Object.entries(open.reduce<Record<string, number>>((a, i) => ({ ...a, [i.category]: (a[i.category] ?? 0) + 1 }), {})).sort((a, b) => b[1] - a[1])[0][0];
+              return (
+                <a href="/issues" className="flex items-center justify-between rounded-xl bg-red-50 px-3 py-2.5 text-sm ring-1 ring-red-100 hover:bg-red-100/60">
+                  <span className="text-navy-900"><b>{open.length}</b> open community issue{open.length > 1 ? "s" : ""} · mostly {CATEGORY[top as keyof typeof CATEGORY].en.toLowerCase()}</span>
+                  <span className="text-xs font-semibold text-kenya-red">View</span>
+                </a>
+              );
+            })()}
             <WardCentres wardId={ward.id} d={d} onPick={(id, pt) => { onSelect({ kind: "station", id }); onFocus(pt, 17); }} />
             {d.places.some((p) => p.ward_id === ward.id) && <p className="text-xs font-bold tracking-wider text-slate-500 uppercase">Places visited</p>}
             {d.places.filter((p) => p.ward_id === ward.id).map((p) => (
@@ -334,6 +359,19 @@ function Details({ d, selected, onClose, onFocus, onSelect }: {
           </div>
         )}
         {station && <StationCard s={station} onZoom={() => onFocus(station, 17.5)} />}
+        {issue && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white" style={{ background: STATUS[issue.status].color }}>{STATUS[issue.status].en}</span>
+              {issue.priority !== "normal" && <span className="text-xs font-semibold text-kenya-red uppercase">{issue.priority}</span>}
+              <span className="text-xs text-slate-500">{issueWard?.name} · reported {dateTime(issue.created_at)}</span>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => onFocus(issue, 17.5)} className="flex-1 rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-navy-900 hover:bg-slate-200">Zoom in</button>
+              <a href={`/issues?case=${issue.id}`} className="inline-flex flex-1 items-center justify-center rounded-xl bg-navy-950 px-3 py-2 text-sm font-semibold text-white hover:bg-navy-900">Open the case</a>
+            </div>
+          </div>
+        )}
         {place && (
           <div className="space-y-3">
             <p className="text-sm text-slate-600">Visited <b className="text-navy-900">{place.count} {place.count === 1 ? "time" : "times"}</b>{place.attendance ? <> · <b className="text-navy-900">{num(place.attendance)}</b> attended</> : null}</p>

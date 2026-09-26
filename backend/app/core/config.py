@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_name: str = "Campaign HQ"
+    sms_sender_name: str = "Team Shahbal"  # how system SMS introduce themselves
     timezone: str = "Africa/Nairobi"
     database_url: str = "postgresql+asyncpg://shahbal:shahbal@localhost:5436/shahbal"
     jwt_secret: str = "change-me"

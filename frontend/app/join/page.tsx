@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, BellRing, CalendarCheck, Check, Copy, HeartHandshake, Lock, MapPin, Share2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BellRing, CalendarCheck, Check, Copy, HeartHandshake, Lock, MapPin, Megaphone, Search, Share2, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { Button, Input, Segmented } from "@/components/ui";
 import { BirthYearInput, birthYearError } from "@/components/ui/BirthYearInput";
 import { usePortalGeo, usePortalStations } from "@/features/geo/api";
 import { LocationPicker, type LocationValue } from "@/features/geo/LocationPicker";
+import { ReportIssue, TrackIssue } from "@/features/issues/PublicVoice";
 import { api, ApiError, apiUrl } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { CAMPAIGN_NAME, CANDIDATE_NAME } from "@/lib/config";
@@ -33,6 +34,10 @@ const T = {
     card: "Supporter", share: "Share on WhatsApp", copy: "Copy my link", copied: "Link copied", again: "Register someone else",
     qr: "Scan to join", invited: "You were invited by a friend. Karibu!",
     shareText: `I've joined Team Shahbal for Mombasa. Join me here:`,
+    modes: ["Join the team", "Tell us what matters", "Track a report"],
+    voiceTag: "Community Voice", voiceA: "Your street, your voice,", voiceB: "Mombasa.",
+    voiceLead: "Water, roads, security, jobs: tell us what needs fixing where you live. Every report reaches the ward team and gets a reference you can follow.",
+    voicePerks: ["Goes straight to your ward team", "Anonymous if you prefer", "Follow it with a reference"],
   },
   sw: {
     tag: "Jisajili kama mfuasi", h1a: "Jiunge na harakati,", h1b: "Mombasa.", lead: "Dakika mbili tu. Jua mapema timu ikifika wadi yako, na upate ukumbusho siku ya kupiga kura.",
@@ -47,10 +52,17 @@ const T = {
     card: "Mfuasi", share: "Shiriki WhatsApp", copy: "Nakili kiungo", copied: "Kiungo kimenakiliwa", again: "Sajili mtu mwingine",
     qr: "Changanua kujiunga", invited: "Umealikwa na rafiki. Karibu!",
     shareText: "Nimejiunga na Team Shahbal kwa ajili ya Mombasa. Jiunge nami hapa:",
+    modes: ["Jiunge na timu", "Tuambie kero zako", "Fuatilia ripoti"],
+    voiceTag: "Sauti ya Jamii", voiceA: "Mtaa wako, sauti yako,", voiceB: "Mombasa.",
+    voiceLead: "Maji, barabara, usalama, ajira: tuambie kinachohitaji kurekebishwa unapoishi. Kila ripoti inafika kwa timu ya wadi na inapata nambari ya kufuatilia.",
+    voicePerks: ["Inafika moja kwa moja kwa timu ya wadi", "Bila jina ukipenda", "Ifuatilie kwa nambari"],
   },
 } as const;
 
 const PERK_ICONS = [BellRing, CalendarCheck, HeartHandshake];
+const VOICE_ICONS = [MapPin, Lock, Search];
+type Mode = "join" | "voice" | "track";
+const MODE_ICONS = [UserPlus, Megaphone, Search];
 
 export default function JoinPage() {
   const geo = usePortalGeo();
@@ -64,12 +76,16 @@ export default function JoinPage() {
   const [done, setDone] = useState<{ code: string | null } | null>(null);
   const [ref, setRef] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
+  const [mode, setMode] = useState<Mode>("join");
   const set = <K extends keyof Form>(k: K, v: Form[K]) => { setF((x) => ({ ...x, [k]: v })); setErrors((e) => ({ ...e, [k]: "" })); };
 
   useEffect(() => {
     setOrigin(window.location.origin);
     const r = new URLSearchParams(window.location.search).get("ref");
     if (r && /^[A-Z2-7]{8}$/.test(r)) setRef(r);
+    const q = new URLSearchParams(window.location.search);
+    if (q.has("voice")) setMode("voice");
+    else if (q.has("track")) setMode("track");
     try {
       const saved = window.localStorage.getItem("join.lang");
       if (saved === "sw" || saved === "en") setLang(saved);
@@ -133,7 +149,7 @@ export default function JoinPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <BrandMark className="size-10" />
-              <div><p className="font-display font-bold">{CAMPAIGN_NAME}</p><p className="text-xs text-slate-400">{t.tag} · {CANDIDATE_NAME}</p></div>
+              <div><p className="font-display font-bold">{CAMPAIGN_NAME}</p><p className="text-xs text-slate-400">{mode === "join" ? t.tag : t.voiceTag} · {CANDIDATE_NAME}</p></div>
             </div>
             <div role="group" aria-label="Language" className="inline-flex rounded-full bg-white/10 p-1 ring-1 ring-white/15">
               {(["en", "sw"] as const).map((l) => (
@@ -144,11 +160,11 @@ export default function JoinPage() {
               ))}
             </div>
           </div>
-          <h1 className="mt-10 text-4xl leading-[1.05] font-extrabold sm:text-6xl">{t.h1a} <span className="bg-gradient-to-r from-gold to-[#f1d57a] bg-clip-text text-transparent">{t.h1b}</span></h1>
-          <p className="mt-4 max-w-xl text-base text-slate-300 sm:text-lg">{t.lead}</p>
+          <h1 className="mt-10 text-4xl leading-[1.05] font-extrabold sm:text-6xl">{mode === "join" ? t.h1a : t.voiceA} <span className="bg-gradient-to-r from-gold to-[#f1d57a] bg-clip-text text-transparent">{mode === "join" ? t.h1b : t.voiceB}</span></h1>
+          <p className="mt-4 max-w-xl text-base text-slate-300 sm:text-lg">{mode === "join" ? t.lead : t.voiceLead}</p>
           <ul className="mt-6 flex flex-wrap gap-2">
-            {t.perks.map((p, i) => {
-              const Icon = PERK_ICONS[i];
+            {(mode === "join" ? t.perks : t.voicePerks).map((p, i) => {
+              const Icon = (mode === "join" ? PERK_ICONS : VOICE_ICONS)[i];
               return (
                 <li key={p} className="inline-flex items-center gap-2 rounded-full bg-white/[.07] px-3.5 py-2 text-sm font-medium ring-1 ring-white/10 backdrop-blur">
                   <Icon className="size-4 text-gold" /> {p}
@@ -156,13 +172,28 @@ export default function JoinPage() {
               );
             })}
           </ul>
-          {ref && !done && <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-kenya-green/25 px-3 py-1.5 text-sm font-semibold text-[#9ff0c5] ring-1 ring-kenya-green/40"><HeartHandshake className="size-4" /> {t.invited}</p>}
+          {ref && !done && mode === "join" && <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-kenya-green/25 px-3 py-1.5 text-sm font-semibold text-[#9ff0c5] ring-1 ring-kenya-green/40"><HeartHandshake className="size-4" /> {t.invited}</p>}
         </div>
       </header>
 
       <main className="relative mx-auto -mt-24 max-w-3xl px-4 pb-16">
+        <div role="tablist" aria-label="What would you like to do?" className="mb-3 grid grid-cols-3 gap-1 rounded-2xl bg-white/95 p-1 shadow-[0_18px_40px_-24px_rgba(6,16,31,.6)] ring-1 ring-line backdrop-blur">
+          {t.modes.map((label, i) => {
+            const id = (["join", "voice", "track"] as const)[i];
+            const Icon = MODE_ICONS[i];
+            return (
+              <button key={id} role="tab" aria-selected={mode === id} onClick={() => setMode(id)}
+                className={cn("flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 py-2 text-center text-sm leading-tight font-bold transition",
+                  mode === id ? "bg-navy-950 text-white shadow" : "text-slate-600 hover:bg-slate-50 hover:text-navy-900")}>
+                <Icon className={cn("hidden size-4 shrink-0 sm:block", mode === id ? "text-gold" : "")} />{label}
+              </button>
+            );
+          })}
+        </div>
         <div className="overflow-hidden rounded-3xl bg-white shadow-[0_30px_70px_-30px_rgba(6,16,31,.5)] ring-1 ring-line">
-          {done ? (
+          {mode === "voice" ? <ReportIssue lang={lang} onJoin={() => { setMode("join"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+          : mode === "track" ? <TrackIssue lang={lang} />
+          : done ? (
             <Welcome t={t} name={f.full_name} ward={wardName} cons={consName} link={link} code={done.code}
               onAgain={() => { setF(EMPTY); setDone(null); setStep(0); }} />
           ) : (

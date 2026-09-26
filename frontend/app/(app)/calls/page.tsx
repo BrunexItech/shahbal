@@ -1,6 +1,6 @@
 "use client";
 
-import { Headphones, History, MapPin, Phone, PhoneOff, Smartphone, SkipForward, Trophy } from "lucide-react";
+import { Headphones, History, MapPin, Megaphone, Phone, PhoneOff, SkipForward, Smartphone, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 import { dateTime, initials, num, timeAgo } from "@/lib/format";
 import { can } from "@/lib/roles";
 import type { CallOutcome, CallQueue, Claim, Support } from "@/lib/types";
+import { ReportIssueModal } from "@/features/issues/ReportIssueModal";
 
 const QUEUES: { id: CallQueue; label: string; hint: string }[] = [
   { id: "verify", label: "Verify", hint: "Confirm details of new records" },
@@ -216,6 +217,7 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
   const [verify, setVerify] = useState(v.status === "pending");
   const [notes, setNotes] = useState("");
   const [issue, setIssue] = useState("");
+  const [logging, setLogging] = useState(false);
   const [followUp, setFollowUp] = useState("");
   const [saving, setSaving] = useState(false);
   const live = ["dialing", "ringing", "in_call"].includes(phone.state);
@@ -259,6 +261,9 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
   }
 
   return (
+    <>
+    {logging && <ReportIssueModal onClose={() => setLogging(false)}
+      defaults={{ ward_id: v.ward_id, reporter_name: v.full_name, voter_id: v.id, reporter_phone: /^\+254\d{9}$/.test(v.phone) ? v.phone : undefined }} />}
     <Card className="animate-fade-up overflow-hidden">
       <div className="flex flex-col gap-4 bg-gradient-to-r from-navy-950 to-navy-800 p-5 text-white sm:flex-row sm:items-center">
         <span className="grid size-14 place-items-center rounded-2xl bg-white/10 font-display text-xl font-bold text-gold">{initials(v.full_name)}</span>
@@ -328,7 +333,12 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
                   <span>I confirmed their name, ward and polling station, so <b>mark this record verified</b></span>
                 </label>
               )}
-              <Input label="Main issue raised" value={issue} onChange={(e) => setIssue(e.target.value)} placeholder="e.g. water, jobs, roads" maxLength={120} />
+              <div>
+                <Input label="Main issue raised" value={issue} onChange={(e) => setIssue(e.target.value)} placeholder="e.g. water, jobs, roads" maxLength={120} />
+                <button type="button" onClick={() => setLogging(true)} className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-ocean hover:underline">
+                  <Megaphone className="size-3.5" /> Log it as a Community Voice case so the ward team follows up
+                </button>
+              </div>
             </div>
           )}
           {outcome === "call_back" && (
@@ -362,5 +372,6 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
         </div>
       </div>
     </Card>
+    </>
   );
 }

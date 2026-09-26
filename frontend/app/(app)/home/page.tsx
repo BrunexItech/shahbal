@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarCheck, ChevronRight, LocateFixed, MapPin, MapPinned, Trophy, UserPlus } from "lucide-react";
+import { CalendarCheck, ChevronRight, LocateFixed, MapPin, MapPinned, Megaphone, Trophy, UserPlus } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
@@ -11,6 +11,7 @@ import { Card, EmptyState, ErrorState, StatusBadge } from "@/components/ui";
 import { CountUp, Ring } from "@/components/ui/Motion";
 import { useStations } from "@/features/geo/api";
 import { PinStationModal } from "@/features/geo/PinStation";
+import { ReportIssueModal } from "@/features/issues/ReportIssueModal";
 import { useBoundaries, useMapOverview } from "@/features/map/api";
 import type { Layers } from "@/features/map/CoverageMap";
 import { QuickVisitModal } from "@/features/visits/QuickVisit";
@@ -43,6 +44,7 @@ export default function MyAreaPage() {
   const user = useUser();
   const [quick, setQuick] = useState(false);
   const [pinning, setPinning] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const q = useQuery({ queryKey: ["my-area"], queryFn: () => api<Area>("/dashboard/my-area"), refetchInterval: 30_000 });
   const overview = useMapOverview();
   const boundaries = useBoundaries();
@@ -97,7 +99,17 @@ export default function MyAreaPage() {
         </button>
       </div>
 
-      <MapTheWard wardId={a.ward.id} ward={a.ward.name} onPin={() => setPinning(true)} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button onClick={() => setReporting(true)} className="flex w-full items-center gap-4 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-line transition hover:ring-ocean/40 active:scale-[.99]">
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-ocean/10 text-ocean"><Megaphone className="size-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-navy-900">Report a community issue</span>
+            <span className="block text-xs text-slate-500">Water, roads, security… a resident raised it? Log it with a photo.</span>
+          </span>
+          <ChevronRight className="size-5 shrink-0 text-slate-400" />
+        </button>
+        <MapTheWard wardId={a.ward.id} ward={a.ward.name} onPin={() => setPinning(true)} />
+      </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Rank */}
@@ -165,6 +177,7 @@ export default function MyAreaPage() {
       </Card>
 
       {quick && <QuickVisitModal onClose={() => setQuick(false)} />}
+      {reporting && <ReportIssueModal onClose={() => setReporting(false)} defaults={{ ward_id: a.ward.id }} />}
       {pinning && <PinStationModal wardId={a.ward.id} onClose={() => setPinning(false)} />}
     </div>
   );

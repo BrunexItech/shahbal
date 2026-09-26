@@ -16,6 +16,7 @@ import { CAMPAIGN_NAME, CANDIDATE_NAME } from "@/lib/config";
 import { num, pct } from "@/lib/format";
 import { useLive } from "@/lib/live";
 import { can, homeFor, ROLE_LABEL } from "@/lib/roles";
+import { useIssueStats } from "@/features/issues/api";
 
 export function isActive(pathname: string, href: string) {
   if (href === "/voters") return pathname === "/voters" || (/^\/voters\/[^/]+$/.test(pathname) && pathname !== "/voters/new");
@@ -51,6 +52,7 @@ export function Sidebar() {
   const { logout } = useAuth();
   const { collapsed, toggle } = useShell();
   const { data: d } = useDashboard(can.oversee(user.role));
+  const voice = useIssueStats(can.manageStations(user.role)); // cases nobody has picked up yet
   const { pulse, connected } = useLive();
   const items = NAV.filter((n) => n.show(user.role));
   const sections = [...new Set(items.map((i) => i.section))];
@@ -59,6 +61,7 @@ export function Sidebar() {
   const badges: Record<string, number | undefined> = {
     "/verification": d?.totals.pending,
     "/messaging": d?.ops.approvals_pending || undefined,
+    "/issues": voice.data?.new || undefined,
   };
 
   return (

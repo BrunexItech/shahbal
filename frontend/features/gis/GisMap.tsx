@@ -10,14 +10,16 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { tooltip } from "@/features/map/CoverageMap";
 import { CONSTITUENCY_COLORS, PROGRESS_STEPS } from "@/features/map/regions";
 import { MAP_STYLE, MAPILLARY_TOKEN, REGISTER_YEAR } from "@/lib/config";
+import type { IssuePin } from "@/features/issues/api";
+import { CATEGORY, STATUS } from "@/features/issues/meta";
 import type { MapOverview } from "@/lib/types";
 
 import { area, type LngLat, pathLength } from "./measure";
 
 export type Base = "streets" | "satellite";
 export type Theme = "constituency" | "progress" | "visits" | "captures";
-export type GisLayers = { wards: boolean; labels: boolean; stations: boolean; places: boolean; density: boolean; street: boolean };
-export type Selection = { kind: "ward"; id: string } | { kind: "station"; id: string } | { kind: "place"; key: string } | { kind: "street"; id: string } | null;
+export type GisLayers = { wards: boolean; labels: boolean; stations: boolean; places: boolean; density: boolean; street: boolean; issues: boolean };
+export type Selection = { kind: "ward"; id: string } | { kind: "station"; id: string } | { kind: "issue"; id: string } | { kind: "place"; key: string } | { kind: "street"; id: string } | null;
 export type MeasureResult = { points: number; distance: number; area: number };
 export type GisMapHandle = { image: () => string | null; home: () => void };
 
@@ -52,6 +54,7 @@ function rings(f: Feature) {
 
 export const GisMap = forwardRef<GisMapHandle, {
   data: MapOverview;
+  issues: IssuePin[];
   wards: FeatureCollection;
   constituencies: FeatureCollection;
   density: FeatureCollection | null;
@@ -67,7 +70,7 @@ export const GisMap = forwardRef<GisMapHandle, {
   selected: Selection;
   focus: { lng: number; lat: number; zoom?: number; key: number } | null;
 }>(function GisMap(props, ref) {
-  const { data, wards, constituencies, density, base, threeD, theme, layers, measuring, measureReset, onMeasure, replayAt, onSelect, selected, focus } = props;
+  const { data, issues, wards, constituencies, density, base, threeD, theme, layers, measuring, measureReset, onMeasure, replayAt, onSelect, selected, focus } = props;
   // The ward being looked at: the selected ward, or the ward of the selected station.
   const focusWard = selected?.kind === "ward" ? selected.id : selected?.kind === "station" ? data.stations.find((s) => s.id === selected.id)?.ward_id ?? null : null;
   const el = useRef<HTMLDivElement>(null);
@@ -108,6 +111,15 @@ export const GisMap = forwardRef<GisMapHandle, {
       geometry: { type: "Point", coordinates: [s.lng, s.lat] },
     })),
   }), [data.stations]);
+
+  const issueFc = useMemo<FeatureCollection>(() => ({
+    type: "FeatureCollection",
+    features: issues.map((i) => ({
+      type: "Feature",
+      properties: { id: i.id, ward_id: i.ward_id, reference: i.reference, summary: i.summary, category: i.category, status: i.status, priority: i.priority },
+      geometry: { type: "Point", coordinates: [i.lng, i.lat] },
+    })),
+  }), [issues]);
 
   // Replay: only visits up to the chosen moment count.
   const placeFc = useMemo<FeatureCollection>(() => ({
@@ -171,7 +183,7 @@ export const GisMap = forwardRef<GisMapHandle, {
         },
       });
 
-      for (const id of ["wards", "cons", "cons-labels", "stations", "places", "heat", "measure", "mask"]) m.addSource(id, { type: "geojson", data: EMPTY });
+      for (const id of ["wards", "cons", "cons-labels", "stations", "places", "heat", "measure", "mask", "issues"]) m.addSource(id, { type: "geojson", data: EMPTY });
       if (MAPILLARY_TOKEN) {
         m.addSource("mly", { type: "vector", tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`], minzoom: 6, maxzoom: 14 });
       }
@@ -205,6 +217,13 @@ export const GisMap = forwardRef<GisMapHandle, {
       m.addLayer({ id: "stations-label", type: "symbol", source: "stations", minzoom: 13.8, layout: {
         "text-field": ["get", "name"], "text-size": 12, "text-font": ["Noto Sans Bold"], "text-offset": [0, 1.1], "text-anchor": "top", "text-max-width": 9, "text-optional": true,
       }, paint: { "text-color": "#0b1f3a", "text-halo-color": "rgba(255,255,255,.95)", "text-halo-width": 1.6 } });
+      // Community issues: colour = where the case stands; urgent ones are bigger.
+      m.addLayer({ id: "issues", type: "circle", source: "issues", layout: { visibility: "none" }, paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, ["match", ["get", "priority"], "urgent", 6, 4], 15, ["match", ["get", "priority"], "urgent", 12, 8]],
+        "circle-color": ["match", ["get", "status"], ...Object.entries(STATUS).flatMap(([k, v]) => [k, v.color]), "#64748b"] as unknown as ExpressionSpecification,
+        "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
+        "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.55, 1],
+      } });
       m.addLayer({ id: "places-halo", type: "circle", source: "places", paint: { "circle-radius": ["+", 12, ["*", 4, ["sqrt", ["get", "count"]]]], "circle-color": "#006b3f", "circle-opacity": 0.2 } });
       m.addLayer({ id: "places", type: "circle", source: "places", paint: {
         "circle-radius": ["+", 8, ["*", 3, ["sqrt", ["get", "count"]]]],
@@ -256,6 +275,14 @@ export const GisMap = forwardRef<GisMapHandle, {
           `${Number(p.registered).toLocaleString()} registered (${REGISTER_YEAR}) · ${p.streams} stream${Number(p.streams) === 1 ? "" : "s"} · ${Number(p.captured).toLocaleString()} captured · ${(STATION_LOOK[p.location] ?? STATION_LOOK.approximate).label.toLowerCase()}`)).addTo(m);
       });
       m.on("mouseleave", "stations", leave);
+      m.on("mouseenter", "issues", (e) => {
+        const p = e.features?.[0]?.properties as { reference: string; summary: string; category: string; status: string } | undefined;
+        if (!p || cb.current.measuring !== "off") return;
+        m.getCanvas().style.cursor = "pointer";
+        const cat = CATEGORY[p.category as keyof typeof CATEGORY]?.en ?? p.category;
+        popup.setLngLat(e.lngLat).setDOMContent(tooltip(`${cat} · ${p.reference}`, `${p.summary} · ${STATUS[p.status as keyof typeof STATUS]?.en ?? p.status}`)).addTo(m);
+      });
+      m.on("mouseleave", "issues", leave);
       if (m.getLayer("mly-img")) {
         m.on("mouseenter", "mly-img", () => { if (cb.current.measuring === "off") m.getCanvas().style.cursor = "pointer"; });
         m.on("mouseleave", "mly-img", () => { m.getCanvas().style.cursor = cb.current.measuring !== "off" ? "crosshair" : ""; });
@@ -282,11 +309,12 @@ export const GisMap = forwardRef<GisMapHandle, {
         const shown = (ids: string[]) => ids.filter((l) => m.getLayer(l) && m.getLayoutProperty(l, "visibility") !== "none");
         const pad = 10;
         const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
-        const f = m.queryRenderedFeatures(box, { layers: shown(["places", "stations", "mly-img"]) })[0]
+        const f = m.queryRenderedFeatures(box, { layers: shown(["issues", "places", "stations", "mly-img"]) })[0]
           ?? m.queryRenderedFeatures(e.point, { layers: shown(["ward-fill", "ward-3d"]) })[0];
         if (!f) return cb.current.onSelect(null);
         if (f.layer.id === "places") cb.current.onSelect({ kind: "place", key: String(f.properties?.key) });
         else if (f.layer.id === "stations") cb.current.onSelect({ kind: "station", id: String(f.properties?.id) });
+        else if (f.layer.id === "issues") cb.current.onSelect({ kind: "issue", id: String(f.properties?.id) });
         else if (f.layer.id === "mly-img") cb.current.onSelect({ kind: "street", id: String(f.properties?.id) });
         else cb.current.onSelect({ kind: "ward", id: String(f.properties?.ward_id) });
       });
@@ -319,8 +347,9 @@ export const GisMap = forwardRef<GisMapHandle, {
     (m.getSource("stations") as GeoJSONSource).setData(stationFc);
     (m.getSource("places") as GeoJSONSource).setData(placeFc);
     (m.getSource("heat") as GeoJSONSource).setData(heatFc);
+    (m.getSource("issues") as GeoJSONSource).setData(issueFc);
     m.setPaintProperty("ward-3d", "fill-extrusion-height", ["*", ["/", ["to-number", ["get", "achieved"], 0], maxAchieved], 2500]);
-  }, [loaded, wardFc, consFc, consLabels, stationFc, placeFc, heatFc, maxAchieved]);
+  }, [loaded, wardFc, consFc, consLabels, stationFc, placeFc, heatFc, issueFc, maxAchieved]);
 
   // ---- look & layers -------------------------------------------------------------
   useEffect(() => {
@@ -344,6 +373,7 @@ export const GisMap = forwardRef<GisMapHandle, {
     m.setFilter("stations-label", only);
     for (const id of ["places", "places-halo", "places-count"]) vis(id, layers.places);
     vis("heat", layers.density);
+    vis("issues", layers.issues);
     vis("mly-seq", layers.street);
     vis("mly-img", layers.street);
     m.setPaintProperty("cons-label", "text-color", base === "satellite" ? "#ffffff" : "#0b1f3a");
