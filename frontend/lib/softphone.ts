@@ -7,7 +7,8 @@
  *   - SandboxLine: a simulated carrier (ringback, a synthetic "voice", DTMF)
  *     for training and development. Same UI, same recording pipeline.
  */
-export type LineState = "offline" | "connecting" | "ready" | "dialing" | "ringing" | "in_call" | "ended" | "error";
+export type LineState = "offline" | "connecting" | "ready" | "incoming" | "dialing" | "ringing" | "in_call" | "ended" | "error";
+export type Incoming = { number: string; name?: string };
 
 export type SoftphoneConfig = {
   provider: "sandbox" | "sip";
@@ -31,7 +32,11 @@ export interface Line {
   error?: string;
   localStream?: MediaStream;
   remoteStream?: MediaStream;
+  /** Someone is calling in (state "incoming"). */
+  incoming?: Incoming | null;
   connect(): Promise<void>;
+  answer(): Promise<void>;
+  decline(): Promise<void>;
   call(number: string): Promise<void>;
   hangup(): Promise<void>;
   setMuted(on: boolean): void;
@@ -83,6 +88,7 @@ abstract class BaseLine implements Line {
   error?: string;
   localStream?: MediaStream;
   remoteStream?: MediaStream;
+  incoming?: Incoming | null = null;
   private subs = new Set<() => void>();
   onChange(cb: () => void) {
     this.subs.add(cb);
@@ -97,6 +103,8 @@ abstract class BaseLine implements Line {
     this.subs.forEach((s) => s());
   }
   abstract connect(): Promise<void>;
+  abstract answer(): Promise<void>;
+  abstract decline(): Promise<void>;
   abstract call(number: string): Promise<void>;
   abstract hangup(): Promise<void>;
   abstract setMuted(on: boolean): void;
@@ -116,6 +124,30 @@ export class SandboxLine extends BaseLine {
   async connect() {
     this.set("connecting");
     await new Promise((r) => setTimeout(r, 300));
+    this.set("ready");
+  }
+
+  /** Training only: pretend someone is calling the campaign's number. */
+  simulateIncoming(number: string, name?: string) {
+    if (this.state !== "ready" && this.state !== "ended") return;
+    this.incoming = { number, name };
+    this.set("incoming");
+    this.timers.push(setTimeout(() => { if (this.state === "incoming") { this.incoming = null; this.set("ready"); } }, 30_000));
+  }
+
+  async answer() {
+    if (this.state !== "incoming") return;
+    this.timers.forEach(clearTimeout);
+    this.timers = [];
+    this.localStream = await microphone();
+    this.remoteStream = this.synthVoice();
+    this.set("in_call");
+  }
+
+  async decline() {
+    this.timers.forEach(clearTimeout);
+    this.timers = [];
+    this.incoming = null;
     this.set("ready");
   }
 
@@ -256,8 +288,20 @@ export class SipLine extends BaseLine {
             this.remoteStream = this.user?.remoteMediaStream;
             this.set("in_call");
           },
+          onCallReceived: () => {
+            // Caller ID from the INVITE (SimpleUser keeps the session private, so read it defensively).
+            const session = (this.user as unknown as { session?: { remoteIdentity?: { uri?: { user?: string }; displayName?: string } } })?.session;
+            const number = session?.remoteIdentity?.uri?.user ?? "Unknown number";
+            this.incoming = { number, name: session?.remoteIdentity?.displayName || undefined };
+            this.set("incoming");
+          },
           onCallHangup: () => {
             this.held = this.muted = false;
+            if (this.state === "incoming") {
+              this.incoming = null; // caller gave up before anyone answered: a missed call
+              this.set("ready");
+              return;
+            }
             this.set("ended");
           },
           onServerDisconnect: (e) => this.set("error", e ? `Phone line disconnected: ${e.message}` : "Phone line disconnected"),
@@ -269,6 +313,24 @@ export class SipLine extends BaseLine {
     } catch (e) {
       this.set("error", e instanceof Error ? e.message : "Couldn't connect the phone line");
     }
+  }
+
+  async answer() {
+    if (!this.user || this.state !== "incoming") return;
+    try {
+      await this.user.answer();
+    } catch (e) {
+      this.incoming = null;
+      this.set("error", e instanceof Error ? e.message : "Couldn't answer the call");
+    }
+  }
+
+  async decline() {
+    try {
+      await this.user?.decline();
+    } catch {}
+    this.incoming = null;
+    this.set("ready");
   }
 
   async call(number: string) {

@@ -2,7 +2,7 @@
 
 import {
   CalendarClock, Check, CircleSlash, Clock, Handshake, Headphones, History, ListChecks, MapPin, Megaphone, NotebookPen, Phone, PhoneCall,
-  PhoneMissed, PhoneOff, Radio, ShieldCheck, SkipForward, Smartphone, Trophy, UserX, Vote, type LucideIcon,
+  PhoneIncoming, PhoneMissed, PhoneOff, Radio, ShieldCheck, SkipForward, Smartphone, Trophy, UserPlus, UserX, Vote, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -10,12 +10,14 @@ import { toast } from "sonner";
 import { Spinner } from "@/components/loaders";
 import { Badge, Button, Card, Input, StatusBadge, SUPPORT, SupportBadge, Textarea } from "@/components/ui";
 import { Avatar } from "@/components/ui/Avatar";
-import { claimNext, releaseClaim, useAgentStats, useLogCall, useQueueCounts } from "@/features/calls/api";
+import { claimNext, claimVoter, releaseClaim, useAgentStats, useLogCall, useQueueCounts } from "@/features/calls/api";
+import { IncomingCall } from "@/features/calls/IncomingCall";
 import { Directory } from "@/features/calls/Directory";
 import { RecordingsPanel } from "@/features/calls/RecordingsPanel";
 import { SoftphonePanel } from "@/features/calls/SoftphonePanel";
 import { type Softphone, uploadRecording, useSoftphone } from "@/features/calls/useSoftphone";
 import { ReportIssueModal } from "@/features/issues/ReportIssueModal";
+import { api } from "@/lib/api";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { dateTime, initials, num, timeAgo } from "@/lib/format";
@@ -57,6 +59,15 @@ export default function CallCentrePage() {
   return (
     <>
       <ConsoleHeader phone={phone} tab={tab} tabs={tabs} onTab={setTab} />
+      <IncomingCall phone={phone} onAnswer={async () => {
+        const p = await phone.answer(phone.caller);
+        setTab("console");
+        if (p?.voterId) {
+          // Open the caller's record so the agent can log the call against it.
+          try { setPicked(await claimVoter(p.voterId)); }
+          catch (e) { toast.info(e instanceof Error ? e.message : "Their record is open with a colleague; log this call from your notes."); }
+        }
+      }} />
       {tab === "recordings" ? <RecordingsPanel />
         : tab === "directory" ? <Directory disabled={["dialing", "ringing", "in_call"].includes(phone.state)} onPicked={(c) => { setPicked(c); setTab("console"); }} />
         : <Console phone={phone} canManualDial={supervisor} picked={picked} />}
@@ -198,7 +209,8 @@ function Console({ phone, canManualDial, picked }: { phone: Softphone; canManual
   // Picked from the directory: load that person straight into the console.
   useEffect(() => {
     if (!picked) return;
-    phone.clearFinished();
+    // An answered incoming call opens its caller here: never wipe the live call's details.
+    if (!["incoming", "dialing", "ringing", "in_call"].includes(phone.state)) phone.clearFinished();
     setClaim(picked);
     setEmpty(false);
     setQueue(picked.voter.status === "pending" ? "verify" : "persuade");
@@ -241,6 +253,10 @@ function Console({ phone, canManualDial, picked }: { phone: Softphone; canManual
           })}
         </div>
 
+        {(() => {
+          const inbound = phone.party?.inbound && !phone.party.voterId ? phone.party : phone.finished?.party.inbound && !phone.finished.party.voterId ? phone.finished.party : null;
+          return inbound && !claim ? <UnknownCaller phone={phone} number={inbound.number} /> : null;
+        })()}
         {loading ? (
           <Card className="grid h-80 place-items-center"><div className="flex flex-col items-center gap-3 text-sm text-muted"><Spinner size="lg" />Reserving the next voter in {q.label}…</div></Card>
         ) : claim ? (
@@ -268,9 +284,80 @@ function Console({ phone, canManualDial, picked }: { phone: Softphone; canManual
 
       <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
         <SoftphonePanel phone={phone} canManualDial={canManualDial} />
+        {canManualDial && phone.config?.provider === "sandbox" && ["ready", "ended"].includes(phone.state) && (
+          <button onClick={() => void practiseIncoming(phone)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-navy-900 ring-1 ring-line hover:bg-slate-50">
+            <PhoneIncoming className="size-4 text-kenya-green" /> Practise an incoming call
+          </button>
+        )}
         <Leaderboard stats={stats.data} />
       </div>
     </div>
+  );
+}
+
+/** Training line: ring this browser with a real voter's number from the directory. */
+async function practiseIncoming(phone: Softphone) {
+  try {
+    const d = await api<{ items: { phone: string; full_name: string }[] }>("/calls/directory", { query: { size: 1 } });
+    const v = d.items[0];
+    phone.simulateIncoming(v?.phone ?? "0700000000");
+  } catch {
+    phone.simulateIncoming("0700000000");
+  }
+}
+
+/** Someone not in the registry called in: capture them, or log what they raised. */
+function UnknownCaller({ phone, number }: { phone: Softphone; number: string }) {
+  const [issue, setIssue] = useState(false);
+  const live = ["in_call"].includes(phone.state);
+  const finished = phone.finished && !phone.finished.party.voterId ? phone.finished : null;
+  const [saving, setSaving] = useState(false);
+  async function done() {
+    setSaving(true);
+    try {
+      if (finished) {
+        const id = await uploadRecording(finished).catch(() => undefined);
+        if (id) toast.success("Recording saved");
+      }
+      phone.clearFinished();
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <Card className="animate-fade-up overflow-hidden">
+      {issue && <ReportIssueModal onClose={() => setIssue(false)} defaults={{ reporter_phone: /^(\+?254|0)[17]\d{8}$/.test(number) ? number : undefined }} />}
+      <div className="flex flex-wrap items-center gap-4 bg-[#06101f] p-5 text-white">
+        <span className="grid size-14 place-items-center rounded-2xl bg-white/10 text-gold"><PhoneIncoming className="size-6" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold tracking-[.16em] text-[#8ff0bf] uppercase">{live ? "Inbound call in progress" : "Inbound call ended"}</p>
+          <p className="font-display text-2xl font-bold">Unknown caller</p>
+          <p className="font-mono text-sm text-slate-300">{number}{finished ? ` · ${Math.floor(finished.seconds / 60)}m ${finished.seconds % 60}s` : ""}</p>
+        </div>
+        {live && (
+          <button onClick={() => void phone.hangup()} className="inline-flex h-12 items-center gap-2 rounded-2xl bg-kenya-red px-6 font-semibold shadow-lg shadow-kenya-red/30 hover:brightness-110">
+            <PhoneOff className="size-5" /> End call
+          </button>
+        )}
+      </div>
+      <div className="grid gap-3 p-5 sm:grid-cols-2">
+        <a href={`/voters/new?phone=${encodeURIComponent(number)}`} target="_blank" rel="noopener"
+          className="flex items-center gap-3 rounded-2xl p-4 ring-1 ring-line hover:bg-slate-50">
+          <span className="grid size-10 place-items-center rounded-xl bg-kenya-green/10 text-kenya-green"><UserPlus className="size-5" /></span>
+          <span><span className="block text-sm font-bold text-navy-900">Capture as a new voter</span><span className="text-xs text-slate-500">Opens the capture form with their number</span></span>
+        </a>
+        <button onClick={() => setIssue(true)} className="flex items-center gap-3 rounded-2xl p-4 text-left ring-1 ring-line hover:bg-slate-50">
+          <span className="grid size-10 place-items-center rounded-xl bg-ocean/10 text-ocean"><Megaphone className="size-5" /></span>
+          <span><span className="block text-sm font-bold text-navy-900">Log a community issue</span><span className="text-xs text-slate-500">For the ward team to follow up</span></span>
+        </button>
+      </div>
+      {finished && (
+        <div className="flex justify-end border-t border-line px-5 py-3">
+          <Button loading={saving} onClick={done}>{finished.recording && finished.consent !== "declined" ? "Save recording & finish" : "Finish"}</Button>
+        </div>
+      )}
+    </Card>
   );
 }
 

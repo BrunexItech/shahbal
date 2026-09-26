@@ -125,3 +125,15 @@ async def test_pbx_pulls_active_lines_with_its_secret_and_softphone_gets_the_rel
     monkeypatch.setattr(settings, "turn_password", "t-pass")
     cfg = (await client.get("/api/v1/calls/softphone", headers=other)).json()
     assert cfg["turn"] == {"urls": "turn:203.0.113.10:3479", "username": "shahbal", "credential": "t-pass"}
+
+
+async def test_incoming_caller_lookup_matches_voters_in_scope(client, admin, wards):
+    await client.post("/api/v1/voters", json=voter_payload(wards["Tudor"], national_id="81234567", phone="0711223344"), headers=admin)
+    agent = await make_user(client, admin, "call_agent", email="inbound@campaign.co.ke")
+    hit = (await client.get("/api/v1/calls/lookup", params={"phone": "254711223344"}, headers=agent)).json()
+    assert hit["full_name"] == "Amina Wanjiku" and hit["ward"] == "Tudor" and hit["do_not_call"] is False
+    assert (await client.get("/api/v1/calls/lookup", params={"phone": "0799000111"}, headers=agent)).json() is None
+    assert (await client.get("/api/v1/calls/lookup", params={"phone": "not-a-number"}, headers=agent)).json() is None
+    # A field agent elsewhere doesn't get to see who is calling.
+    field = await make_user(client, admin, "field_agent", ward=wards["Likoni"])
+    assert (await client.get("/api/v1/calls/lookup", params={"phone": "0711223344"}, headers=field)).status_code == 403

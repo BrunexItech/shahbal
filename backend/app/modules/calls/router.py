@@ -2,10 +2,15 @@ import hmac
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.db import get_session
+from app.core.phone import to_e164
+from app.core.scope import voter_scope
+from app.modules.geo.models import Ward
+from app.modules.voters.models import Voter
 
 from app.core.deps import Ctx, any_user, require, require_step_up
 from app.core.roles import ADMINS, MANAGERS, Role
@@ -64,6 +69,24 @@ async def agent_stats(ctx: Ctx = Depends(any_user)):
 
 # ---- softphone & phone lines -------------------------------------------------------
 callers = require(*MANAGERS, Role.call_agent)
+
+
+@router.get("/lookup")
+async def lookup_caller(phone: str = Query(min_length=3, max_length=32), ctx: Ctx = Depends(callers)):
+    """Who is calling? Matches an incoming number to a voter in this person's area (or nobody)."""
+    try:
+        e164 = to_e164(phone)
+    except ValueError:
+        return None
+    row = (await ctx.session.execute(
+        select(Voter, Ward.name).join(Ward, Ward.id == Voter.ward_id)
+        .where(Voter.phone == e164, voter_scope(ctx.user)).order_by(Voter.created_at).limit(1)
+    )).first()
+    if row is None:
+        return None
+    v, ward = row
+    return {"voter_id": v.id, "full_name": v.full_name, "ward": ward, "status": v.status.value, "support": v.support.value,
+            "do_not_call": v.do_not_call, "opted_out": v.opted_out}
 
 
 @router.get("/softphone")

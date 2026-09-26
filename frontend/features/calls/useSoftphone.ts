@@ -3,13 +3,41 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
-import { CallRecorder, type Line, type LineState, SandboxLine, SipLine, type SoftphoneConfig } from "@/lib/softphone";
+import { audioCtx, CallRecorder, type Line, type LineState, SandboxLine, SipLine, type SoftphoneConfig } from "@/lib/softphone";
 
 export type Consent = "pending" | "agreed" | "declined";
-export type Party = { voterId?: string; name: string; number: string };
+export type Party = { voterId?: string; name: string; number: string; inbound?: boolean };
+/** Who is ringing in, matched to a voter record when we know the number. */
+export type Caller = { number: string; name?: string; voter?: { voter_id: string; full_name: string; ward: string; status: string; support: string; do_not_call: boolean; opted_out: boolean } | null };
 export type FinishedCall = { party: Party; seconds: number; recording: Blob | null; mime: string; consent: Consent; line: "sip" | "sandbox" };
 
-const PRESENCE: Partial<Record<LineState, string>> = { ready: "available", ended: "wrap_up", dialing: "ringing", ringing: "ringing", in_call: "on_call" };
+const PRESENCE: Partial<Record<LineState, string>> = { ready: "available", ended: "wrap_up", incoming: "ringing", dialing: "ringing", ringing: "ringing", in_call: "on_call" };
+
+/** A classic double-ring until stopped. */
+function ringtone(): () => void {
+  let stopped = false;
+  const ring = () => {
+    if (stopped) return;
+    try {
+      const a = audioCtx();
+      const g = a.createGain();
+      g.gain.value = 0.06;
+      g.connect(a.destination);
+      for (const at of [0, 0.4]) {
+        for (const hz of [400, 450]) {
+          const o = a.createOscillator();
+          o.frequency.value = hz;
+          o.connect(g);
+          o.start(a.currentTime + at);
+          o.stop(a.currentTime + at + 0.35);
+        }
+      }
+    } catch { /* no audio: the banner still shows */ }
+  };
+  ring();
+  const t = setInterval(ring, 3000);
+  return () => { stopped = true; clearInterval(t); };
+}
 
 /**
  * Owns the phone line for this page: connection, the active call, its timer,
@@ -23,6 +51,7 @@ export function useSoftphone() {
   const [connectedAt, setConnectedAt] = useState<number | null>(null);
   const [consent, setConsent] = useState<Consent>("pending");
   const [finished, setFinished] = useState<FinishedCall | null>(null);
+  const [caller, setCaller] = useState<Caller | null>(null);
   const [now, setNow] = useState(Date.now());
   const line = useRef<Line | null>(null);
   const recorder = useRef<CallRecorder | null>(null);
@@ -51,6 +80,23 @@ export function useSoftphone() {
   }, []);
 
   const state: LineState = line.current?.state ?? (configError ? "error" : "offline");
+
+  // Someone is calling in: ring, flash the tab, and find out who it is.
+  const incomingNumber = state === "incoming" ? line.current?.incoming?.number ?? "" : "";
+  useEffect(() => {
+    if (!incomingNumber) { setCaller(null); return; }
+    const base: Caller = { number: incomingNumber, name: line.current?.incoming?.name };
+    setCaller(base);
+    let alive = true;
+    api<Caller["voter"]>("/calls/lookup", { query: { phone: incomingNumber } })
+      .then((voter) => alive && setCaller({ ...base, voter: voter ?? null }))
+      .catch(() => alive && setCaller({ ...base, voter: null }));
+    const stopRing = ringtone();
+    const title = document.title;
+    let flip = false;
+    const flash = setInterval(() => { flip = !flip; document.title = flip ? "Incoming call…" : title; }, 1000);
+    return () => { alive = false; stopRing(); clearInterval(flash); document.title = title; };
+  }, [incomingNumber]);
 
   // Presence heartbeat (and immediately on every state change).
   useEffect(() => {
@@ -113,6 +159,28 @@ export function useSoftphone() {
 
   const hangup = useCallback(async () => line.current?.hangup(), []);
 
+  /** Pick up the ringing call; returns who it is so the console can open their record. */
+  const answer = useCallback(async (c: Caller | null) => {
+    const l = line.current;
+    if (!l || l.state !== "incoming") return null;
+    const p: Party = { voterId: c?.voter?.voter_id, name: c?.voter?.full_name ?? c?.name ?? "Unknown caller", number: c?.number ?? l.incoming?.number ?? "", inbound: true };
+    partyRef.current = p;
+    consentRef.current = "pending";
+    setConsent("pending");
+    setFinished(null);
+    setParty(p);
+    await l.answer();
+    return p;
+  }, []);
+
+  const decline = useCallback(async () => line.current?.decline(), []);
+
+  /** Training line only: ring this browser as if a voter called the campaign's number. */
+  const simulateIncoming = useCallback((number: string, name?: string) => {
+    const l = line.current;
+    if (l instanceof SandboxLine) l.simulateIncoming(number, name);
+  }, []);
+
   const answerConsent = useCallback(async (c: Consent) => {
     consentRef.current = c;
     setConsent(c);
@@ -128,7 +196,7 @@ export function useSoftphone() {
     config, configError, state, line: line.current, party, consent, finished,
     recording: !!recorder.current?.active && consent !== "declined",
     elapsed: connectedAt ? Math.max(0, Math.round((now - connectedAt) / 1000)) : 0,
-    dial, hangup, answerConsent, clearFinished,
+    caller, dial, hangup, answer, decline, simulateIncoming, answerConsent, clearFinished,
     mute: (on: boolean) => line.current?.setMuted(on),
     hold: (on: boolean) => line.current?.setHeld(on),
     dtmf: (t: string) => line.current?.dtmf(t),

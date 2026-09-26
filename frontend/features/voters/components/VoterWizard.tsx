@@ -77,6 +77,11 @@ export function VoterWizard() {
   const { data: tree, isLoading: treeLoading } = useGeoTree();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<Form>(EMPTY);
+  // Opened from the call centre for an unknown caller: start with their number.
+  useEffect(() => {
+    const phone = new URLSearchParams(window.location.search).get("phone");
+    if (phone && /^[+\d ]{9,16}$/.test(phone)) setForm((f) => (f.phone ? f : { ...f, phone: phone.replace(/^\+254/, "0") }));
+  }, []);
   const [errors, setErrors] = useState<Errors>({});
   const [dup, setDup] = useState<{ checking: boolean; hit?: { reference?: string; full_name?: string; ward_name?: string } }>({ checking: false });
   const [created, setCreated] = useState<Voter | null>(null);

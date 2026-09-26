@@ -130,7 +130,9 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
         <div className="mx-5 mt-3 animate-fade-up rounded-2xl border border-gold/30 bg-gold/10 p-3 text-xs">
           <p className="flex items-center gap-1.5 font-bold text-gold"><ShieldCheck className="size-4" /> Say this first</p>
           <p className="mt-1 leading-relaxed text-slate-200">
-            &ldquo;Habari, I&apos;m calling from {CAMPAIGN_NAME}. This call is recorded so we can serve Mombasa better. Is that okay with you?&rdquo;
+            {phone.party?.inbound
+              ? <>&ldquo;Habari, thank you for calling {CAMPAIGN_NAME}. This call is recorded so we can serve Mombasa better. Is that okay with you?&rdquo;</>
+              : <>&ldquo;Habari, I&apos;m calling from {CAMPAIGN_NAME}. This call is recorded so we can serve Mombasa better. Is that okay with you?&rdquo;</>}
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button onClick={() => void phone.answerConsent("agreed")} className="rounded-lg bg-[#34c77b]/20 py-1.5 font-semibold text-[#7ee2b0] hover:bg-[#34c77b]/30">Voter agreed</button>
