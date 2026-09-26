@@ -76,6 +76,60 @@ class AfricasTalkingSms:
         return results
 
 
+class MobileSasaSms:
+    """Mobile Sasa bulk SMS (docs.mobilesasa.com). Every campaign message is personal
+    ({first_name}, {ward}), so batches go to /v1/send/bulk-personalized, up to 500 per
+    call. The whole batch shares one bulkId; delivery reports come back with that bulkId
+    and the number, which is how they are matched to each message."""
+
+    CHUNK = 500
+
+    @staticmethod
+    def _local(phone: str) -> str:
+        return "0" + phone[4:] if phone.startswith("+254") else phone  # +254712… → 0712…
+
+    async def send(self, items: list[OutItem]) -> list[Result]:
+        url = f"{settings.mobilesasa_base_url.rstrip('/')}/v1/send/bulk-personalized"
+        headers = {"Authorization": f"Bearer {settings.mobilesasa_token}", "Accept": "application/json"}
+        results: list[Result] = []
+        async with httpx.AsyncClient(timeout=45) as client:
+            for i in range(0, len(items), self.CHUNK):
+                chunk = items[i:i + self.CHUNK]
+                payload = {"senderID": settings.mobilesasa_sender_id,
+                           "messageBody": [{"phone": self._local(it.phone), "message": it.body} for it in chunk]}
+                try:
+                    r = await client.post(url, json=payload, headers=headers)
+                    data = r.json() if r.content else {}
+                except Exception as exc:  # network / bad JSON: fail the chunk, keep the worker alive
+                    log.exception("Mobile Sasa batch failed")
+                    results += [Result(it.message_id, False, error=f"Mobile Sasa unreachable: {exc}"[:200]) for it in chunk]
+                    continue
+                if r.status_code < 300 and data.get("status") is True:
+                    bulk = str(data.get("bulkId") or data.get("messageId") or "")
+                    results += [Result(it.message_id, True, bulk or None) for it in chunk]
+                else:
+                    code = str(data.get("responseCode") or r.status_code)
+                    reason = {"0401": "Mobile Sasa token is missing or wrong", "0402": "Mobile Sasa balance is too low for this batch",
+                              "0403": "Mobile Sasa token lacks permission to send"}.get(code, str(data.get("message") or f"HTTP {r.status_code}"))
+                    log.warning("Mobile Sasa refused a batch: %s %s", code, reason)
+                    results += [Result(it.message_id, False, error=f"{reason} ({code})"[:200]) for it in chunk]
+        return results
+
+
+async def mobilesasa_balance() -> int | None:
+    """SMS units left on the Mobile Sasa account (None if unavailable)."""
+    if not settings.mobilesasa_token:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(f"{settings.mobilesasa_base_url.rstrip('/')}/v1/get-balance/",
+                                 headers={"Authorization": f"Bearer {settings.mobilesasa_token}"})
+            data = r.json()
+        return int(data["balance"]) if data.get("status") else None
+    except Exception:
+        return None
+
+
 class WhatsAppCloud:
     """Meta WhatsApp Cloud API. Business-initiated messages must use a pre-approved
     template; the rendered text fills the template's single body variable."""
@@ -110,5 +164,7 @@ class WhatsAppCloud:
 
 def get_provider(channel: Channel) -> Provider:
     if channel == Channel.sms:
+        if settings.sms_provider == "mobilesasa":
+            return MobileSasaSms()
         return AfricasTalkingSms() if settings.sms_provider == "africastalking" else SandboxProvider()
     return WhatsAppCloud() if settings.whatsapp_provider == "cloud" else SandboxProvider()

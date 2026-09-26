@@ -1,4 +1,7 @@
+import hashlib
 import hmac
+import json
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
@@ -9,13 +12,14 @@ from app.core import audit
 from app.core.clock import utcnow
 from app.core.config import settings
 from app.core.db import get_session
-from app.core.deps import Ctx, any_user, require_step_up
+from app.core.deps import Ctx, any_user, require, require_step_up
 from app.core.roles import Role
 from app.core.pagination import Page
 from app.core.phone import to_e164
 from app.core.ratelimit import client_ip
 from app.modules.messaging.dispatcher import refresh_counters
 from app.modules.messaging.models import CampaignStatus, Message, MessageCampaign, MessageStatus
+from app.modules.messaging.providers import mobilesasa_balance
 from app.modules.messaging.stats import messaging_stats
 from app.modules.messaging.schemas import CampaignIn, CampaignOut, MessageOut, PreviewIn, PreviewOut, ReviewIn
 from app.modules.messaging.service import MessagingService
@@ -120,6 +124,61 @@ async def refresh_counters_any(session: AsyncSession, cid: str) -> None:
         ).where(Message.campaign_id == cid)
     )).one()
     c.sent, c.delivered, c.failed = sent, delivered, failed
+
+
+def _mobilesasa_verified(request: Request, raw: bytes) -> bool:
+    """Signed with HMAC-SHA256 over "<t>.<raw body>" (X-MobileSasa-Signature: t=…,v1=…),
+    or carrying the team's webhook secret verbatim (X-MobileSasa-Secret)."""
+    if settings.mobilesasa_signing_secret:
+        parts = dict(p.split("=", 1) for p in request.headers.get("x-mobilesasa-signature", "").split(",") if "=" in p)
+        t, sig = parts.get("t", ""), parts.get("v1", "")
+        if t.isdigit() and abs(time.time() - int(t)) <= 300:
+            want = hmac.new(settings.mobilesasa_signing_secret.encode(), f"{t}.".encode() + raw, hashlib.sha256).hexdigest()
+            if hmac.compare_digest(want, sig):
+                return True
+    if settings.mobilesasa_webhook_secret:
+        return hmac.compare_digest(request.headers.get("x-mobilesasa-secret", "").encode(), settings.mobilesasa_webhook_secret.encode())
+    return False
+
+
+MS_FAILED = {"Failed", "Rejected", "Expired", "Unreachable"}
+
+
+@router.post("/webhooks/mobilesasa/delivery", include_in_schema=False)
+async def mobilesasa_delivery(request: Request, session: AsyncSession = Depends(get_session)):
+    raw = await request.body()
+    if not _mobilesasa_verified(request, raw):
+        raise HTTPException(403, "Invalid signature")
+    try:
+        d = json.loads(raw or b"{}")
+    except ValueError:
+        raise HTTPException(400, "Bad JSON")
+    ref, msisdn, status = str(d.get("reference") or ""), str(d.get("msisdn") or ""), str(d.get("status") or "")
+    if not ref or status not in MS_FAILED | {"Delivered"}:
+        return {"ok": True}  # interim ("Sent") or nothing to match: acknowledge, nothing to do
+    q = select(Message).where(Message.provider_id == ref)
+    if msisdn.isdigit():  # a bulk shares one id: the number picks the message (some Safaricom traffic hashes it)
+        q = q.where(Message.phone == f"+{msisdn}")
+    m = (await session.execute(q.limit(2))).scalars().all()
+    if len(m) != 1:
+        return {"ok": True}
+    msg = m[0]
+    if status == "Delivered":
+        msg.status, msg.delivered_at, msg.error = MessageStatus.delivered, utcnow(), None
+    elif msg.status != MessageStatus.delivered:
+        msg.status, msg.error = MessageStatus.failed, str(d.get("deliveryStatus") or status)[:240]
+    if d.get("cost"):
+        msg.cost = f"KES {d['cost']}"[:40]
+    await session.flush()
+    await refresh_counters_any(session, msg.campaign_id)
+    await session.commit()
+    return {"ok": True}
+
+
+@router.get("/balance")
+async def sms_balance(ctx: Ctx = Depends(require(Role.super_admin))):
+    """SMS units left with the gateway, for HQ (None when not on Mobile Sasa or unreachable)."""
+    return {"provider": settings.sms_provider, "balance": await mobilesasa_balance() if settings.sms_provider == "mobilesasa" else None}
 
 
 @router.post("/webhooks/at/inbound", include_in_schema=False)

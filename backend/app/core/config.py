@@ -67,7 +67,15 @@ class Settings(BaseSettings):
     lockout_minutes: int = 15
 
     # Messaging
-    sms_provider: str = "sandbox"  # sandbox | africastalking
+    sms_provider: str = "sandbox"  # sandbox | mobilesasa | africastalking
+    # Mobile Sasa (bulk SMS). Token from the portal (starts with mbs_); sender ID as approved.
+    mobilesasa_token: str = ""
+    mobilesasa_sender_id: str = ""
+    mobilesasa_base_url: str = "https://api.mobilesasa.com"
+    # Portal → Settings → Webhooks: the webhook secret (sent verbatim as X-MobileSasa-Secret)
+    # and the signing secret (HMAC-SHA256 in X-MobileSasa-Signature). Either one is enough.
+    mobilesasa_webhook_secret: str = ""
+    mobilesasa_signing_secret: str = ""
     at_username: str = "sandbox"
     at_api_key: str = ""
     at_sender_id: str | None = None
