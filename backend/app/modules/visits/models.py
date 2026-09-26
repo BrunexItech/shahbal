@@ -29,6 +29,7 @@ class Visit(Base):
     kind: Mapped[str] = mapped_column(String(20), default="visit", server_default="visit")
     ends_at: Mapped[datetime | None]
     expected_attendance: Mapped[int | None]
+    public: Mapped[bool] = mapped_column(default=False, server_default="false")  # listed on the public website's Events page
 
     announce: Mapped[bool] = mapped_column(default=True)
     announce_hours_before: Mapped[int] = mapped_column(default=24)

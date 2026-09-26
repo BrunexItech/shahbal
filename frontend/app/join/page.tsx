@@ -1,10 +1,12 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, BellRing, CalendarCheck, Check, Copy, HeartHandshake, Lock, MapPin, Megaphone, Search, Share2, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { BrandMark, Spinner } from "@/components/loaders";
+import { PublicFooter } from "@/components/public/PublicShell";
 import { FlagStripe } from "@/components/shell/FlagStripe";
 import { Button, Input, Segmented } from "@/components/ui";
 import { BirthYearInput, birthYearError } from "@/components/ui/BirthYearInput";
@@ -147,10 +149,10 @@ export default function JoinPage() {
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[.05] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:34px_34px]" />
         <div className="relative mx-auto max-w-3xl px-5 pt-7">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <Link href="/about" className="flex items-center gap-3">
               <BrandMark className="size-10" />
               <div><p className="font-display font-bold">{CAMPAIGN_NAME}</p><p className="text-xs text-slate-400">{mode === "join" ? t.tag : t.voiceTag} · {CANDIDATE_NAME}</p></div>
-            </div>
+            </Link>
             <div role="group" aria-label="Language" className="inline-flex rounded-full bg-white/10 p-1 ring-1 ring-white/15">
               {(["en", "sw"] as const).map((l) => (
                 <button key={l} onClick={() => pickLang(l)} aria-pressed={lang === l}
@@ -274,6 +276,7 @@ export default function JoinPage() {
           )}
         </div>
       </main>
+      <PublicFooter />
     </div>
   );
 }

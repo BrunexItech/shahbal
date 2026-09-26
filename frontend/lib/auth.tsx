@@ -88,7 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     api<Me>("/auth/me", { silent401: true })
       .then(accept)
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) clearLocal(); // no/expired session
+        // Expired session: forget the cached profile and its data. A visitor who never signed in has nothing
+        // to clear, and clearing would drop the public page's own queries mid-flight.
+        if (err instanceof ApiError && err.status === 401 && cached) clearLocal();
         // network failure: keep the cached profile; queries will retry when back online
       })
       .finally(() => setReady(true));

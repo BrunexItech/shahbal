@@ -25,6 +25,7 @@ class VisitIn(BaseModel):
     kind: VisitKind = "visit"
     ends_at: datetime | None = None
     expected_attendance: int | None = Field(default=None, ge=0, le=1_000_000)
+    public: bool = False
 
     @model_validator(mode="after")
     def _order(self):
@@ -42,6 +43,7 @@ class VisitUpdate(BaseModel):
     kind: VisitKind | None = None
     ends_at: datetime | None = None
     expected_attendance: int | None = Field(default=None, ge=0, le=1_000_000)
+    public: bool | None = None
 
 
 class QuickVisitIn(BaseModel):
@@ -78,6 +80,7 @@ class VisitOut(BaseModel):
     kind: str = "visit"
     ends_at: datetime | None = None
     expected_attendance: int | None = None
+    public: bool = False
     status: VisitStatus
     lead_id: str | None
     lead_name: str | None = None

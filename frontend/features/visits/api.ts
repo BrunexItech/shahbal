@@ -19,6 +19,7 @@ export type VisitInput = {
   kind?: string;
   ends_at?: string;
   expected_attendance?: number;
+  public?: boolean;
 };
 
 export const useVisits = (f: { status?: VisitStatus; ward_id?: string } = {}) =>

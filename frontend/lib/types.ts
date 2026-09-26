@@ -255,6 +255,7 @@ export interface Visit {
   kind?: string;
   ends_at?: string | null;
   expected_attendance?: number | null;
+  public?: boolean;
   ward_id: string;
   ward_name: string | null;
   constituency_name: string | null;

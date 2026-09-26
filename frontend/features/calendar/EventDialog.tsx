@@ -49,6 +49,7 @@ export function EventDialog({ draft, onClose }: { draft: Draft; onClose: () => v
   const [announce, setAnnounce] = useState(true);
   const [notes, setNotes] = useState("");
   const [hqOnly, setHqOnly] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
   const [repeat, setRepeat] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -73,7 +74,7 @@ export function EventDialog({ draft, onClose }: { draft: Draft; onClose: () => v
           await createVisit.mutateAsync({
             title: title.trim(), ward_id: wardId, venue: venue.trim(), kind, scheduled_at: at(d, allDay ? "08:00" : from),
             ends_at: allDay ? at(d, "18:00") : to ? at(d, to) : undefined, expected_attendance: expected ? +expected : undefined,
-            notes: notes || undefined, announce, announce_hours_before: 24, channel: "sms",
+            notes: notes || undefined, announce, announce_hours_before: 24, channel: "sms", public: isPublic,
           });
         }
       } else {
@@ -134,6 +135,10 @@ export function EventDialog({ draft, onClose }: { draft: Draft; onClose: () => v
             <label className="flex items-center gap-2 self-end pb-2.5 text-sm text-navy-900">
               <input type="checkbox" className="size-4 accent-kenya-green" checked={announce} onChange={(e) => setAnnounce(e.target.checked)} />
               SMS supporters in the ward a day before
+            </label>
+            <label className="flex items-center gap-2 text-sm text-navy-900 sm:col-span-2">
+              <input type="checkbox" className="size-4 accent-kenya-green" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
+              Show on the public website (title, venue and time only)
             </label>
           </div>
         ) : (

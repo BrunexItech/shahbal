@@ -6,6 +6,7 @@ import { CAMPAIGN_NAME, CANDIDATE_NAME } from "@/lib/config";
  * domain. Staff use their own doors, /command/login (HQ) and /field/login (field).
  */
 export const metadata = {
+  robots: { index: true, follow: true },
   title: `Join ${CAMPAIGN_NAME} · ${CANDIDATE_NAME} for Mombasa`,
   description: `Sign up to support ${CANDIDATE_NAME} for Mombasa: know when the team visits your ward and get a reminder on voting day.`,
 };
