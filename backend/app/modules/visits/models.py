@@ -25,6 +25,10 @@ class Visit(Base):
     status: Mapped[VisitStatus] = mapped_column(pg_enum(VisitStatus, "visit_status"), default=VisitStatus.scheduled, index=True)
     lead_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     notes: Mapped[str | None] = mapped_column(Text)
+    # What sort of field event: visit | rally | town_hall | market_walk | door_to_door | community_meeting
+    kind: Mapped[str] = mapped_column(String(20), default="visit", server_default="visit")
+    ends_at: Mapped[datetime | None]
+    expected_attendance: Mapped[int | None]
 
     announce: Mapped[bool] = mapped_column(default=True)
     announce_hours_before: Mapped[int] = mapped_column(default=24)

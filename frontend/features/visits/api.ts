@@ -16,6 +16,9 @@ export type VisitInput = {
   announce_hours_before: number;
   channel: Channel;
   message?: string;
+  kind?: string;
+  ends_at?: string;
+  expected_attendance?: number;
 };
 
 export const useVisits = (f: { status?: VisitStatus; ward_id?: string } = {}) =>

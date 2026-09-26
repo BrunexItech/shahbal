@@ -1,9 +1,13 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.modules.messaging.models import CampaignStatus, Channel
 from app.modules.visits.models import VisitStatus
+
+VisitKind = Literal["visit", "rally", "town_hall", "market_walk", "door_to_door", "community_meeting"]
 
 
 class VisitIn(BaseModel):
@@ -18,6 +22,15 @@ class VisitIn(BaseModel):
     announce_hours_before: int = Field(default=24, ge=1, le=168)
     channel: Channel = Channel.sms
     message: str | None = Field(default=None, max_length=600)
+    kind: VisitKind = "visit"
+    ends_at: datetime | None = None
+    expected_attendance: int | None = Field(default=None, ge=0, le=1_000_000)
+
+    @model_validator(mode="after")
+    def _order(self):
+        if self.ends_at and self.ends_at <= self.scheduled_at:
+            raise ValueError("The end must be after the start")
+        return self
 
 
 class VisitUpdate(BaseModel):
@@ -26,6 +39,9 @@ class VisitUpdate(BaseModel):
     scheduled_at: datetime | None = None
     lead_id: str | None = None
     notes: str | None = Field(default=None, max_length=2000)
+    kind: VisitKind | None = None
+    ends_at: datetime | None = None
+    expected_attendance: int | None = Field(default=None, ge=0, le=1_000_000)
 
 
 class QuickVisitIn(BaseModel):
@@ -59,6 +75,9 @@ class VisitOut(BaseModel):
     station_name: str | None = None
     venue: str
     scheduled_at: datetime
+    kind: str = "visit"
+    ends_at: datetime | None = None
+    expected_attendance: int | None = None
     status: VisitStatus
     lead_id: str | None
     lead_name: str | None = None

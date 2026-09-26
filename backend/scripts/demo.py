@@ -2,6 +2,7 @@
 
     python -m scripts.demo
     python -m scripts.demo --issues-only    # add demo Community Voice cases to an existing demo database
+    python -m scripts.demo --calendar-only  # add demo calendar entries (interviews, meetings, a debate)
 
 Uses the real ward boundaries and bundled polling stations; every person,
 phone number and ID is invented.
@@ -19,7 +20,8 @@ from app.core.db import SessionLocal
 from app.core.roles import Role
 from app.core.security import hash_password
 from app.modules.calls.models import CallLog, Outcome, Queue
-from app.modules.geo.models import PollingStation, Ward
+from app.modules.calendar.models import CalendarEvent
+from app.modules.geo.models import Constituency, PollingStation, Ward
 from app.modules.geo.service import seed_geography, seed_stations
 from app.modules.issues.models import Category, Issue, IssueSource, IssueStatus, IssueUpdate, Priority
 from app.modules.issues.service import next_reference
@@ -131,6 +133,54 @@ async def issues_only():
         print("demo: 90 Community Voice cases added")
 
 
+def kind_from_title(title: str) -> str:
+    t = title.lower()
+    for words, kind in ((("door",), "door_to_door"), (("market",), "market_walk"), (("rally",), "rally"),
+                        (("town hall", "townhall", "baraza"), "town_hall"), (("meeting", "forum"), "community_meeting")):
+        if any(w in t for w in words):
+            return kind
+    return "visit"
+
+
+async def calendar_only():
+    if settings.is_production:
+        raise SystemExit("Refusing to load demo data in production")
+    import uuid
+    from datetime import datetime, time
+
+    from app.core.clock import TZ
+
+    async with SessionLocal() as s:
+        if (await s.execute(select(func.count(CalendarEvent.id)))).scalar_one():
+            raise SystemExit("The calendar already has entries; demo entries are only for an empty calendar")
+        admin = (await s.execute(select(User).where(User.role == Role.super_admin))).scalars().first()
+        cons = {c.name: c.id for c in (await s.execute(select(Constituency))).scalars()}
+        today = datetime.now(TZ).date()
+        at = lambda d, h, m=0: datetime.combine(today + timedelta(days=d), time(h, m), TZ)  # noqa: E731
+        series = str(uuid.uuid4())
+        rows = [
+            ("Radio interview, Baraka FM", "media", at(1, 7, 30), at(1, 8, 30), None, "Baraka FM studios", False, None),
+            ("TV debate: Mombasa governorship", "debate", at(9, 19), at(9, 21), None, "NTV studios", False, None),
+            ("Strategy session", "meeting", at(2, 18), at(2, 20), None, "HQ boardroom", True, None),
+            ("Fundraising dinner", "fundraiser", at(12, 19), at(12, 22), None, "Nyali", False, None),
+            ("Nomination papers deadline", "deadline", at(20, 9), None, None, None, False, None),
+            ("Kisauni coordinators", "meeting", at(3, 17), at(3, 18), cons.get("Kisauni"), "Bamburi office", False, series),
+            ("Kisauni coordinators", "meeting", at(10, 17), at(10, 18), cons.get("Kisauni"), "Bamburi office", False, series),
+            ("Kisauni coordinators", "meeting", at(17, 17), at(17, 18), cons.get("Kisauni"), "Bamburi office", False, series),
+            ("Newspaper op-ed goes out", "media", at(5, 6), None, None, "The Standard", False, None),
+        ]
+        for title, kind, start, end, cid, where, hq, sid in rows:
+            s.add(CalendarEvent(title=title, kind=kind, starts_at=start, ends_at=end, constituency_id=cid, location=where, hq_only=hq,
+                                series_id=sid, created_by_id=admin.id if admin else None))
+        # Give some upcoming visits a field-event type so the calendar shows the variety.
+        upcoming = (await s.execute(select(Visit).where(Visit.status == VisitStatus.scheduled).order_by(Visit.scheduled_at).limit(12))).scalars().all()
+        for v in upcoming:
+            v.kind = kind = kind_from_title(v.title)
+            v.expected_attendance = 300 if kind == "rally" else 80
+        await s.commit()
+        print(f"demo: {len(rows)} calendar entries added, {len(upcoming)} visits typed")
+
+
 async def main():
     if settings.is_production:
         raise SystemExit("Refusing to load demo data in production")
@@ -224,4 +274,4 @@ async def main():
 if __name__ == "__main__":
     import sys
 
-    asyncio.run(issues_only() if "--issues-only" in sys.argv else main())
+    asyncio.run(issues_only() if "--issues-only" in sys.argv else calendar_only() if "--calendar-only" in sys.argv else main())

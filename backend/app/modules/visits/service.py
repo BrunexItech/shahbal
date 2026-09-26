@@ -91,7 +91,8 @@ class VisitService:
         when = as_utc(data.scheduled_at)
         if when < utcnow() - timedelta(hours=1):
             raise HTTPException(422, "A visit can't be scheduled in the past")
-        v = Visit(**data.model_dump(exclude={"channel", "message", "scheduled_at"}), scheduled_at=when, created_by_id=self.user.id)
+        v = Visit(**data.model_dump(exclude={"channel", "message", "scheduled_at", "ends_at"}), scheduled_at=when,
+                  ends_at=as_utc(data.ends_at) if data.ends_at else None, created_by_id=self.user.id)
         self.s.add(v)
         await self.s.flush()
         if data.announce:
@@ -120,6 +121,8 @@ class VisitService:
         fields = data.model_dump(exclude_unset=True)
         if "scheduled_at" in fields:
             fields["scheduled_at"] = as_utc(fields["scheduled_at"])
+        if fields.get("ends_at"):
+            fields["ends_at"] = as_utc(fields["ends_at"])
         for k, val in fields.items():
             setattr(v, k, val)
         # Keep an unsent announcement in step with the new time/venue.

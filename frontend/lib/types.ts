@@ -252,6 +252,9 @@ export type VisitStatus = "scheduled" | "in_progress" | "completed" | "cancelled
 export interface Visit {
   id: string;
   title: string;
+  kind?: string;
+  ends_at?: string | null;
+  expected_attendance?: number | null;
   ward_id: string;
   ward_name: string | null;
   constituency_name: string | null;

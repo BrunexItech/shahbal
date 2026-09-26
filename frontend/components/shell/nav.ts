@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  CalendarDays,
   CalendarRange,
   ClipboardCheck,
   Contact,
@@ -31,6 +32,7 @@ export const NAV: NavItem[] = [
   { section: "Command", href: "/dashboard", label: "Command Centre", short: "Home", icon: LayoutDashboard, show: can.oversee },
   { section: "My work", href: "/home", label: "My Area", short: "Home", icon: House, show: (r) => r === "field_agent" },
   { section: "Command", href: "/analytics", label: "Analytics", icon: BarChart3, show: (r) => can.manageUsers(r) || r === "viewer" },
+  { section: "Command", href: "/calendar", label: "Campaign Calendar", short: "Calendar", icon: CalendarDays, show: can.oversee },
   { section: "Command", href: "/plan", label: "Campaign Plan", short: "Plan", icon: CalendarRange, show: can.oversee },
   { section: "Command", href: "/targets", label: "Targets & Captures", short: "Targets", icon: Target, show: can.oversee },
   { section: "Voters", href: "/voters/new", label: "Capture Voter", short: "Capture", icon: UserPlus, show: can.capture },
