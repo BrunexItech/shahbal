@@ -18,7 +18,7 @@ from app.core.config import settings
 
 # Each kind of file gets its own folder and its own derived key.
 NAMESPACES = {"recordings": b"call-recordings", "photos": b"staff-photos", "visit-photos": b"visit-photos",
-              "issue-photos": b"issue-photos"}
+              "issue-photos": b"issue-photos", "result-forms": b"result-forms"}
 
 
 def _key(ns: str) -> bytes:

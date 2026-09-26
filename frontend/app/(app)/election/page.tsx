@@ -8,6 +8,7 @@ import { SkeletonRows } from "@/components/loaders";
 import { ElectionCountdown } from "@/components/ui/ElectionCountdown";
 import { Button, Card, CardHeader, EmptyState, ErrorState, Input, PageHeader, ProgressBar, Select, SupportBadge } from "@/components/ui";
 import { useGeoTree, useStations } from "@/features/geo/api";
+import { ResultsPanel } from "@/features/election/ResultsPanel";
 import { useElectionSettings, useMarkVoted, usePlanReminders, useRoster, useSaveElectionSettings, useTurnout } from "@/features/election/api";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
@@ -20,11 +21,21 @@ export default function ElectionPage() {
   const [wardId, setWardId] = useState("");
   const turnout = useTurnout(wardId || undefined);
   const s = settings.data;
+  const [view, setView] = useState<"turnout" | "results">("turnout");
 
   return (
     <>
       <PageHeader eyebrow="Election" title="Election day command"
-        subtitle="Turnout here counts supporters and leaners marked as voted. That's the number that decides the result." />
+        subtitle="Turnout counts supporters and leaners marked as voted; results come from each stream's Form 34A."
+        actions={(
+          <div role="tablist" aria-label="Election day" className="flex gap-1 rounded-xl bg-slate-100 p-1">
+            {([["turnout", "Turnout"], ["results", "Results (Form 34A)"]] as const).map(([id, l]) => (
+              <button key={id} role="tab" aria-selected={view === id} onClick={() => setView(id)}
+                className={cn("rounded-lg px-3.5 py-1.5 text-sm font-semibold whitespace-nowrap", view === id ? "bg-white text-navy-900 shadow-sm" : "text-muted")}>{l}</button>
+            ))}
+          </div>
+        )} />
+      {view === "results" ? <ResultsPanel /> : <>
 
       <ElectionCountdown date={s?.election_date ?? null} pollsOpen={s?.polls_open} pollsClose={s?.polls_close} />
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
@@ -70,6 +81,7 @@ export default function ElectionPage() {
         </Card>
         <Roster wardId={wardId} setWardId={setWardId} stationsTurnout={turnout.data?.stations ?? []} />
       </div>
+      </>}
     </>
   );
 }
