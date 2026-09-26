@@ -1,0 +1,14 @@
+[general]
+rtpstart = ${PBX_RTP_START}
+rtpend = ${PBX_RTP_END}
+tos_audio = ef
+cos_audio = 5
+strictrtp = no
+; Softphones use the TURN relay (relay-only); keep Docker/private ranges out of ICE.
+icesupport = yes
+ice_blacklist = 172.16.0.0/12
+ice_blacklist = 10.0.0.0/8
+ice_blacklist = 192.168.0.0/16
+ice_blacklist = 169.254.0.0/16
+ice_blacklist = fe80::/10
+ice_blacklist = fc00::/7

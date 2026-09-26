@@ -1,0 +1,36 @@
+[general]
+static = yes
+writeprotect = no
+
+[globals]
+RINGTIME = 25
+
+;--- Calls the team places: normalise to Cloud One's local format (0XXXXXXXXX),
+;    shown to the voter as the campaign's number.
+[from-agents]
+exten => _+254XXXXXXXXX,1,Goto(dial,0${EXTEN:4},1)
+exten => _254XXXXXXXXX,1,Goto(dial,0${EXTEN:3},1)
+exten => _0XXXXXXXXX,1,Goto(dial,${EXTEN},1)
+exten => _[17]XXXXXXXX,1,Goto(dial,0${EXTEN},1)
+exten => _X.,1,NoOp(Refusing ${EXTEN}: only Kenyan numbers)
+ same => n,Hangup(1)
+
+[dial]
+exten => _0XXXXXXXXX,1,Set(CALLERID(num)=${CLOUDONE_DID})
+ same => n,Dial(PJSIP/${EXTEN}@cloudone,60,T)
+ same => n,Hangup()
+
+;--- Calls to the campaign's number: ring every call-centre line that is signed in.
+[from-cloudone]
+exten => _X.,1,Goto(in,1)
+exten => s,1,Goto(in,1)
+exten => in,1,NoOp(Inbound from ${CALLERID(num)})
+ same => n,Progress()
+ same => n,Playtones(ring)
+ same => n,Set(RING=${DB(shahbal/ringall)})
+ same => n,GotoIf($["${RING}" = ""]?nobody,1)
+ same => n,StopPlayTones()
+ same => n,Dial(${RING},${RINGTIME},tT)
+ same => n,Hangup()
+exten => nobody,1,NoOp(No call-centre lines provisioned)
+ same => n,Hangup(17)

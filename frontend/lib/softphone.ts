@@ -13,6 +13,8 @@ export type SoftphoneConfig = {
   provider: "sandbox" | "sip";
   caller_id: string | null;
   stun: string[];
+  /** Media relay beside the PBX; when present, all call audio goes through it. */
+  turn?: { urls: string; username: string; credential: string } | null;
   recording_retention_days: number;
   wss_url?: string;
   domain?: string;
@@ -242,7 +244,9 @@ export class SipLine extends BaseLine {
           authorizationPassword: this.cfg.password,
           displayName: undefined,
           sessionDescriptionHandlerFactoryOptions: {
-            peerConnectionConfiguration: { iceServers: this.cfg.stun.map((urls) => ({ urls })) },
+            peerConnectionConfiguration: this.cfg.turn
+              ? { iceServers: [this.cfg.turn], iceTransportPolicy: "relay" }
+              : { iceServers: this.cfg.stun.map((urls) => ({ urls })) },
           },
         },
         delegate: {

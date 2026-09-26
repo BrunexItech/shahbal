@@ -1,0 +1,9 @@
+; SIP-over-WebSocket for the browser softphones. Localhost only: nginx terminates
+; TLS on the public domain and proxies  wss://<domain>/pbx/ws  ->  here.
+[general]
+enabled = yes
+bindaddr = 127.0.0.1
+bindport = ${PBX_WS_PORT}
+sessionlimit = 200
+session_inactivity = 30000
+session_keep_alive = 15000

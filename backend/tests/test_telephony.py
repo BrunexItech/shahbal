@@ -100,3 +100,28 @@ async def test_recordings_expire(client, admin, wards):
         await s.commit()
         assert await purge_expired_recordings(s) == 1
         assert await s.get(CallRecording, rid) is None
+
+
+async def test_pbx_pulls_active_lines_with_its_secret_and_softphone_gets_the_relay(client, admin, monkeypatch):
+    agent = await make_user(client, admin, "call_agent", email="pbx@campaign.co.ke")
+    me = (await client.get("/api/v1/auth/me", headers=agent)).json()
+    await client.put(f"/api/v1/calls/sip-accounts/{me['id']}", json={"sip_user": "1001", "sip_password": "line-pass-1"}, headers=admin)
+
+    url = "/api/v1/calls/pbx/lines"
+    monkeypatch.setattr(settings, "pbx_sync_secret", "")
+    assert (await client.get(url, headers={"X-PBX-Secret": ""})).status_code == 403  # unset secret: closed
+    monkeypatch.setattr(settings, "pbx_sync_secret", "pbx-secret")
+    assert (await client.get(url, headers={"X-PBX-Secret": "wrong"})).status_code == 403
+    lines = (await client.get(url, headers={"X-PBX-Secret": "pbx-secret"})).json()
+    assert lines == [{"ext": "1001", "password": "line-pass-1", "name": "Call Agent User"}]
+    # Deactivated people lose their line on the next sync.
+    await client.patch(f"/api/v1/users/{me['id']}", json={"is_active": False}, headers=admin)
+    assert (await client.get(url, headers={"X-PBX-Secret": "pbx-secret"})).json() == []
+
+    # With a TURN relay configured, the softphone is told to use it.
+    other = await make_user(client, admin, "call_agent", email="relay@campaign.co.ke")
+    monkeypatch.setattr(settings, "turn_url", "turn:203.0.113.10:3479")
+    monkeypatch.setattr(settings, "turn_username", "shahbal")
+    monkeypatch.setattr(settings, "turn_password", "t-pass")
+    cfg = (await client.get("/api/v1/calls/softphone", headers=other)).json()
+    assert cfg["turn"] == {"urls": "turn:203.0.113.10:3479", "username": "shahbal", "credential": "t-pass"}

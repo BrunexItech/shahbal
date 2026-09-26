@@ -1,5 +1,11 @@
-from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
+import hmac
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.core.db import get_session
 
 from app.core.deps import Ctx, any_user, require, require_step_up
 from app.core.roles import ADMINS, MANAGERS, Role
@@ -68,6 +74,15 @@ async def softphone(ctx: Ctx = Depends(callers)):
 class SipAccountIn(BaseModel):
     sip_user: str = Field(min_length=2, max_length=80, pattern=r"^[A-Za-z0-9_.+-]+$")
     sip_password: str = Field(min_length=6, max_length=128)
+
+
+@router.get("/pbx/lines", include_in_schema=False)
+async def pbx_lines(request: Request, session: AsyncSession = Depends(get_session)):
+    """For the PBX only (pbx/sync_agents.py): active agents' SIP lines. Authenticated by PBX_SYNC_SECRET."""
+    given = request.headers.get("x-pbx-secret", "")
+    if not settings.pbx_sync_secret or not hmac.compare_digest(given.encode(), settings.pbx_sync_secret.encode()):
+        raise HTTPException(403, "Forbidden")
+    return await telephony.pbx_lines(session)
 
 
 @router.get("/sip-accounts")

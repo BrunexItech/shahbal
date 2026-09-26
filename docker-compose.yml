@@ -95,6 +95,31 @@ services:
       - ./deploy/nginx/gateway.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
 
+  # ---- Call centre phone exchange (Cloud One) — off until you start it: ----
+  #   docker-compose --profile pbx up -d --build pbx turn
+  # Keys live in backend/.env (CLOUDONE_*, PBX_*, TURN_*). Host networking: SIP, RTP
+  # and TURN bind straight to the server so call audio isn't mangled by Docker NAT.
+  pbx:
+    build: ./pbx
+    profiles: ["pbx"]
+    network_mode: host
+    env_file:
+      - path: ./backend/.env
+        required: false
+    restart: unless-stopped
+
+  turn:
+    image: coturn/coturn:4.6
+    profiles: ["pbx"]
+    network_mode: host
+    env_file:
+      - path: ./backend/.env
+        required: false
+    # Relay-only media for the browser softphones, bound to the public IP only and
+    # allowed to reach nothing but this server's own PBX.
+    entrypoint: ["sh", "-c", "exec turnserver -n --listening-ip=$$PBX_PUBLIC_IP --relay-ip=$$PBX_PUBLIC_IP --external-ip=$$PBX_PUBLIC_IP --listening-port=$${TURN_PORT:-3479} --min-port=$${TURN_MIN_PORT:-49300} --max-port=$${TURN_MAX_PORT:-49399} --realm=shahbal --lt-cred-mech --user=$$TURN_USERNAME:$$TURN_PASSWORD --no-tls --no-dtls --no-cli --no-multicast-peers --denied-peer-ip=10.0.0.0-10.255.255.255 --denied-peer-ip=172.16.0.0-172.31.255.255 --denied-peer-ip=192.168.0.0-192.168.255.255 --allowed-peer-ip=$$PBX_PUBLIC_IP"]
+    restart: unless-stopped
+
 volumes:
   pgdata:
   recordings:

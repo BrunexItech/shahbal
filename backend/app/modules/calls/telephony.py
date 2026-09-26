@@ -18,7 +18,9 @@ AUDIO_TYPES = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav"
 
 async def softphone_config(ctx: Ctx) -> dict:
     base = {"provider": settings.voice_provider, "caller_id": settings.sip_caller_id or None, "stun": settings.stun_servers,
-            "recording_retention_days": settings.recording_retention_days}
+            "recording_retention_days": settings.recording_retention_days,
+            "turn": {"urls": settings.turn_url, "username": settings.turn_username, "credential": settings.turn_password}
+            if settings.turn_url and settings.turn_password else None}
     if settings.voice_provider != "sip":
         return base
     acct = (await ctx.session.execute(select(SipAccount).where(SipAccount.user_id == ctx.user.id))).scalar_one_or_none()
@@ -44,6 +46,14 @@ async def set_sip_account(ctx: Ctx, user_id: str, sip_user: str, sip_password: s
         acct.sip_user, acct.sip_password_enc = sip_user, crypto.encrypt(sip_password)
     audit.record(ctx.session, actor_id=ctx.user.id, action="SIP_LINE_SET", entity="user", entity_id=user_id, ip=ctx.ip, sip_user=sip_user)
     await ctx.session.commit()
+
+
+async def pbx_lines(session) -> list[dict]:
+    """Every active person with a phone line, for the PBX to provision (secret-protected route)."""
+    rows = (await session.execute(
+        select(SipAccount, User.full_name).join(User, User.id == SipAccount.user_id).where(User.is_active.is_(True))
+    )).all()
+    return [{"ext": a.sip_user, "password": crypto.decrypt(a.sip_password_enc), "name": n} for a, n in rows]
 
 
 async def list_sip_accounts(ctx: Ctx) -> list[dict]:

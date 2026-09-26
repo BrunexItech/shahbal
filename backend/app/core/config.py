@@ -93,6 +93,13 @@ class Settings(BaseSettings):
     sip_wss_url: str = ""  # e.g. wss://sip.provider.co.ke:7443
     sip_domain: str = ""  # e.g. sip.provider.co.ke
     sip_caller_id: str = ""  # number shown to voters
+    # Call audio relay (coturn next to the PBX). When set, the softphone sends all audio
+    # through it: one predictable path through NAT and busy hosts.
+    turn_url: str = ""  # e.g. turn:203.0.113.10:3479
+    turn_username: str = ""
+    turn_password: str = ""
+    # The PBX (pbx/) pulls agents' SIP lines from GET /api/v1/calls/pbx/lines with this secret.
+    pbx_sync_secret: str = ""
     stun_servers: list[str] = ["stun:stun.l.google.com:19302"]
     recordings_dir: str = "./data/recordings"  # a persistent volume in production (photos live in a sibling folder)
     recording_retention_days: int = 90

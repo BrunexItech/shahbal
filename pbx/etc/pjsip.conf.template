@@ -1,0 +1,77 @@
+;======================================================================
+; Shahbal PBX: the Cloud One SIP trunk on one side, the call centre's
+; browser softphones (WebRTC) on the other. Rendered by entrypoint.sh.
+;======================================================================
+
+[transport-udp]
+type = transport
+protocol = udp
+bind = 0.0.0.0:${PBX_SIP_PORT}
+external_media_address = ${PBX_PUBLIC_IP}
+external_signaling_address = ${PBX_PUBLIC_IP}
+local_net = 10.0.0.0/8
+local_net = 172.16.0.0/12
+local_net = 192.168.0.0/16
+local_net = 127.0.0.0/8
+
+; Browsers reach this through nginx (TLS) -> http.conf's localhost port.
+; 'bind' must stay 0.0.0.0: Asterisk copies it onto the call's audio socket.
+[transport-ws]
+type = transport
+protocol = ws
+bind = 0.0.0.0
+external_media_address = ${PBX_PUBLIC_IP}
+external_signaling_address = ${PBX_PUBLIC_IP}
+local_net = 127.0.0.0/8
+
+;--- Cloud One trunk --------------------------------------------------
+[cloudone_auth]
+type = auth
+auth_type = userpass
+username = ${CLOUDONE_SIP_USER}
+password = ${CLOUDONE_SIP_PASSWORD}
+
+[cloudone_aor]
+type = aor
+contact = sip:${CLOUDONE_SIP_HOST}
+qualify_frequency = 60
+
+[cloudone_reg]
+type = registration
+transport = transport-udp
+outbound_auth = cloudone_auth
+server_uri = sip:${CLOUDONE_SIP_HOST}
+client_uri = sip:${CLOUDONE_SIP_USER}@${CLOUDONE_SIP_HOST}
+retry_interval = 30
+forbidden_retry_interval = 300
+fatal_retry_interval = 300
+expiration = 300
+line = yes
+endpoint = cloudone
+
+[cloudone]
+type = endpoint
+transport = transport-udp
+context = from-cloudone
+disallow = all
+allow = ulaw
+allow = alaw
+allow = g729
+outbound_auth = cloudone_auth
+aors = cloudone_aor
+from_domain = ${CLOUDONE_SIP_HOST}
+dtmf_mode = rfc4733
+rtp_symmetric = yes
+force_rport = yes
+rewrite_contact = yes
+direct_media = no
+
+[cloudone_identify]
+type = identify
+endpoint = cloudone
+match = ${CLOUDONE_SIP_HOST}
+
+;--- Agent softphones -------------------------------------------------
+; One block per call-centre line, written by sync_agents.py from the lines
+; HQ assigns in the platform (Call Centre -> phone lines). Never hand-edit.
+#include pjsip_agents.conf
