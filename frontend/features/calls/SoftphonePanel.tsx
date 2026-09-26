@@ -85,8 +85,17 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
       <div className="px-5">
         {inCall || phone.state === "ended" ? (
           <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4 text-center">
-            <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-gradient-to-br from-gold to-[#8a6d12] text-lg font-extrabold text-navy-950">
-              {initials(phone.party?.name ?? "?")}
+            <span className="relative mx-auto grid size-16 place-items-center">
+              {(phone.state === "dialing" || phone.state === "ringing") && (
+                <>
+                  <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-gold/30" />
+                  <span aria-hidden className="absolute -inset-2 animate-pulse rounded-full ring-2 ring-gold/25" />
+                </>
+              )}
+              {phone.state === "in_call" && <span aria-hidden className="absolute -inset-1 rounded-full ring-2 ring-[#34c77b]/60" />}
+              <span className="relative grid size-14 place-items-center rounded-full bg-gradient-to-br from-gold to-[#8a6d12] text-lg font-extrabold text-navy-950">
+                {initials(phone.party?.name ?? "?")}
+              </span>
             </span>
             <p className="mt-2 font-display text-lg font-bold">{phone.party?.name}</p>
             <p className="text-xs text-slate-400">{phone.party?.number}</p>
