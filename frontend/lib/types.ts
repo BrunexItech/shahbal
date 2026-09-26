@@ -56,7 +56,18 @@ export interface Station {
   target: number;
   latitude: number | null;
   longitude: number | null;
+  /** verified = GPS on site, approved; exact = the building on the map; approximate = right neighbourhood. */
+  location_quality?: LocationQuality | null;
   is_active: boolean;
+  pin_pending?: boolean;
+}
+
+export type LocationQuality = "verified" | "exact" | "approximate";
+
+export interface StationPin {
+  station_id: string; station: string; code: string; ward_id: string; ward: string;
+  latitude: number | null; longitude: number | null; location_quality: LocationQuality | null;
+  pin_lat: number; pin_lng: number; pin_accuracy: number | null; pin_by: string | null; pin_at: string | null; moved_m: number | null;
 }
 
 export interface Voter {
@@ -362,7 +373,7 @@ export interface VisitedPlace {
 export interface MapOverview {
   wards: MapWard[];
   places: VisitedPlace[];
-  stations: { id: string; name: string; code: string; ward_id: string; lat: number; lng: number; registered_voters: number | null; captured: number }[];
+  stations: { id: string; name: string; code: string; ward_id: string; lat: number; lng: number; registered_voters: number | null; streams: number; location: LocationQuality; captured: number }[];
   visits: {
     id: string; title: string; venue: string; status: VisitStatus; scheduled_at: string; ward_id: string; ward: string;
     lat: number | null; lng: number | null; exact: boolean; checkin_at: string | null; checkin_by: string | null;

@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.geo.models import PollingStation
 from app.modules.messaging import dispatcher
 from app.modules.messaging.dispatcher import in_quiet_hours as real_quiet_hours
 from app.modules.messaging.models import Message
@@ -265,21 +266,39 @@ async def test_offline_replay_is_idempotent(client, admin, wards):
     assert a.status_code == b.status_code == 201 and a.json()["id"] == b.json()["id"]
 
 
-async def test_bundled_station_seed_and_official_reimport(client, admin):
+async def test_bundled_station_seed_is_the_official_iebc_2022_list(client, admin, wards):
     from app.modules.geo.service import seed_stations
 
+    # Centres from an older list that captures may already point at: one renamed, one gone.
+    async with SessionLocal() as s:
+        s.add(PollingStation(code="MSA-0027-99", name="Demolished Hall", ward_id=wards["Tudor"].id))
+        s.add(renamed := PollingStation(code="MSA-0004-99", name="Changamwe Sec Sch", ward_id=wards["Changamwe"].id))
+        s.add(PollingStation(code="HQ-1", name="Campaign Tent", ward_id=wards["Tudor"].id))  # added by HQ
+        await s.commit()
+    r = await client.post("/api/v1/voters", headers=admin, json=voter_payload(wards["Changamwe"], national_id="71234567", station_id=renamed.id))
+    assert r.status_code == 201, r.text
     async with SessionLocal() as s:
         first = await seed_stations(s)
         again = await seed_stations(s)
-    assert first.created == 210 and again.created == 0 and again.updated == 210
+    assert first.created == 228 and not first.errors and again.created == 0 and again.updated == 228
     stations = (await client.get("/api/v1/geo/stations", headers=admin)).json()
-    assert len(stations) == 210 and sum(1 for x in stations if x["latitude"] is not None) == 81
-    # An official file with real IEBC codes updates the same stations instead of duplicating them.
-    csv = "code,name,ward_code,registered_voters\n001001000101,BOMU PRIMARY SCHOOL,0001,4200\n"
+    active = [x for x in stations if x["is_active"] and x["code"] != "HQ-1"]
+    assert len(active) == 228 and sum(x["streams"] for x in active) == 1041
+    assert sum(x["registered_voters"] for x in active) == 641_913  # IEBC's Mombasa total for 2022
+    assert {x["location_quality"] for x in active} == {"exact", "approximate", None}
+    assert next(x for x in stations if x["code"] == "MSA-0027-99")["is_active"] is False  # retired, not deleted
+    assert next(x for x in stations if x["code"] == "HQ-1")["is_active"] is True  # HQ's own stay
+    # The capture follows its centre to the 2022 spelling.
+    voter = (await client.get(f"/api/v1/voters/{r.json()['id']}", headers=admin)).json()
+    assert next(x for x in stations if x["id"] == voter["station_id"])["name"] == "Changamwe Secondary School"
+    tree = (await client.get("/api/v1/geo/tree", headers=admin)).json()
+    assert sum(w["registered_voters"] for c in tree for w in c["wards"]) == 641_913
+    # A later official file updates the same centres instead of duplicating them.
+    csv = "code,name,ward_code,registered_voters\n0010010001001,BOMU PRIMARY SCHOOL,0001,9500\n"
     r = (await client.post("/api/v1/geo/stations/import", headers=admin, files={"file": ("iebc.csv", csv, "text/csv")})).json()
     assert r == {"created": 0, "updated": 1, "errors": []}
-    bomu = [x for x in (await client.get("/api/v1/geo/stations", params={"q": "Bomu"}, headers=admin)).json()]
-    assert len(bomu) == 1 and bomu[0]["code"] == "001001000101" and bomu[0]["registered_voters"] == 4200
+    bomu = (await client.get("/api/v1/geo/stations", params={"q": "Bomu Primary"}, headers=admin)).json()
+    assert len(bomu) == 1 and bomu[0]["registered_voters"] == 9500 and bomu[0]["streams"] == 14
 
 
 async def test_gis_project_is_aggregate_and_admin_only(client, admin, wards):

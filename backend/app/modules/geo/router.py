@@ -5,6 +5,8 @@ from app.core.roles import ADMINS, MANAGERS, Role
 from app.modules.geo.schemas import (
     ConstituencyOut,
     ImportResult,
+    PinIn,
+    PinOut,
     StationIn,
     StationOut,
     StationUpdate,
@@ -53,6 +55,32 @@ async def create_station(payload: StationIn, ctx: Ctx = Depends(managers)):
 @router.patch("/stations/{station_id}", response_model=StationOut)
 async def update_station(station_id: str, payload: StationUpdate, ctx: Ctx = Depends(managers)):
     return await GeoService(ctx).update_station(station_id, payload)
+
+
+# ---- field pins ----------------------------------------------------------------
+pinners = require(*MANAGERS, Role.field_agent)
+
+
+@router.get("/stations/pins", response_model=list[PinOut])
+async def pending_pins(ctx: Ctx = Depends(managers)):
+    return await GeoService(ctx).pending_pins()
+
+
+@router.post("/stations/{station_id}/pin", response_model=StationOut)
+async def propose_pin(station_id: str, payload: PinIn, ctx: Ctx = Depends(pinners)):
+    """Pin a station from your phone's GPS while standing at it. HQ pins apply at once;
+    everyone else's wait for a manager to approve."""
+    return await GeoService(ctx).propose_pin(station_id, payload)
+
+
+@router.post("/stations/{station_id}/pin/approve", response_model=StationOut)
+async def approve_pin(station_id: str, ctx: Ctx = Depends(managers)):
+    return await GeoService(ctx).decide_pin(station_id, approve=True)
+
+
+@router.post("/stations/{station_id}/pin/reject", response_model=StationOut)
+async def reject_pin(station_id: str, ctx: Ctx = Depends(managers)):
+    return await GeoService(ctx).decide_pin(station_id, approve=False)
 
 
 @router.post("/stations/import", response_model=ImportResult)

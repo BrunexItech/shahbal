@@ -4,13 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import type { FeatureCollection } from "geojson";
 import {
   Box, Camera, ChevronDown, Download, ExternalLink, FileSpreadsheet, Flame, House, Image as ImageIcon, Layers as LayersIcon,
-  Map as MapIcon, Pause, Play, Printer, Ruler, Satellite, X,
+  Map as MapIcon, MapPinOff, Navigation, Pause, Play, Printer, Ruler, Satellite, Search, X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Skeleton, Spinner } from "@/components/loaders";
+import { useStations } from "@/features/geo/api";
 import { useBoundaries, useConstituencyOutlines, useMapOverview } from "@/features/map/api";
 import { CONSTITUENCY_COLORS, PROGRESS_STEPS } from "@/features/map/regions";
 import { PhotoImg, useVisitPhotos } from "@/features/visits/photos";
@@ -18,10 +19,10 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { API_URL, GIS_URL, MAPILLARY_TOKEN } from "@/lib/config";
 import { dateTime, num, pct } from "@/lib/format";
-import type { MapOverview, VisitedPlace } from "@/lib/types";
+import type { MapOverview, Station } from "@/lib/types";
 
 import { downloadCsv, placeRows, printMap, save, wardRows } from "./exports";
-import { CAPTURE_STEPS, type Base, type GisLayers, type GisMapHandle, type MeasureResult, type Selection, type Theme, VISIT_STEPS } from "./GisMap";
+import { CAPTURE_STEPS, type Base, type GisLayers, type GisMapHandle, type MeasureResult, type Selection, STATION_LOOK, type Theme, VISIT_STEPS } from "./GisMap";
 import { fmtArea, fmtDistance } from "./measure";
 
 const GisMap = dynamic(() => import("./GisMap").then((m) => m.GisMap), {
@@ -217,6 +218,15 @@ export function GisWorkspace() {
           ))}
         </div>
         {threeD && layers.wards && <p className="mt-1.5 text-xs text-slate-500">Column height = people captured</p>}
+        {(layers.stations || selected?.kind === "ward" || selected?.kind === "station") && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-line pt-2">
+            {Object.values(STATION_LOOK).map((l) => (
+              <span key={l.label} title={l.hint} className="inline-flex items-center gap-1.5 text-xs text-slate-700">
+                <span className="size-3 rounded-full" style={{ background: l.fill, boxShadow: `0 0 0 2px ${l.stroke === "#ffffff" ? "rgba(0,0,0,.08)" : l.stroke}` }} />{l.label}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Replay bar */}
@@ -241,7 +251,8 @@ export function GisWorkspace() {
       )}
 
       {/* Details */}
-      {selected && d && <Details d={d} selected={selected} onClose={() => setSelected(null)} onFocus={(p) => setFocus({ lng: p.lng, lat: p.lat, key: Date.now() })} />}
+      {selected && d && <Details d={d} selected={selected} onClose={() => setSelected(null)} onSelect={setSelected}
+        onFocus={(p, zoom) => setFocus({ lng: p.lng, lat: p.lat, zoom, key: Date.now() })} />}
     </div>
   );
 }
@@ -273,25 +284,38 @@ function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
   );
 }
 
-function Details({ d, selected, onClose, onFocus }: { d: MapOverview; selected: NonNullable<Selection>; onClose: () => void; onFocus: (p: VisitedPlace) => void }) {
+type Pt = { lat: number; lng: number };
+
+function Details({ d, selected, onClose, onFocus, onSelect }: {
+  d: MapOverview; selected: NonNullable<Selection>; onClose: () => void; onFocus: (p: Pt, zoom?: number) => void; onSelect: (s: Selection) => void;
+}) {
   const ward = selected.kind === "ward" ? d.wards.find((w) => w.id === selected.id) : null;
+  const station = selected.kind === "station" ? d.stations.find((s) => s.id === selected.id) : null;
+  const stationWard = station ? d.wards.find((w) => w.id === station.ward_id) : null;
   const place = selected.kind === "place" ? d.places.find((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}` === selected.key) : null;
+  const eyebrow = ward ? ward.constituency : station ? `${stationWard?.name ?? ""} ward` : place ? place.ward : "Street level";
+  const title = ward?.name ?? station?.name ?? place?.venue ?? "Street photo";
   return (
-    <aside className="absolute inset-x-3 bottom-3 max-h-[60%] animate-fade-up overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-line sm:inset-x-auto sm:top-24 sm:right-4 sm:bottom-4 sm:max-h-none sm:w-[360px]">
+    <aside className="absolute inset-x-3 bottom-3 max-h-[60%] animate-fade-up overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-line sm:inset-x-auto sm:top-24 sm:right-4 sm:bottom-auto sm:max-h-[calc(100%-7rem)] sm:w-[380px]">
       <div className="sticky top-0 z-10 flex items-start justify-between gap-3 bg-navy-950 px-4 py-3 text-white">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[.16em] text-gold uppercase">
-            {selected.kind === "ward" ? ward?.constituency : selected.kind === "place" ? place?.ward : "Street level"}
-          </p>
-          <p className="truncate font-display text-lg font-bold">{ward?.name ?? place?.venue ?? "Street photo"}</p>
+          <p className="text-xs font-semibold tracking-[.16em] text-gold uppercase">{eyebrow}</p>
+          <p className="line-clamp-2 font-display text-lg leading-snug font-bold">{title}</p>
         </div>
-        <button onClick={onClose} className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10" aria-label="Close details"><X className="size-4" /></button>
+        <div className="flex shrink-0 items-center gap-1">
+          {station && stationWard && (
+            <button onClick={() => onSelect({ kind: "ward", id: stationWard.id })} className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white">
+              Whole ward
+            </button>
+          )}
+          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10" aria-label="Close details"><X className="size-4" /></button>
+        </div>
       </div>
       <div className="p-4">
         {ward && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2">
-              {([["Captured", num(ward.achieved)], ["Target", num(ward.target)], ["Progress", pct(ward.percent)], ["Gap", num(ward.gap)], ["Supporters", num(ward.supporters)], ["Visits done", num(ward.visits_completed)]] as const).map(([k, v]) => (
+              {([["Registered voters", num(ward.registered_voters)], ["Captured", num(ward.achieved)], ["Target", num(ward.target)], ["Progress", pct(ward.percent)], ["Supporters", num(ward.supporters)], ["Visits done", num(ward.visits_completed)]] as const).map(([k, v]) => (
                 <div key={k} className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-line">
                   <p className="text-xs text-slate-500">{k}</p>
                   <p className="font-display text-xl font-bold text-navy-900 tabular-nums">{v}</p>
@@ -299,6 +323,8 @@ function Details({ d, selected, onClose, onFocus }: { d: MapOverview; selected: 
               ))}
             </div>
             <p className="text-xs text-slate-500">Last visit: {ward.last_visit_at ? dateTime(ward.last_visit_at) : "never"}</p>
+            <WardCentres wardId={ward.id} d={d} onPick={(id, pt) => { onSelect({ kind: "station", id }); onFocus(pt, 17); }} />
+            {d.places.some((p) => p.ward_id === ward.id) && <p className="text-xs font-bold tracking-wider text-slate-500 uppercase">Places visited</p>}
             {d.places.filter((p) => p.ward_id === ward.id).map((p) => (
               <button key={`${p.lat},${p.lng}`} onClick={() => onFocus(p)} className="flex w-full items-center gap-3 rounded-xl p-2 text-left ring-1 ring-line hover:bg-slate-50">
                 {p.photo_url ? <PhotoImg url={p.photo_url} alt={p.venue} className="size-12 shrink-0 rounded-lg" /> : <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400"><Camera className="size-4" /></span>}
@@ -307,6 +333,7 @@ function Details({ d, selected, onClose, onFocus }: { d: MapOverview; selected: 
             ))}
           </div>
         )}
+        {station && <StationCard s={station} onZoom={() => onFocus(station, 17.5)} />}
         {place && (
           <div className="space-y-3">
             <p className="text-sm text-slate-600">Visited <b className="text-navy-900">{place.count} {place.count === 1 ? "time" : "times"}</b>{place.attendance ? <> · <b className="text-navy-900">{num(place.attendance)}</b> attended</> : null}</p>
@@ -318,6 +345,106 @@ function Details({ d, selected, onClose, onFocus }: { d: MapOverview; selected: 
         {selected.kind === "street" && <StreetPhoto id={selected.id} />}
       </div>
     </aside>
+  );
+}
+
+type MapStation = MapOverview["stations"][number];
+
+function StationCard({ s, onZoom }: { s: MapStation; onZoom: () => void }) {
+  const look = STATION_LOOK[s.location] ?? STATION_LOOK.approximate;
+  const reach = s.registered_voters ? s.captured / s.registered_voters : null;
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        {([["Registered", num(s.registered_voters)], ["Streams", num(s.streams)], ["Captured", num(s.captured)]] as const).map(([k, v]) => (
+          <div key={k} className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-line">
+            <p className="text-xs text-slate-500">{k}</p>
+            <p className="font-display text-xl font-bold text-navy-900 tabular-nums">{v}</p>
+          </div>
+        ))}
+      </div>
+      {reach != null && (
+        <div>
+          <div className="flex justify-between text-xs text-slate-500"><span>Reached of registered voters</span><b className="text-navy-900 tabular-nums">{pct(reach * 100)}</b></div>
+          <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-kenya-green" style={{ width: `${Math.min(100, reach * 100)}%` }} /></div>
+        </div>
+      )}
+      <div className="flex items-start gap-3 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-line">
+        <span className="mt-1 size-3 shrink-0 rounded-full" style={{ background: look.fill, boxShadow: `0 0 0 2px ${look.stroke === "#ffffff" ? "rgba(0,0,0,.1)" : look.stroke}` }} />
+        <p className="text-sm text-slate-700"><b className="text-navy-900">{look.label}.</b> {look.hint}.</p>
+      </div>
+      <p className="font-mono text-xs text-slate-500">IEBC {s.code} · {s.lat.toFixed(5)}, {s.lng.toFixed(5)}</p>
+      <div className="flex gap-2">
+        <button onClick={onZoom} className="flex-1 rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-navy-900 hover:bg-slate-200">Zoom in</button>
+        <a href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-navy-950 px-3 py-2 text-sm font-semibold text-white hover:bg-navy-900">
+          <Navigation className="size-4" /> Directions
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/** Every IEBC polling centre in the ward, mapped or not, biggest first. */
+function WardCentres({ wardId, d, onPick }: { wardId: string; d: MapOverview; onPick: (id: string, pt: Pt) => void }) {
+  const { data, isLoading } = useStations(wardId);
+  const [q, setQ] = useState("");
+  const onMap = useMemo(() => new Map(d.stations.map((s) => [s.id, s])), [d.stations]);
+  const rows = useMemo(() => (data ?? []).filter((s) => s.is_active)
+    .sort((a, b) => (b.registered_voters ?? 0) - (a.registered_voters ?? 0)), [data]);
+  const shown = q ? rows.filter((s) => s.name.toLowerCase().includes(q.toLowerCase())) : rows;
+  const count = (k: string | null) => rows.filter((s) => (s.latitude == null ? null : s.location_quality ?? "approximate") === k).length;
+  if (isLoading) return <div className="grid h-20 place-items-center"><Spinner /></div>;
+  if (!rows.length) return null;
+  return (
+    <section>
+      <div className="flex items-baseline justify-between">
+        <p className="text-xs font-bold tracking-wider text-slate-500 uppercase">Polling centres</p>
+        <p className="text-xs text-slate-500 tabular-nums">{rows.length} centres · {num(rows.reduce((a, s) => a + s.streams, 0))} streams</p>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {(["verified", "exact", "approximate"] as const).map((k) => count(k) > 0 && (
+          <span key={k} className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-700 ring-1 ring-line">
+            <span className="size-2 rounded-full" style={{ background: STATION_LOOK[k].fill, boxShadow: `0 0 0 1.5px ${STATION_LOOK[k].stroke === "#ffffff" ? "rgba(0,0,0,.15)" : STATION_LOOK[k].stroke}` }} />
+            {count(k)} {STATION_LOOK[k].label.toLowerCase()}
+          </span>
+        ))}
+        {count(null) > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-900 ring-1 ring-amber-200"><MapPinOff className="size-3" />{count(null)} need a pin</span>}
+      </div>
+      {rows.length > 6 && (
+        <label className="relative mt-2 block">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a centre" aria-label="Find a polling centre"
+            className="h-10 w-full rounded-xl border border-line pr-3 pl-9 text-base focus:border-ocean focus:outline-none focus:ring-4 focus:ring-ocean/10" />
+        </label>
+      )}
+      <ul className="mt-2 divide-y divide-line rounded-xl ring-1 ring-line">
+        {shown.map((s: Station) => {
+          const m = onMap.get(s.id);
+          const look = s.latitude == null ? null : STATION_LOOK[s.location_quality ?? "approximate"];
+          const body = (
+            <>
+              <span className="mt-1 size-2.5 shrink-0 rounded-full" style={look ? { background: look.fill, boxShadow: `0 0 0 1.5px ${look.stroke === "#ffffff" ? "rgba(0,0,0,.15)" : look.stroke}` } : { border: "1.5px dashed #d97706" }} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-navy-900">{s.name}</span>
+                <span className="text-xs text-slate-500 tabular-nums">
+                  {num(s.registered_voters)} voters · {s.streams} stream{s.streams === 1 ? "" : "s"}{m ? ` · ${num(m.captured)} captured` : ""}
+                  {!look && " · no pin yet"}{s.pin_pending && " · pin awaiting approval"}
+                </span>
+              </span>
+            </>
+          );
+          return (
+            <li key={s.id}>
+              {m ? (
+                <button onClick={() => onPick(s.id, m)} className="flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-slate-50">{body}</button>
+              ) : <div className="flex items-start gap-2.5 px-3 py-2">{body}</div>}
+            </li>
+          );
+        })}
+        {!shown.length && <li className="px-3 py-3 text-sm text-slate-500">No centre matches “{q}”.</li>}
+      </ul>
+    </section>
   );
 }
 

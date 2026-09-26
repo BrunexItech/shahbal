@@ -79,7 +79,8 @@ class MapService:
         allowed = {w["id"] for w in wards}
         stations = (await self.s.execute(
             select(PollingStation.id, PollingStation.name, PollingStation.code, PollingStation.ward_id, PollingStation.latitude,
-                   PollingStation.longitude, PollingStation.registered_voters, func.count(Voter.id))
+                   PollingStation.longitude, PollingStation.registered_voters, PollingStation.streams, PollingStation.location_quality,
+                   func.count(Voter.id))
             .outerjoin(Voter, (Voter.station_id == PollingStation.id) & voter_scope(self.user) & (Voter.status != Status.rejected))
             .where(PollingStation.latitude.is_not(None), PollingStation.is_active.is_(True), PollingStation.ward_id.in_(allowed))
             .group_by(PollingStation.id)
@@ -99,8 +100,9 @@ class MapService:
         return {
             "wards": wards,
             "places": places,
-            "stations": [{"id": i, "name": n, "code": c, "ward_id": w, "lat": la, "lng": lo, "registered_voters": r, "captured": k}
-                         for i, n, c, w, la, lo, r, k in stations],
+            "stations": [{"id": i, "name": n, "code": c, "ward_id": w, "lat": la, "lng": lo, "registered_voters": r, "streams": sm,
+                          "location": q or "approximate", "captured": k}
+                         for i, n, c, w, la, lo, r, sm, q, k in stations],
             # `exact` = the team's own GPS at check-in; otherwise the planned polling station.
             "visits": [{"id": i, "title": t, "venue": v, "status": s.value, "scheduled_at": at.isoformat(), "ward_id": w, "ward": wn,
                         "lat": la, "lng": lo, "exact": bool(ex), "checkin_at": ca.isoformat() if ca else None, "checkin_by": cb,

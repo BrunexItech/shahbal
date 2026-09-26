@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,4 +38,17 @@ class PollingStation(Base):
     target: Mapped[int] = mapped_column(default=0)
     latitude: Mapped[float | None]
     longitude: Mapped[float | None]
+    # How sure we are of the pin: "verified" (GPS on site, approved by HQ), "exact" (the
+    # building itself on the map), "approximate" (right neighbourhood only). None = no pin.
+    location_quality: Mapped[str | None] = mapped_column(String(12))
     is_active: Mapped[bool] = mapped_column(default=True)
+    # A field pin waiting for HQ approval (one at a time; a newer one replaces it).
+    pin_lat: Mapped[float | None]
+    pin_lng: Mapped[float | None]
+    pin_accuracy: Mapped[float | None]
+    pin_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    pin_at: Mapped[datetime | None]
+
+    @property
+    def pin_pending(self) -> bool:
+        return self.pin_lat is not None

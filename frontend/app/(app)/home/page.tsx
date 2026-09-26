@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarCheck, LocateFixed, MapPin, Trophy, UserPlus } from "lucide-react";
+import { CalendarCheck, ChevronRight, LocateFixed, MapPin, MapPinned, Trophy, UserPlus } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
@@ -9,6 +9,8 @@ import { useState } from "react";
 import { Skeleton, Spinner } from "@/components/loaders";
 import { Card, EmptyState, ErrorState, StatusBadge } from "@/components/ui";
 import { CountUp, Ring } from "@/components/ui/Motion";
+import { useStations } from "@/features/geo/api";
+import { PinStationModal } from "@/features/geo/PinStation";
 import { useBoundaries, useMapOverview } from "@/features/map/api";
 import type { Layers } from "@/features/map/CoverageMap";
 import { QuickVisitModal } from "@/features/visits/QuickVisit";
@@ -40,6 +42,7 @@ type Area = {
 export default function MyAreaPage() {
   const user = useUser();
   const [quick, setQuick] = useState(false);
+  const [pinning, setPinning] = useState(false);
   const q = useQuery({ queryKey: ["my-area"], queryFn: () => api<Area>("/dashboard/my-area"), refetchInterval: 30_000 });
   const overview = useMapOverview();
   const boundaries = useBoundaries();
@@ -93,6 +96,8 @@ export default function MyAreaPage() {
           <LocateFixed className="size-5" /> I&apos;m here now
         </button>
       </div>
+
+      <MapTheWard wardId={a.ward.id} ward={a.ward.name} onPin={() => setPinning(true)} />
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Rank */}
@@ -160,6 +165,27 @@ export default function MyAreaPage() {
       </Card>
 
       {quick && <QuickVisitModal onClose={() => setQuick(false)} />}
+      {pinning && <PinStationModal wardId={a.ward.id} onClose={() => setPinning(false)} />}
     </div>
+  );
+}
+
+/** How many of the ward's polling centres are pinned exactly, and a way to help. */
+function MapTheWard({ wardId, ward, onPin }: { wardId: string; ward: string; onPin: () => void }) {
+  const { data } = useStations(wardId);
+  const rows = (data ?? []).filter((s) => s.is_active);
+  if (!rows.length) return null;
+  const confirmed = rows.filter((s) => s.location_quality === "verified").length;
+  const pct = Math.round((confirmed / rows.length) * 100);
+  return (
+    <button onClick={onPin} className="flex w-full items-center gap-4 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-line transition hover:ring-kenya-green/40 active:scale-[.99]">
+      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-kenya-green/10 text-kenya-green"><MapPinned className="size-5" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold text-navy-900">Pin a polling station</span>
+        <span className="block text-xs text-slate-500">{confirmed} of {rows.length} centres in {ward} confirmed on site. At one now? Pin it.</span>
+        <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-kenya-green" style={{ width: `${pct}%` }} /></span>
+      </span>
+      <ChevronRight className="size-5 shrink-0 text-slate-400" />
+    </button>
   );
 }

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import type { Constituency, Station, Ward } from "@/lib/types";
+import type { Constituency, Station, StationPin, Ward } from "@/lib/types";
 
 export const geoKeys = {
   tree: ["geo", "tree"] as const,
@@ -89,6 +89,27 @@ export function useImportStations() {
       return api<{ created: number; updated: number; errors: string[] }>("/geo/stations/import", { form });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["geo", "stations"] }),
+  });
+}
+
+export const usePendingPins = (enabled = true) =>
+  useQuery({ queryKey: ["geo", "pins"], queryFn: () => api<StationPin[]>("/geo/stations/pins"), enabled, refetchInterval: 60_000 });
+
+/** "I'm standing at this station": sends the phone's GPS. HQ pins apply at once, others wait for approval. */
+export function useProposePin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; latitude: number; longitude: number; accuracy: number }) =>
+      api<Station>(`/geo/stations/${id}/pin`, { body }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["geo"] }); qc.invalidateQueries({ queryKey: ["map", "overview"] }); },
+  });
+}
+
+export function useDecidePin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, approve }: { id: string; approve: boolean }) => api<Station>(`/geo/stations/${id}/pin/${approve ? "approve" : "reject"}`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["geo"] }); qc.invalidateQueries({ queryKey: ["map", "overview"] }); },
   });
 }
 

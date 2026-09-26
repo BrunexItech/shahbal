@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -37,7 +39,9 @@ class StationOut(_Out):
     target: int
     latitude: float | None
     longitude: float | None
+    location_quality: str | None = None
     is_active: bool
+    pin_pending: bool = False
 
 
 class StationIn(BaseModel):
@@ -66,3 +70,27 @@ class ImportResult(BaseModel):
     created: int
     updated: int
     errors: list[str]
+    seen: set[str] = Field(default_factory=set, exclude=True)  # codes in the file (internal)
+
+
+class PinIn(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy: float = Field(ge=0, le=10_000)  # metres, as the phone reports it
+
+
+class PinOut(BaseModel):
+    station_id: str
+    station: str
+    code: str
+    ward_id: str
+    ward: str
+    latitude: float | None  # current pin (None = never mapped)
+    longitude: float | None
+    location_quality: str | None
+    pin_lat: float
+    pin_lng: float
+    pin_accuracy: float | None
+    pin_by: str | None
+    pin_at: datetime | None
+    moved_m: int | None  # how far the proposal is from the current pin

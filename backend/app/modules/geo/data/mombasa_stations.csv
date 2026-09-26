@@ -1,211 +1,229 @@
-code,name,ward_code,latitude,longitude,source
-MSA-0001-01,Bomu Primary School,0001,-4.02653,39.614248,iebc-2013
-MSA-0001-02,Lilongwe Garden,0001,,,
-MSA-0001-03,Mwijabu Primary School,0001,-4.0398,39.618888,iebc-2013
-MSA-0002-01,Cape Town Ground,0002,,,
-MSA-0002-02,Kaloleni Ground,0002,,,
-MSA-0002-03,Kisumu Ndogo Ground,0002,,,
-MSA-0002-04,Kwa Hola Primary School,0002,,,
-MSA-0002-05,Umoja Primary School,0002,-4.03337,39.621208,iebc-2013
-MSA-0003-01,Al-Irshadi Nursery School,0003,,,
-MSA-0003-02,Baraka Village,0003,,,
-MSA-0003-03,Bokole Nursery School,0003,,,
-MSA-0003-04,Mwidani Social Hall,0003,-4.028654,39.604955,osm-nominatim
-MSA-0003-05,Portreitz Nursery School,0003,,,
-MSA-0004-01,Baptist Church Primary School,0004,,,
-MSA-0004-02,Changamwe Primary School,0004,-4.0283,39.632158,iebc-2013
-MSA-0004-03,Changamwe Sec Sch,0004,-4.0283,39.632158,iebc-2013
-MSA-0004-04,Changamwe Social Hall,0004,,,
-MSA-0004-05,Gome Primary School,0004,-4.02065,39.621578,iebc-2013
-MSA-0004-06,Magongo Primary School,0004,-4.02357,39.624148,iebc-2013
-MSA-0004-07,St. Lwanga Primary School,0004,-4.022892,39.626763,osm-nominatim
-MSA-0005-01,Chaani Primary School,0005,-4.03876,39.622308,iebc-2013
-MSA-0005-02,Chaani Social Hall,0005,-4.03221,39.626934,osm-nominatim
-MSA-0005-03,Kipevu Primary School,0005,-4.03138,39.629478,iebc-2013
-MSA-0005-04,Mikadini Primary School,0005,-4.03678,39.624378,iebc-2013
-MSA-0006-01,Aldinnah Nursery School,0006,,,
-MSA-0006-02,Jomvu Brightstar Sch Pri,0006,-3.99931,39.607438,iebc-2013
-MSA-0006-03,Jomvu Narcol Nursery School,0006,-3.99931,39.607438,iebc-2013
-MSA-0006-04,Mirironi Primary School,0006,,,
-MSA-0006-05,Miritini World Bank Primary School,0006,-4.00253,39.581298,iebc-2013
-MSA-0006-06,Nuru Community Based Rehabilitation School,0006,-4.00075,39.593148,iebc-2013
-MSA-0006-07,Swaleh Khalid Social Hall,0006,,,
-MSA-0006-08,Taratibu Social Hall,0006,,,
-MSA-0007-01,Abu-Ubaida Primary School,0007,,,
-MSA-0007-02,Bamako Innitiative Miritini,0007,,,
-MSA-0007-03,Miritini Primary School,0007,-4.00253,39.581298,iebc-2013
-MSA-0007-04,Mwamlai Primary School,0007,,,
-MSA-0007-05,Railway Station Hall,0007,,,
-MSA-0008-01,Amani Primary School,0008,-4.004018,39.626163,osm-nominatim
-MSA-0008-02,Kwa Shee Primary School,0008,,,
-MSA-0008-03,Mikindani Primary School,0008,-4.00813,39.630428,iebc-2013
-MSA-0008-04,Mikindani Social Hall,0008,,,
-MSA-0008-05,Ministry Of Water Tanks,0008,,,
-MSA-0008-06,Owino Uhuru Nursery School,0008,,,
-MSA-0008-07,St. Mary'S Bangladesh Primary School,0008,,,
-MSA-0009-01,Kadongo Grounds - Mishomoroni,0009,,,
-MSA-0009-02,Kisauni Baptist Primary School,0009,-4.02812,39.685438,iebc-2013
-MSA-0009-03,Kisauni Water & Sewerage Offices,0009,,,
-MSA-0009-04,Snake Valley Grounds,0009,,,
-MSA-0010-01,Assistant Chief'S Camp - Machafuko,0010,,,
-MSA-0010-02,Emmas Academy,0010,,,
-MSA-0010-03,Ifc Church,0010,,,
-MSA-0010-04,Manyani Grounds,0010,,,
-MSA-0010-05,Nasa Junior Academy,0010,,,
-MSA-0010-06,New Hope Secondary School - Makumba,0010,,,
-MSA-0011-01,Kashani Primary School,0011,-3.97283,39.700628,iebc-2013
-MSA-0011-02,Kiembeni Estate Primary School,0011,-3.99894,39.698418,iebc-2013
-MSA-0011-03,Majaoni Primary School,0011,,,
-MSA-0011-04,Mdengerekeni Primary School,0011,,,
-MSA-0011-05,St. Elizabeth Academy,0011,,,
-MSA-0012-01,Colorado Primary School,0012,,,
-MSA-0012-02,Marimani Primary School,0012,-3.96129,39.667738,iebc-2013
-MSA-0012-03,Maunguja Primary School,0012,-3.972234,39.651418,osm-nominatim
-MSA-0012-04,Mwakirunge Primary School,0012,-3.93706,39.650548,iebc-2013
-MSA-0012-05,Voroni Primary School,0012,-3.969691,39.64624,osm-nominatim
-MSA-0013-01,Community Of Christ Church-Mtopanga,0013,,,
-MSA-0013-02,Concordia Primary School,0013,-3.99896,39.683978,iebc-2013
-MSA-0013-03,Kiembeni Baptist Primary School,0013,-3.99894,39.698418,iebc-2013
-MSA-0013-04,Mtopanga Primary School,0013,-4.00623,39.692848,iebc-2013
-MSA-0013-05,Perma Sharp Grounds,0013,,,
-MSA-0013-06,St.Josephs Herman Primary School,0013,,,
-MSA-0014-01,Barsheba Sokoni Grounds,0014,,,
-MSA-0014-02,Mishomoroni Junior Academy,0014,-4.02185,39.683678,iebc-2013
-MSA-0014-03,Mjahidina Muslim School,0014,,,
-MSA-0014-04,Mwandoni Blue Bench Grounds,0014,,,
-MSA-0014-05,Mwandoni Kwa Mtumwa Grounds,0014,,,
-MSA-0014-06,Mwandoni [Kishada] Play Grounds,0014,,,
-MSA-0015-01,Bamburi Primary School,0015,,,
-MSA-0015-02,Mikoroshoni Primary School,0015,-3.9693,39.728988,iebc-2013
-MSA-0015-03,Mwembelegeza Nursery School,0015,,,
-MSA-0015-04,Shanzu Teachers Training College,0015,-3.9714,39.721158,iebc-2013
-MSA-0015-05,Shimo La Tewa Primary School,0015,-3.9633,39.731838,iebc-2013
-MSA-0015-06,Utange Primary School,0015,-3.97915,39.718108,iebc-2013
-MSA-0015-07,Zimlat Primary School,0015,-3.97579,39.727268,iebc-2013
-MSA-0016-01,Fadhil-Adhym Primary School,0016,,,
-MSA-0016-02,Freretown Primary School,0016,-4.0255,39.693468,iebc-2013
-MSA-0016-03,Khadija Primary School,0016,-4.03201,39.688998,iebc-2013
-MSA-0016-04,Mlaleo Primary School,0016,-4.02916,39.687318,iebc-2013
-MSA-0016-05,Mwandoni Kadiria Grounds,0016,,,
-MSA-0016-06,Sarajevo Grounds,0016,,,
-MSA-0016-07,Victoria Baptist Primary School,0016,,,
-MSA-0017-01,Mombasa Training Institute,0017,,,
-MSA-0017-02,Olive Rehabilitation Centre - Mkunguni,0017,,,
-MSA-0017-03,Tumaini Academy/Church Of Christ,0017,,,
-MSA-0017-04,Ziwa La Ng'Ombe Primary School,0017,-4.02662,39.699858,iebc-2013
-MSA-0018-01,Ama Primary School,0018,,,
-MSA-0018-02,"Ask Grond - Gate""A""",0018,,,
-MSA-0018-03,Kandahari Playground,0018,,,
-MSA-0018-04,Kipungani Primary School,0018,,,
-MSA-0018-05,Lamu Boys Primary School,0018,,,
-MSA-0018-06,Lamu Boys Sec Sch,0018,,,
-MSA-0018-07,Lamu Fort Hall,0018,,,
-MSA-0018-08,Lamu Girls Sec Sch,0018,,,
-MSA-0018-09,Lamu Social Hall,0018,,,
-MSA-0018-10,Lamu Youth Polytechnic,0018,,,
-MSA-0018-11,Matondoni Dispensary,0018,,,
-MSA-0018-12,Matondoni Primary School,0018,,,
-MSA-0018-13,Maweni Primary School,0018,,,
-MSA-0018-14,Mkomani Grounds - Nyali,0018,,,
-MSA-0018-15,Mkomani Primary School,0018,,,
-MSA-0018-16,Nyali Elim Fellowship Church,0018,,,
-MSA-0018-17,St. Kevin Academy Mkomani,0018,,,
-MSA-0018-18,Wiyoni Primary School,0018,,,
-MSA-0019-01,Kengeleni Primary School,0019,-4.04143,39.682228,iebc-2013
-MSA-0019-02,Kongowea Primary School,0019,-4.03971,39.687108,iebc-2013
-MSA-0019-03,Kwa Karama Grounds,0019,,,
-MSA-0019-04,Methodist Church - Kongowea,0019,,,
-MSA-0019-05,Municipal Social Hall - Kongowea,0019,,,
-MSA-0020-01,Bahawani Primary School,0020,,,
-MSA-0020-02,Baraka High School,0020,,,
-MSA-0020-03,Bashir Primary School,0020,-4.00894,39.698728,iebc-2013
-MSA-0020-04,Bombolulu Cultural Centre Workshop Hall,0020,,,
-MSA-0020-05,Bombolulu Estate - Posta,0020,,,
-MSA-0020-06,Kadzandani Primary School,0020,-4.0081,39.703778,iebc-2013
-MSA-0020-07,Marianist Polytechnic,0020,,,
-MSA-0020-08,Mwatamba Grounds,0020,,,
-MSA-0020-09,Soweto Grounds,0020,,,
-MSA-0021-01,Longo Primary School,0021,-4.08062,39.634038,iebc-2013
-MSA-0021-02,Mkwajuni Market,0021,,,
-MSA-0021-03,Mtongwe Primary School,0021,-4.08126,39.639578,iebc-2013
-MSA-0021-04,Mtongwe Social Hall,0021,,,
-MSA-0021-05,Mwangala Primary School,0021,-4.08075,39.595118,iebc-2013
-MSA-0021-06,Mweza Primary School,0021,-4.08095,39.645528,iebc-2013
-MSA-0021-07,St.Joseph Nursary School,0021,,,
-MSA-0021-08,Vijiweni Primary School,0021,-4.09212,39.638918,iebc-2013
-MSA-0022-01,Consolata Primary School,0022,,,
-MSA-0022-02,Shika Adabu Primary School,0022,-4.11389,39.638178,iebc-2013
-MSA-0022-03,Ujamaa Grounds,0022,,,
-MSA-0022-04,Vijiweni Grounds,0022,,,
-MSA-0022-05,Vyemani Primary School,0022,-4.10584,39.632138,iebc-2013
-MSA-0023-01,Daru Ulum Madrasa,0023,,,
-MSA-0023-02,Jamvi La Wageni Primary School,0023,-4.08401,39.648888,iebc-2013
-MSA-0023-03,Likoni Muslim Primary School,0023,,,
-MSA-0023-04,Peleleza Primary School,0023,-4.07848,39.651008,iebc-2013
-MSA-0024-01,Likoni Primary School,0024,-4.095267,39.645031,osm-nominatim
-MSA-0024-02,The Vision Senior School,0024,,,
-MSA-0025-01,Consolata Nursery School,0025,,,
-MSA-0025-02,Likoni Flats Social Hall,0025,,,
-MSA-0025-03,Majengo Mapya -Muzdalifa,0025,,,
-MSA-0025-04,Maji Safi Primary School,0025,,,
-MSA-0025-05,Mrima Primary School,0025,,,
-MSA-0025-06,Timbwini Baptist Primary School,0025,-4.09506,39.671168,iebc-2013
-MSA-0025-07,Ushindi Baptist Primary School,0025,-4.08918,39.659368,iebc-2013
-MSA-0026-01,Allidina Visram High School,0026,-4.046,39.67591,iebc-2013
-MSA-0026-02,Coast Girls High Sch,0026,-4.07186,39.674898,iebc-2013
-MSA-0026-03,Fort Jesus Museum,0026,-4.062846,39.679806,osm-nominatim
-MSA-0026-04,Government Training Institute Mombasa(Gti),0026,,,
-MSA-0026-05,Hajam Jamaat Hall,0026,,,
-MSA-0026-06,Kaderbhoy Old Town Dispnsary,0026,,,
-MSA-0026-07,Mbaraki Primary School,0026,,,
-MSA-0026-08,Mombasa Primary School,0026,-4.073621,39.668082,osm-nominatim
-MSA-0026-09,Serani Primary School,0026,-4.06529,39.673788,iebc-2013
-MSA-0026-10,Sonara Social Hall,0026,,,
-MSA-0026-11,Star Of The Sea Primary School,0026,-4.06901,39.670118,iebc-2013
-MSA-0026-12,Tijara Gardens,0026,,,
-MSA-0027-01,Burhaniya Pry Sch,0027,,,
-MSA-0027-02,Fahari Primary School,0027,,,
-MSA-0027-03,Khamis High Sch,0027,-4.034758,39.665464,iebc-2013
-MSA-0027-04,Kpa Hall Makande,0027,,,
-MSA-0027-05,Municipal Inspectorate Offices,0027,,,
-MSA-0027-06,R. G. Ngala Primary School,0027,,,
-MSA-0027-07,Sparki Primary School,0027,-4.040219,39.662049,iebc-2013
-MSA-0027-08,St. Augustine Primary School,0027,,,
-MSA-0027-09,Tudor Day Sec Sch,0027,-4.035237,39.664641,iebc-2013
-MSA-0027-10,Tudor Primary School,0027,-4.035237,39.664641,iebc-2013
-MSA-0027-11,Tudor Village Hall,0027,,,
-MSA-0028-01,Al-Amani Social Hall - Floringi,0028,,,
-MSA-0028-02,Buxton Estate Hall,0028,,,
-MSA-0028-03,Central Girls Primary School,0028,-4.04757,39.667908,iebc-2013
-MSA-0028-04,Chandaria Hall,0028,,,
-MSA-0028-05,Kikowani Primary School,0028,,,
-MSA-0028-06,Kumbhar Primary School,0028,-4.05319,39.669518,iebc-2013
-MSA-0028-07,Municipal Stadium,0028,-4.044647,39.666143,osm-nominatim
-MSA-0028-08,Mwembe-Tayari Public Health Clinic (Phc),0028,,,
-MSA-0028-09,Shariff Nassir Secondary School,0028,-4.051214,39.670889,osm-nominatim
-MSA-0028-10,Tononoka Nursery School,0028,,,
-MSA-0028-11,Tononoka Social Hall,0028,,,
-MSA-0029-01,Bandari College,0029,-4.06389,39.655635,osm-nominatim
-MSA-0029-02,Ganjoni Municipal Clinic,0029,,,
-MSA-0029-03,Kingorani Prison (Jela Baridi),0029,,,
-MSA-0029-04,Kpa Hall High Level,0029,,,
-MSA-0029-05,Kpa Scouts School,0029,,,
-MSA-0029-06,Kpa Social Hall,0029,,,
-MSA-0029-07,Little Theatre Club,0029,-4.067039,39.664816,osm-nominatim
-MSA-0029-08,Majengo Primary School,0029,-4.05202,39.656858,iebc-2013
-MSA-0029-09,Makande Kpa Nursery School,0029,,,
-MSA-0029-10,Makande Primary School,0029,-4.0395,39.654278,iebc-2013
-MSA-0029-11,Makupa Primary School,0029,-4.0457,39.656158,iebc-2013
-MSA-0029-12,Public Works Offices,0029,,,
-MSA-0029-13,Sacred Heart Primary School,0029,-4.06453,39.661408,iebc-2013
-MSA-0030-01,Guru Nanak Primary School,0030,-4.05705,39.666378,iebc-2013
-MSA-0030-02,Koblenz Hall,0030,,,
-MSA-0030-03,Lasco Social Hall (Kpa),0030,,,
-MSA-0030-04,Lohana Hall,0030,-4.052375,39.664218,osm-nominatim
-MSA-0030-05,Majengo Village Hall,0030,,,
-MSA-0030-06,Mvita Primary School,0030,-4.05306,39.660088,iebc-2013
-MSA-0030-07,Mwembe-Tayari Public Health Department (Phd),0030,,,
-MSA-0030-08,Patel Samaj Hall,0030,,,
-MSA-0030-09,Qubaa Primary School,0030,-4.05308,39.658278,iebc-2013
-MSA-0030-10,Sakina Hall,0030,-4.051688,39.663379,osm-nominatim
-MSA-0030-11,Uhuru Gardens,0030,,,
+code,name,ward_code,streams,registered_voters,latitude,longitude,location
+0010010001001,Bomu Primary School,0001,14,9411,-4.030892,39.609098,approximate
+0010010001002,Mwijabu Primary School,0001,7,4337,-4.028544,39.618893,exact
+0010010001003,Lilongwe Garden,0001,5,3085,,,
+0010010001025,Bomu Stadium,0001,1,628,-4.027270,39.613391,exact
+0010010001026,Bomu Secondary School,0001,1,283,-4.030892,39.609098,approximate
+0010010001027,Full Gospel Church Ground,0001,1,73,,,
+0010010002004,Umoja Primary School,0002,5,3360,-4.032980,39.622035,exact
+0010010002005,Kisumu Ndogo Ground,0002,5,3419,-4.023927,39.621125,approximate
+0010010002006,Kwa Hola Primary School,0002,5,3090,-4.029194,39.619911,exact
+0010010002007,Cape Town Ground,0002,7,4489,,,
+0010010002008,Kaloleni Ground,0002,3,1434,-4.032089,39.620132,approximate
+0010010002028,Akamba Handcraft Coop. Society Hall,0002,1,340,,,
+0010010003009,Bokole Nursery School,0003,6,3726,-4.021205,39.608607,approximate
+0010010003010,Baraka Village,0003,6,4156,,,
+0010010003011,Al-Irshadi Nursery School,0003,8,5203,,,
+0010010003012,Mwidani Social Hall,0003,7,4276,-4.028654,39.604955,exact
+0010010003013,Portreitz Nursery School,0003,2,1196,-4.037734,39.602473,approximate
+0010010004014,Changamwe Social Hall,0004,9,6183,-4.025183,39.631144,approximate
+0010010004015,Changamwe Primary School,0004,2,1350,-4.025183,39.631144,approximate
+0010010004016,St. Lwanga Primary School,0004,4,2566,-4.022972,39.626719,exact
+0010010004017,Changamwe Secondary School,0004,2,1029,-4.025183,39.631144,approximate
+0010010004018,Gome Primary School,0004,3,1813,-4.020327,39.622214,exact
+0010010004019,Magongo Primary School,0004,4,2125,-4.025496,39.617060,approximate
+0010010004020,Baptist Church Primary School,0004,4,2332,,,
+0010010004029,Bishop Mkala Academy,0004,1,172,,,
+0010010004030,Kimbilio Academy,0004,1,556,-4.024661,39.629852,exact
+0010010004032,AIC Church Hall,0004,1,56,,,
+0010010005021,Chaani Social Hall,0005,13,8654,-4.030871,39.627432,approximate
+0010010005022,Kipevu Primary School,0005,5,3424,-4.031677,39.629711,exact
+0010010005023,Mikadini Primary School,0005,7,4241,-4.036780,39.624378,approximate
+0010010005024,Chaani Primary School,0005,9,5752,-4.038760,39.622308,approximate
+0010010005031,Chaani Secondary School,0005,1,113,-4.030871,39.627432,approximate
+0010010005033,Chaani Chief's Office,0005,1,558,,,
+0010010005035,Kasarani Grounds,0005,1,131,,,
+0010020006001,Miritini World Bank Primary School,0006,8,5066,-4.002530,39.581298,approximate
+0010020006002,Jomvu Kuu Primary School,0006,9,5699,,,
+0010020006003,Taratibu Social Hall,0006,2,941,,,
+0010020006004,Mirironi Primary School,0006,1,468,,,
+0010020006006,Jomvu Narcol Nursery School,0006,3,1614,-3.999310,39.607438,approximate
+0010020006007,Swaleh Khalid Social Hall,0006,3,2045,,,
+0010020006008,Nuru Community Based Rehabilitation School,0006,5,3364,-4.000750,39.593148,approximate
+0010020006021,Badi Twalib Primary School,0006,1,251,,,
+0010020006022,Aldinnah Open Grounds,0006,7,4727,,,
+0010020006023,Misufini Open Grounds,0006,1,68,,,
+0010020007009,Abu-Ubaida Primary School,0007,6,3715,,,
+0010020007010,Miritini Primary School,0007,6,3954,-4.003548,39.578339,approximate
+0010020007011,Bamako Innitiative Miritini,0007,3,1604,,,
+0010020007012,Railway Station Hall,0007,10,6391,,,
+0010020007013,Mwamlai Primary School,0007,4,2132,-4.011687,39.597473,approximate
+0010020007024,Chabeat Open Ground - Chamunyu,0007,1,29,,,
+0010020007025,Maganda Primary School,0007,1,223,,,
+0010020008014,Ministry of Water Tanks,0008,6,3685,,,
+0010020008016,Owino Uhuru Nursery School,0008,3,1428,,,
+0010020008017,Kwa Shee Primary School,0008,5,3022,-4.005980,39.620503,approximate
+0010020008018,Amani Primary School,0008,11,7071,-4.004535,39.625497,approximate
+0010020008019,St. Mary's Bangladesh Primary School,0008,7,4699,,,
+0010020008020,Mikindani Primary School,0008,9,5621,-4.008130,39.630428,approximate
+0010020008026,New Kibarani Primary School,0008,1,602,,,
+0010020008027,Kajembe High School,0008,10,6601,-4.006288,39.627749,exact
+0010020008028,Nazarene Nursery School,0008,1,36,,,
+0010020008029,Mwembeni Open Grounds,0008,1,29,,,
+0010030009001,Kisauni Baptist Primary School,0009,14,9166,-4.028176,39.685440,exact
+0010030009002,Kisauni Water & Sewerage Offices,0009,7,4853,,,
+0010030009003,Kadongo Grounds - Mishomoroni,0009,9,6205,,,
+0010030009040,Palani Grounds,0009,4,2468,,,
+0010030010006,Manyani Grounds,0010,5,2847,,,
+0010030010007,IFC Church,0010,10,6308,,,
+0010030010008,Emmas Academy,0010,6,4077,,,
+0010030010009,New Hope Secondary School - Makumba,0010,4,2327,,,
+0010030010010,Assistant Chief's Camp - Machafuko,0010,8,4959,,,
+0010030010041,Junda Assistant Chief's Camp-Wangwani,0010,8,5084,,,
+0010030011011,Kashani Primary School,0011,4,2188,-3.972830,39.700628,approximate
+0010030011012,Majaoni Primary School,0011,8,5314,,,
+0010030011013,Kiembeni Primary School,0011,14,9682,-3.986886,39.699438,approximate
+0010030011014,St. Elizabeth Academy,0011,5,2885,,,
+0010030011015,Mdengerekeni Primary School,0011,1,401,,,
+0010030012016,Marimani Primary School,0012,3,1911,-3.959636,39.668326,exact
+0010030012017,Colorado Primary School,0012,2,1102,-3.934082,39.675697,approximate
+0010030012018,Voroni Community Primary School,0012,2,1170,,,
+0010030012019,Maunguja Primary School,0012,1,672,-3.972234,39.651418,exact
+0010030012020,Mwakirunge Primary School,0012,3,1568,-3.935700,39.652524,approximate
+0010030013021,Kiembeni Baptist Primary School,0013,7,4558,-3.998940,39.698418,approximate
+0010030013022,Mtopanga Primary School,0013,10,6539,,,
+0010030013023,Concordia Primary School,0013,4,2145,,,
+0010030013024,Community of Christ Church-Mtopanga,0013,4,2220,,,
+0010030013025,St.josephs Herman Primary School,0013,4,2269,,,
+0010030013026,Perma Sharp Grounds,0013,3,1743,,,
+0010030014027,Mishomoroni Junior Academy,0014,5,3453,-4.020766,39.683540,exact
+0010030014028,Mwandoni (Kishada) Play Grounds,0014,6,3976,,,
+0010030014029,Barsheba Sokoni Grounds,0014,4,2600,,,
+0010030014030,Mwandoni Blue Bench Grounds,0014,3,1755,,,
+0010030014031,Mwandoni Kwa Mtumwa Grounds,0014,3,2069,,,
+0010030014032,Mjahidina Muslim School,0014,2,1252,,,
+0010030015033,Mikoroshoni Primary School,0015,7,4347,-3.969300,39.728988,approximate
+0010030015034,Utange Primary School,0015,4,2309,-3.979150,39.718108,approximate
+0010030015036,Zimlat Primary School,0015,4,2340,-3.975790,39.727268,approximate
+0010030015037,Bamburi Primary School,0015,5,3025,-4.000000,39.716600,approximate
+0010030015038,Shanzu Teachers Training College,0015,11,7500,-3.971400,39.721158,approximate
+0010030015039,Shimo la Tewa Primary School,0015,4,2239,-3.963300,39.731838,approximate
+0010030015042,Mwembelegeza Primary School,0015,6,3750,,,
+0010040016001,Khadija Primary School,0016,8,5199,-4.031851,39.689528,exact
+0010040016002,Fadhil-Adhym Primary School,0016,3,1835,,,
+0010040016003,Mlaleo Primary School,0016,5,2826,-4.027948,39.687281,exact
+0010040016004,Frere Town Primary School,0016,9,6283,-4.021791,39.691766,approximate
+0010040016005,Mwandoni Kadiria Grounds,0016,3,1604,,,
+0010040016006,Victoria Baptist Primary School,0016,3,1759,,,
+0010040016007,Sarajevo Grounds,0016,5,3021,,,
+0010040016031,Freretown Secondary School,0016,2,1345,-4.021791,39.691766,approximate
+0010040016032,Khadija Secondary School,0016,2,977,,,
+0010040017008,National Industrial Training Authority- Mombasa,0017,6,3901,,,
+0010040017009,Ziwa la Ng'ombe Primary School,0017,14,9516,-4.026620,39.699858,approximate
+0010040017010,Olive Rehabilitation Centre - Mkunguni,0017,4,2676,,,
+0010040017011,Tumaini Academy/Church of Christ,0017,8,5102,,,
+0010040017033,KICODEP Hall,0017,3,1629,,,
+0010040017038,Azhar Primary School,0017,1,472,,,
+0010040018012,Maweni Primary School,0018,10,6675,-4.038817,39.692511,approximate
+0010040018015,ASK Ground - Gate 'a',0018,8,5088,,,
+0010040018016,Mkomani Grounds,0018,4,2748,-4.053745,39.685644,approximate
+0010040018034,Pentrose Community Primary School,0018,11,7055,,,
+0010040018035,Maweni Mixed Secondary School,0018,4,2588,-4.038817,39.692511,approximate
+0010040019017,Kongowea Primary School,0019,12,8007,-4.039710,39.687108,approximate
+0010040019018,Kwa Karama Grounds,0019,11,7386,-4.043181,39.685822,approximate
+0010040019019,Kengeleni Primary School,0019,5,3465,-4.041430,39.682228,approximate
+0010040019020,Municipal Social Hall - Kongowea,0019,6,3932,,,
+0010040019021,Methodist Church - Kongowea,0019,8,5018,,,
+0010040019039,Kongowea Secondary School,0019,2,1038,-4.038017,39.686912,approximate
+0010040020023,Bombolulu Cultural Centre Workshop Hall,0020,3,2063,-4.021436,39.703278,exact
+0010040020024,Bahawani Primary School,0020,4,2154,,,
+0010040020025,Bashir Primary School,0020,4,2633,-4.008940,39.698728,approximate
+0010040020026,Kadzandani Primary School,0020,6,3715,-4.008100,39.703778,approximate
+0010040020027,Marianist Polytechnic,0020,3,1670,,,
+0010040020028,Soweto Grounds,0020,5,2810,,,
+0010040020029,Mwatamba Grounds,0020,6,3759,,,
+0010040020036,Kwa Bullo Primary/Secondary School,0020,6,3694,,,
+0010040020037,Teman Junior Academy,0020,1,610,-4.004032,39.702239,exact
+0010050021001,Mtongwe Primary School,0021,3,1768,-4.081260,39.639578,approximate
+0010050021002,Longo Primary School,0021,3,1661,-4.080620,39.634038,approximate
+0010050021003,Mtongwe Social Hall,0021,6,3749,-4.073318,39.638801,approximate
+0010050021004,Vijiweni Primary School,0021,3,1934,,,
+0010050021005,Mwangala Primary School,0021,1,373,-4.080750,39.595118,approximate
+0010050021006,Mweza Primary School,0021,2,1138,,,
+0010050021007,Mkwajuni Market,0021,1,634,,,
+0010050021008,St. Joseph Nursery School,0021,4,2436,,,
+0010050021027,Mtongwe Vocational Training Center,0021,1,244,,,
+0010050022009,Shika Adabu Primary School,0022,7,4515,-4.113890,39.638178,approximate
+0010050022010,Consolata Primary School,0022,5,3466,,,
+0010050022011,Vyemani Primary School,0022,3,1838,-4.105840,39.632138,approximate
+0010050022012,Vijiweni Grounds,0022,2,1247,,,
+0010050022013,Ujamaa Grounds,0022,6,3666,,,
+0010050022028,Mishi Mboko Girls Secondary School,0022,1,34,,,
+0010050022029,Inspirations Primary School,0022,1,344,,,
+0010050022032,Shika Adabu Secondary School,0022,1,327,,,
+0010050023014,Daru Ulum Madrasa,0023,10,6506,,,
+0010050023015,Jamvi la Wageni Primary School,0023,5,3109,,,
+0010050023016,Peleleza Primary School,0023,3,1852,-4.078480,39.651008,approximate
+0010050023017,Likoni Muslim Primary School,0023,10,6363,,,
+0010050023030,Bomani Football Ground,0023,1,358,,,
+0010050024018,Likoni Primary School,0024,13,8877,-4.095188,39.645006,exact
+0010050024019,Jesus Celebration Center (Soweto),0024,6,3502,,,
+0010050024033,Likoni Secondary School,0024,2,894,-4.085332,39.660652,approximate
+0010050025020,Likoni Flats Social Hall,0025,3,2048,,,
+0010050025021,Consolata Nursery School,0025,7,4574,,,
+0010050025022,Timbwani Primary School,0025,2,1169,,,
+0010050025023,Mrima Primary School,0025,12,7985,,,
+0010050025024,Ushindi Baptist Primary School,0025,13,8592,-4.089180,39.659368,approximate
+0010050025025,Maji Safi Primary School,0025,3,1890,,,
+0010050025026,LICODEP,0025,10,6834,,,
+0010050025031,Timbwani Secondary School,0025,1,614,,,
+0010050025034,Caltex Grounds,0025,1,182,-4.084819,39.659829,exact
+0010050025035,Timbwani Babtist Primary School,0025,1,41,,,
+0010060026001,Kaderbhoy Old Town Dispensary,0026,4,2474,,,
+0010060026002,Fort Jesus Museum,0026,4,2377,-4.062855,39.679802,exact
+0010060026003,Coast Girls Secondary School,0026,3,1596,-4.062485,39.675613,exact
+0010060026004,Star of the Sea Primary School,0026,4,2255,-4.068277,39.670374,exact
+0010060026005,Mbaraki Primary School,0026,2,803,-4.071095,39.667215,approximate
+0010060026006,Sonara Social Hall,0026,5,2814,,,
+0010060026007,Allidina Visram High School,0026,2,1381,-4.048305,39.677002,exact
+0010060026008,Hajam Jamaat Hall,0026,3,1719,,,
+0010060026009,Serani Primary School,0026,2,939,-4.065290,39.673788,approximate
+0010060026010,Mombasa Primary School,0026,3,1561,,,
+0010060026011,Kenya School of Government,0026,3,1572,,,
+0010060026012,Tijara Gardens,0026,5,2850,,,
+0010060027013,Tudor Village Hall,0027,6,3971,,,
+0010060027014,St. Augustine Primary School,0027,5,3013,,,
+0010060027015,Tudor Primary School,0027,3,2075,-4.035237,39.664641,approximate
+0010060027016,R. G. Ngala Primary School,0027,3,1969,,,
+0010060027017,Fahari Primary School,0027,2,901,,,
+0010060027018,Sparki Primary School,0027,2,1198,-4.039575,39.662748,exact
+0010060027019,Burhania Primary School,0027,3,1663,,,
+0010060027020,Municipal Inspectorate Offices,0027,5,3244,,,
+0010060027021,Tudor Day Secondary School,0027,2,1260,-4.035237,39.664641,approximate
+0010060027022,KPA Hall Makande,0027,2,981,,,
+0010060027023,Khamisi Secondary School,0027,4,2651,-4.034758,39.665464,approximate
+0010060028024,Mwembe-Tayari Public Health Clinic (PHC),0028,5,3388,,,
+0010060028025,Kumbar Primary School,0028,4,2636,-4.053190,39.669518,approximate
+0010060028026,Al-Amani Social Hall - Floringi,0028,3,1736,,,
+0010060028027,Shariff Nassir Secondary School,0028,3,1434,-4.051365,39.670893,exact
+0010060028028,Chandaria Hall,0028,3,1833,,,
+0010060028029,Kikowani Primary School,0028,2,915,-4.053615,39.669614,approximate
+0010060028030,Tononoka Social Hall,0028,7,4631,-4.048111,39.669248,approximate
+0010060028031,Tononoka Nursery School,0028,3,1737,-4.048111,39.669248,approximate
+0010060028032,Municipal Stadium,0028,5,2888,-4.044947,39.666303,exact
+0010060028033,Central Girls Primary School,0028,2,774,-4.047570,39.667908,approximate
+0010060028034,Buxton Estate Hall,0028,3,1407,,,
+0010060029035,Public Works Offices,0029,1,208,,,
+0010060029036,Makande KPA Nursery School,0029,3,1854,,,
+0010060029037,Makupa Primary School,0029,4,2704,-4.040398,39.658498,approximate
+0010060029038,Makande Primary School,0029,3,1702,-4.038205,39.654111,approximate
+0010060029039,Shimanzi KPA Nursery School,0029,2,906,,,
+0010060029040,KPA Hall High Level,0029,3,1767,,,
+0010060029041,Little Theatre Club,0029,3,1581,-4.067039,39.664816,exact
+0010060029042,Sacred Heart Primary School,0029,6,3672,-4.064441,39.661445,exact
+0010060029043,KPA Social Hall,0029,1,405,,,
+0010060029044,Bandari College,0029,2,718,-4.063890,39.655635,exact
+0010060029045,Ganjoni Municipal Clinic,0029,2,1169,,,
+0010060029046,Majengo Primary School,0029,2,1066,-4.049755,39.661645,approximate
+0010060029047,King'orani Prison (Jela Baridi),0029,2,804,,,
+0010060030048,Patel Samaj Hall,0030,5,2983,,,
+0010060030049,Guru Nanak Primary School,0030,4,2524,-4.055877,39.666938,exact
+0010060030050,Mwembe-Tayari Public Health Department,0030,6,3738,,,
+0010060030051,Koblenz Hall,0030,2,961,,,
+0010060030052,Uhuru Gardens,0030,3,1591,-4.060931,39.666178,exact
+0010060030053,Lohana Hall,0030,5,2946,-4.052365,39.664217,exact
+0010060030054,LASCO Social Hall (KPA),0030,3,2038,,,
+0010060030056,Majengo Village Hall,0030,7,4676,,,
+0010060030057,Sakina Hall,0030,5,3325,-4.051697,39.663380,exact
+0010060030058,Mvita Primary School,0030,7,4573,-4.052710,39.659705,exact
+0010060030059,Mvita Boys Secondary School,0030,4,2417,,,

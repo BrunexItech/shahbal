@@ -17,7 +17,7 @@ import { area, type LngLat, pathLength } from "./measure";
 export type Base = "streets" | "satellite";
 export type Theme = "constituency" | "progress" | "visits" | "captures";
 export type GisLayers = { wards: boolean; labels: boolean; stations: boolean; places: boolean; density: boolean; street: boolean };
-export type Selection = { kind: "ward"; id: string } | { kind: "place"; key: string } | { kind: "street"; id: string } | null;
+export type Selection = { kind: "ward"; id: string } | { kind: "station"; id: string } | { kind: "place"; key: string } | { kind: "street"; id: string } | null;
 export type MeasureResult = { points: number; distance: number; area: number };
 export type GisMapHandle = { image: () => string | null; home: () => void };
 
@@ -32,6 +32,13 @@ const THEME_FILL: Record<Theme, ExpressionSpecification> = {
   progress: ["case", ["==", ["get", "percent"], null], "#e2e8f0", step("percent", PROGRESS_STEPS)] as unknown as ExpressionSpecification,
   visits: step("visits", VISIT_STEPS),
   captures: step("achieved", CAPTURE_STEPS),
+};
+
+/** Pin colours say how sure we are of the location. */
+export const STATION_LOOK: Record<string, { fill: string; stroke: string; label: string; hint: string }> = {
+  verified: { fill: "#006b3f", stroke: "#ffffff", label: "Confirmed on site", hint: "Pinned by the team standing at it, approved by HQ" },
+  exact: { fill: "#0b1f3a", stroke: "#ffffff", label: "Exact building", hint: "Matched to the school or hall on the map" },
+  approximate: { fill: "#ffffff", stroke: "#64748b", label: "Approximate", hint: "Right neighbourhood; needs a field pin" },
 };
 
 const IMAGERY = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
@@ -61,6 +68,8 @@ export const GisMap = forwardRef<GisMapHandle, {
   focus: { lng: number; lat: number; zoom?: number; key: number } | null;
 }>(function GisMap(props, ref) {
   const { data, wards, constituencies, density, base, threeD, theme, layers, measuring, measureReset, onMeasure, replayAt, onSelect, selected, focus } = props;
+  // The ward being looked at: the selected ward, or the ward of the selected station.
+  const focusWard = selected?.kind === "ward" ? selected.id : selected?.kind === "station" ? data.stations.find((s) => s.id === selected.id)?.ward_id ?? null : null;
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -69,6 +78,7 @@ export const GisMap = forwardRef<GisMapHandle, {
     cb.current = { onSelect, onMeasure, measuring };
   }, [onSelect, onMeasure, measuring]);
   const pts = useRef<LngLat[]>([]);
+  const fitted = useRef<string | null>(null);
 
   const byCode = useMemo(() => new Map(data.wards.map((w) => [w.code, w])), [data.wards]);
   const wardFc = useMemo<FeatureCollection>(() => ({
@@ -92,7 +102,11 @@ export const GisMap = forwardRef<GisMapHandle, {
 
   const stationFc = useMemo<FeatureCollection>(() => ({
     type: "FeatureCollection",
-    features: data.stations.map((s) => ({ type: "Feature", properties: { name: s.name, code: s.code, captured: s.captured }, geometry: { type: "Point", coordinates: [s.lng, s.lat] } })),
+    features: data.stations.map((s) => ({
+      type: "Feature",
+      properties: { id: s.id, ward_id: s.ward_id, name: s.name, code: s.code, captured: s.captured, registered: s.registered_voters ?? 0, streams: s.streams, location: s.location },
+      geometry: { type: "Point", coordinates: [s.lng, s.lat] },
+    })),
   }), [data.stations]);
 
   // Replay: only visits up to the chosen moment count.
@@ -157,7 +171,7 @@ export const GisMap = forwardRef<GisMapHandle, {
         },
       });
 
-      for (const id of ["wards", "cons", "cons-labels", "stations", "places", "heat", "measure"]) m.addSource(id, { type: "geojson", data: EMPTY });
+      for (const id of ["wards", "cons", "cons-labels", "stations", "places", "heat", "measure", "mask"]) m.addSource(id, { type: "geojson", data: EMPTY });
       if (MAPILLARY_TOKEN) {
         m.addSource("mly", { type: "vector", tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${MAPILLARY_TOKEN}`], minzoom: 6, maxzoom: 14 });
       }
@@ -175,14 +189,22 @@ export const GisMap = forwardRef<GisMapHandle, {
       } });
       m.addLayer({ id: "ward-line", type: "line", source: "wards", paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1, 14, 2.5] } });
       m.addLayer({ id: "cons-line", type: "line", source: "cons", paint: { "line-color": "#0b1f3a", "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2, 14, 4] } });
+      // Focus: everything outside the ward being looked at goes dark.
+      m.addLayer({ id: "mask", type: "fill", source: "mask", paint: { "fill-color": "#06101f", "fill-opacity": 0.55 } });
       m.addLayer({ id: "ward-selected", type: "line", source: "wards", filter: ["==", ["get", "ward_id"], ""], paint: { "line-color": "#c9a227", "line-width": 4.5 } });
       if (MAPILLARY_TOKEN) {
         m.addLayer({ id: "mly-seq", type: "line", source: "mly", "source-layer": "sequence", layout: { visibility: "none", "line-cap": "round" }, paint: { "line-color": "#05cb63", "line-width": 2, "line-opacity": 0.8 } });
         m.addLayer({ id: "mly-img", type: "circle", source: "mly", "source-layer": "image", minzoom: 14, layout: { visibility: "none" }, paint: { "circle-radius": 5, "circle-color": "#05cb63", "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
       }
+      const look = (k: "fill" | "stroke") => ["match", ["get", "location"], ...Object.entries(STATION_LOOK).flatMap(([q, v]) => [q, v[k]]), STATION_LOOK.approximate[k]] as unknown as ExpressionSpecification;
       m.addLayer({ id: "stations", type: "circle", source: "stations", paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 15, 7], "circle-color": "#0b1f3a", "circle-stroke-color": "#fff", "circle-stroke-width": 1.5,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3.5, 14, 7, 17, 11],
+        "circle-color": look("fill"), "circle-stroke-color": look("stroke"),
+        "circle-stroke-width": ["case", ["==", ["get", "location"], "approximate"], 2.5, 2],
       } });
+      m.addLayer({ id: "stations-label", type: "symbol", source: "stations", minzoom: 13.8, layout: {
+        "text-field": ["get", "name"], "text-size": 12, "text-font": ["Noto Sans Bold"], "text-offset": [0, 1.1], "text-anchor": "top", "text-max-width": 9, "text-optional": true,
+      }, paint: { "text-color": "#0b1f3a", "text-halo-color": "rgba(255,255,255,.95)", "text-halo-width": 1.6 } });
       m.addLayer({ id: "places-halo", type: "circle", source: "places", paint: { "circle-radius": ["+", 12, ["*", 4, ["sqrt", ["get", "count"]]]], "circle-color": "#006b3f", "circle-opacity": 0.2 } });
       m.addLayer({ id: "places", type: "circle", source: "places", paint: {
         "circle-radius": ["+", 8, ["*", 3, ["sqrt", ["get", "count"]]]],
@@ -227,9 +249,11 @@ export const GisMap = forwardRef<GisMapHandle, {
       });
       m.on("mouseleave", "places", leave);
       m.on("mouseenter", "stations", (e) => {
-        const p = e.features?.[0]?.properties as { name: string; code: string; captured: number } | undefined;
+        const p = e.features?.[0]?.properties as { name: string; captured: number; registered: number; streams: number; location: string } | undefined;
         if (!p || cb.current.measuring !== "off") return;
-        popup.setLngLat(e.lngLat).setDOMContent(tooltip(p.name, `Polling station ${p.code} · ${Number(p.captured).toLocaleString()} captured`)).addTo(m);
+        m.getCanvas().style.cursor = "pointer";
+        popup.setLngLat(e.lngLat).setDOMContent(tooltip(p.name,
+          `${Number(p.registered).toLocaleString()} registered · ${p.streams} stream${Number(p.streams) === 1 ? "" : "s"} · ${Number(p.captured).toLocaleString()} captured · ${(STATION_LOOK[p.location] ?? STATION_LOOK.approximate).label.toLowerCase()}`)).addTo(m);
       });
       m.on("mouseleave", "stations", leave);
       if (m.getLayer("mly-img")) {
@@ -258,10 +282,11 @@ export const GisMap = forwardRef<GisMapHandle, {
         const shown = (ids: string[]) => ids.filter((l) => m.getLayer(l) && m.getLayoutProperty(l, "visibility") !== "none");
         const pad = 10;
         const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
-        const f = m.queryRenderedFeatures(box, { layers: shown(["places", "mly-img"]) })[0]
+        const f = m.queryRenderedFeatures(box, { layers: shown(["places", "stations", "mly-img"]) })[0]
           ?? m.queryRenderedFeatures(e.point, { layers: shown(["ward-fill", "ward-3d"]) })[0];
         if (!f) return cb.current.onSelect(null);
         if (f.layer.id === "places") cb.current.onSelect({ kind: "place", key: String(f.properties?.key) });
+        else if (f.layer.id === "stations") cb.current.onSelect({ kind: "station", id: String(f.properties?.id) });
         else if (f.layer.id === "mly-img") cb.current.onSelect({ kind: "street", id: String(f.properties?.id) });
         else cb.current.onSelect({ kind: "ward", id: String(f.properties?.ward_id) });
       });
@@ -311,7 +336,12 @@ export const GisMap = forwardRef<GisMapHandle, {
     vis("buildings-3d", threeD);
     vis("ward-label", layers.labels);
     vis("cons-label", layers.labels);
-    vis("stations", layers.stations);
+    vis("stations", layers.stations || !!focusWard);
+    vis("stations-label", layers.stations || !!focusWard);
+    // With the station layer off, a focused ward still shows its own polling centres.
+    const only = layers.stations || !focusWard ? null : (["==", ["get", "ward_id"], focusWard] as ExpressionSpecification);
+    m.setFilter("stations", only);
+    m.setFilter("stations-label", only);
     for (const id of ["places", "places-halo", "places-count"]) vis(id, layers.places);
     vis("heat", layers.density);
     vis("mly-seq", layers.street);
@@ -319,7 +349,7 @@ export const GisMap = forwardRef<GisMapHandle, {
     m.setPaintProperty("cons-label", "text-color", base === "satellite" ? "#ffffff" : "#0b1f3a");
     m.setPaintProperty("cons-label", "text-halo-color", base === "satellite" ? "rgba(6,16,31,.85)" : "rgba(255,255,255,.95)");
     m.setPaintProperty("cons-line", "line-color", base === "satellite" ? "#ffffff" : "#0b1f3a");
-  }, [loaded, base, threeD, theme, layers]);
+  }, [loaded, base, threeD, theme, layers, focusWard]);
 
   useEffect(() => {
     const m = map.current;
@@ -330,8 +360,23 @@ export const GisMap = forwardRef<GisMapHandle, {
   useEffect(() => {
     const m = map.current;
     if (!loaded || !m) return;
-    m.setFilter("ward-selected", ["==", ["get", "ward_id"], selected?.kind === "ward" ? selected.id : ""]);
-  }, [loaded, selected]);
+    m.setFilter("ward-selected", ["==", ["get", "ward_id"], focusWard ?? ""]);
+    const f = focusWard ? wardFc.features.find((x) => x.properties?.ward_id === focusWard) : undefined;
+    // A world-sized polygon with the ward cut out of it.
+    (m.getSource("mask") as GeoJSONSource).setData(f ? {
+      type: "Feature", properties: {},
+      geometry: { type: "Polygon", coordinates: [[[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]], ...rings(f)] },
+    } : EMPTY);
+    const wardSel = selected?.kind === "ward" ? selected.id : null;
+    if (fitted.current !== wardSel) fitted.current = f ? wardSel : null;
+    else return; // data refreshed, same selection: leave the view alone
+    if (f && wardSel) {
+      const b = new maplibregl.LngLatBounds();
+      for (const r of rings(f)) for (const [x, y] of r) b.extend([x, y]);
+      const wide = m.getContainer().clientWidth >= 768;
+      m.fitBounds(b, { padding: wide ? { top: 60, bottom: 60, left: 60, right: 420 } : { top: 40, bottom: 260, left: 30, right: 30 }, maxZoom: 16, duration: 900, pitch: m.getPitch() });
+    }
+  }, [loaded, focusWard, selected, wardFc]);
 
   useEffect(() => {
     const m = map.current;

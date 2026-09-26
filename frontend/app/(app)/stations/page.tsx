@@ -1,15 +1,16 @@
 "use client";
 
-import { LocateFixed, MapPin, Plus, Upload } from "lucide-react";
+import { Check, LocateFixed, MapPin, MapPinned, Plus, Upload, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { SkeletonRows } from "@/components/loaders";
 import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, PageHeader, Select } from "@/components/ui";
-import { useGeoTree, useImportStations, useSaveStation, useStations, wardIndex } from "@/features/geo/api";
+import { useDecidePin, useGeoTree, useImportStations, usePendingPins, useSaveStation, useStations, wardIndex } from "@/features/geo/api";
+import { STATION_LOOK } from "@/features/gis/GisMap";
 import { ApiError } from "@/lib/api";
 import { useUser } from "@/lib/auth";
-import { num } from "@/lib/format";
+import { num, timeAgo } from "@/lib/format";
 import { can } from "@/lib/roles";
 import type { Station } from "@/lib/types";
 
@@ -47,6 +48,7 @@ export default function StationsPage() {
           )}
           {can.manageStations(user.role) && <Button icon={<Plus className="size-4" />} onClick={() => setEditing({ streams: 1, is_active: true, ward_id: wardId })}>Add station</Button>}
         </>} />
+      {can.manageStations(user.role) && <PendingPins />}
       <Card className="overflow-hidden">
         <div className="flex flex-wrap gap-2 border-b border-line p-4">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or code"
@@ -66,7 +68,7 @@ export default function StationsPage() {
               <thead>
                 <tr className="border-b border-line bg-slate-50/70 text-left text-xs font-semibold tracking-wider text-muted uppercase">
                   <th className="px-5 py-3">Station</th><th className="px-3 py-3">Code</th><th className="px-3 py-3">Ward</th>
-                  <th className="px-3 py-3 text-right">Streams</th><th className="px-3 py-3 text-right">Registered</th><th className="px-3 py-3">GPS</th><th className="px-5 py-3">Status</th>
+                  <th className="px-3 py-3 text-right">Streams</th><th className="px-3 py-3 text-right">Registered</th><th className="px-3 py-3">Location</th><th className="px-5 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -78,7 +80,7 @@ export default function StationsPage() {
                     <td className="px-3 py-3">{wards.get(s.ward_id)?.name}<p className="text-xs text-muted">{wards.get(s.ward_id)?.constituency}</p></td>
                     <td className="px-3 py-3 text-right tabular-nums">{s.streams}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{num(s.registered_voters)}</td>
-                    <td className="px-3 py-3 text-xs">{s.latitude != null ? <span className="font-semibold text-kenya-green">Mapped</span> : <span className="text-muted">Needs pin</span>}</td>
+                    <td className="px-3 py-3 text-xs"><LocationBadge s={s} /></td>
                     <td className="px-5 py-3"><Badge tone={s.is_active ? "green" : "slate"} dot>{s.is_active ? "Active" : "Inactive"}</Badge></td>
                   </tr>
                 ))}
@@ -89,6 +91,62 @@ export default function StationsPage() {
       </Card>
       {editing && tree && <StationModal initial={editing} tree={tree} onClose={() => setEditing(null)} />}
     </>
+  );
+}
+
+function LocationBadge({ s }: { s: Station }) {
+  const look = s.latitude == null ? null : STATION_LOOK[s.location_quality ?? "approximate"];
+  return (
+    <span className="inline-flex flex-col gap-0.5 whitespace-nowrap">
+      {look ? (
+        <span className="inline-flex items-center gap-1.5 font-semibold text-navy-900" title={look.hint}>
+          <span className="size-2.5 rounded-full" style={{ background: look.fill, boxShadow: `0 0 0 1.5px ${look.stroke === "#ffffff" ? "rgba(0,0,0,.15)" : look.stroke}` }} />
+          {look.label}
+        </span>
+      ) : <span className="font-semibold text-amber-700">Needs a pin</span>}
+      {s.pin_pending && <span className="text-muted">Pin awaiting approval</span>}
+    </span>
+  );
+}
+
+/** Pins sent by the team from the field, waiting for a manager's yes or no. */
+function PendingPins() {
+  const { data } = usePendingPins();
+  const decide = useDecidePin();
+  if (!data?.length) return null;
+  const act = (id: string, approve: boolean) => decide.mutate({ id, approve }, {
+    onSuccess: () => toast.success(approve ? "Location confirmed" : "Pin rejected"),
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <Card className="mb-6 overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-line bg-amber-50/60 px-5 py-3.5">
+        <span className="grid size-9 place-items-center rounded-xl bg-amber-100 text-amber-800"><MapPinned className="size-5" /></span>
+        <div>
+          <p className="text-sm font-bold text-navy-900">{data.length} station pin{data.length === 1 ? "" : "s"} to review</p>
+          <p className="text-xs text-muted">Sent by the team while standing at the station. Check the spot, then confirm it.</p>
+        </div>
+      </div>
+      <ul className="divide-y divide-line">
+        {data.map((p) => (
+          <li key={p.station_id} className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-navy-900">{p.station}</p>
+              <p className="text-xs text-muted">
+                {p.ward} · by {p.pin_by ?? "a team member"} {p.pin_at ? timeAgo(p.pin_at) : ""} · GPS ±{Math.round(p.pin_accuracy ?? 0)} m
+                {p.moved_m != null ? ` · ${num(p.moved_m)} m from the current pin` : " · first pin for this station"}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <a href={`https://www.google.com/maps/search/?api=1&query=${p.pin_lat},${p.pin_lng}`} target="_blank" rel="noopener noreferrer"
+                className="inline-flex h-9 items-center rounded-xl px-3 text-sm font-semibold text-ocean ring-1 ring-line hover:bg-slate-50">See the spot</a>
+              <Button size="sm" variant="secondary" icon={<X className="size-4" />} disabled={decide.isPending} onClick={() => act(p.station_id, false)}>Reject</Button>
+              <Button size="sm" icon={<Check className="size-4" />} disabled={decide.isPending} onClick={() => act(p.station_id, true)}>Confirm</Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
