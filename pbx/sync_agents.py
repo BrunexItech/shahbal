@@ -45,8 +45,12 @@ remove_existing = yes
 """
 
 
-def ast(cmd: str) -> None:
-    subprocess.run(["asterisk", "-rx", cmd], check=False, capture_output=True)
+def ast(cmd: str) -> bool:
+    r = subprocess.run(["asterisk", "-rx", cmd], check=False, capture_output=True, text=True)
+    return r.returncode == 0 and "Unable to connect" not in (r.stdout + r.stderr)
+
+
+applied = None  # the config text Asterisk has actually loaded (None = unknown: apply on first pass)
 
 
 def fetch() -> list[dict] | None:
@@ -74,13 +78,16 @@ def once() -> None:
     lines = fetch()
     if lines is None:
         return
+    global applied
     text = render(lines)
-    old = open(CONF).read() if os.path.exists(CONF) else ""
-    if text != old:
+    if text != applied:
         with open(CONF, "w") as f:
             f.write(text)
-        ast("pjsip reload")
-        print(f"sync: {len(lines)} line(s) provisioned", flush=True)
+        if ast("pjsip reload"):  # only count it once Asterisk has really loaded it; otherwise retry next pass
+            applied = text
+            print(f"sync: {len(lines)} line(s) provisioned", flush=True)
+        else:
+            print("sync: Asterisk not ready for reload; will retry", flush=True)
     ring = "&".join(f"PJSIP/{ln['ext']}" for ln in lines if SAFE.match(str(ln.get("ext", ""))))
     if ring:
         ast(f"database put shahbal ringall {ring}")
@@ -91,6 +98,9 @@ def once() -> None:
 if __name__ == "__main__":
     if not SECRET:
         sys.exit("PBX_SYNC_SECRET is not set")
+    # Wait for Asterisk to finish booting before touching anything.
+    while not ast("core waitfullybooted"):
+        time.sleep(3)
     while True:
         once()
         if "--once" in sys.argv:

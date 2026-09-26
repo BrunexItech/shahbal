@@ -17,5 +17,5 @@ cp /opt/pbx/etc/*.conf /etc/asterisk/
 [ -f /etc/asterisk/pjsip_agents.conf ] || echo "; filled by sync_agents.py" > /etc/asterisk/pjsip_agents.conf
 chown -R asterisk:asterisk /etc/asterisk /var/lib/asterisk /var/log/asterisk /var/spool/asterisk /var/run/asterisk 2>/dev/null || true
 
-( sleep 8; exec python3 /opt/pbx/sync_agents.py ) &
+( sleep 3; exec python3 /opt/pbx/sync_agents.py ) &
 exec asterisk -f -U asterisk -G asterisk
