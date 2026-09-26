@@ -34,7 +34,7 @@ export function MobileNav({ role }: { role: Role }) {
               <Link key={href} href={href} className={cn("flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium", active ? "text-gold" : "text-slate-400")}>
                 <span className={cn("relative grid place-items-center", primary && "-mt-5 size-12 rounded-2xl bg-kenya-green text-white shadow-lg shadow-kenya-green/40")}>
                   <Icon className="size-5" />
-                  {!!badges[href] && !primary && <span className="absolute -top-1.5 -right-2.5 min-w-4 rounded-full bg-kenya-red px-1 text-center text-[10px] leading-4 font-bold text-white">{badges[href]! > 99 ? "99+" : badges[href]}</span>}
+                  {!!badges[href] && !primary && <span className="absolute -top-1.5 -right-2.5 min-w-5 rounded-full bg-kenya-red px-1 text-center text-xs leading-5 font-bold text-white">{badges[href]! > 99 ? "99+" : badges[href]}</span>}
                 </span>
                 {short ?? label}
               </Link>
@@ -44,7 +44,7 @@ export function MobileNav({ role }: { role: Role }) {
             className={cn("flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium", open ? "text-gold" : "text-slate-400")}>
             <span className="relative grid place-items-center">
               <Menu className="size-5" />
-              {waiting > 0 && <span className="absolute -top-1.5 -right-2.5 min-w-4 rounded-full bg-kenya-red px-1 text-center text-[10px] leading-4 font-bold text-white">{waiting > 99 ? "99+" : waiting}</span>}
+              {waiting > 0 && <span className="absolute -top-1.5 -right-2.5 min-w-5 rounded-full bg-kenya-red px-1 text-center text-xs leading-5 font-bold text-white">{waiting > 99 ? "99+" : waiting}</span>}
             </span>
             Menu
           </button>
