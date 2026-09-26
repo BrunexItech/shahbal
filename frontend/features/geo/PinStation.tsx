@@ -9,6 +9,7 @@ import { Button, Modal } from "@/components/ui";
 import { useProposePin, useStations } from "@/features/geo/api";
 import { cn } from "@/lib/cn";
 import { num } from "@/lib/format";
+import { REGISTER_YEAR } from "@/lib/config";
 
 type Fix = { lat: number; lng: number; accuracy: number };
 const GOOD_ENOUGH_M = 50; // the server refuses anything less precise
@@ -91,7 +92,7 @@ export function PinStationModal({ wardId, onClose }: { wardId: string; onClose: 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-navy-900">{s.name}</span>
                     <span className="text-xs text-slate-500">
-                      {num(s.registered_voters)} voters · {s.away != null ? (s.away < 1000 ? `${Math.round(s.away)} m away` : `${(s.away / 1000).toFixed(1)} km away`) : "not on the map yet"}
+                      {num(s.registered_voters)} registered ({REGISTER_YEAR}) · {s.away != null ? (s.away < 1000 ? `${Math.round(s.away)} m away` : `${(s.away / 1000).toFixed(1)} km away`) : "not on the map yet"}
                       {s.location_quality === "verified" && " · already confirmed"}{s.pin_pending && " · pin awaiting approval"}
                     </span>
                   </span>

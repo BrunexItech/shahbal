@@ -9,3 +9,8 @@ export const GIS_URL = process.env.NEXT_PUBLIC_GIS_URL ?? "/gis/";
 
 /** Mapillary client token for street-level photos in GIS Lab (public by design; free at mapillary.com/dashboard/developers). */
 export const MAPILLARY_TOKEN = process.env.NEXT_PUBLIC_MAPILLARY_TOKEN ?? "";
+
+/** Which IEBC register the registered-voter figures come from. Change both when a newer
+ * register per polling station is imported (Polling Stations → Import CSV). */
+export const REGISTER = "IEBC 2022 register";
+export const REGISTER_YEAR = "2022";

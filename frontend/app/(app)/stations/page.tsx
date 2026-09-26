@@ -13,6 +13,7 @@ import { useUser } from "@/lib/auth";
 import { num, timeAgo } from "@/lib/format";
 import { can } from "@/lib/roles";
 import type { Station } from "@/lib/types";
+import { REGISTER, REGISTER_YEAR } from "@/lib/config";
 
 export default function StationsPage() {
   const user = useUser();
@@ -68,7 +69,7 @@ export default function StationsPage() {
               <thead>
                 <tr className="border-b border-line bg-slate-50/70 text-left text-xs font-semibold tracking-wider text-muted uppercase">
                   <th className="px-5 py-3">Station</th><th className="px-3 py-3">Code</th><th className="px-3 py-3">Ward</th>
-                  <th className="px-3 py-3 text-right">Streams</th><th className="px-3 py-3 text-right">Registered</th><th className="px-3 py-3">Location</th><th className="px-5 py-3">Status</th>
+                  <th className="px-3 py-3 text-right">Streams</th><th className="px-3 py-3 text-right">Registered <span className="font-normal normal-case tracking-normal">({REGISTER_YEAR})</span></th><th className="px-3 py-3">Location</th><th className="px-5 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -189,7 +190,7 @@ function StationModal({ initial, tree, onClose }: { initial: Partial<Station>; t
           {tree.map((c) => <optgroup key={c.id} label={c.name}>{c.wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</optgroup>)}
         </Select>
         <Input label="Streams" inputMode="numeric" value={s.streams ?? ""} onChange={(e) => set("streams", n(e.target.value))} />
-        <Input label="Registered voters" inputMode="numeric" value={s.registered_voters ?? ""} onChange={(e) => set("registered_voters", n(e.target.value))} />
+        <Input label={`Registered voters (${REGISTER})`} inputMode="numeric" value={s.registered_voters ?? ""} onChange={(e) => set("registered_voters", n(e.target.value))} />
         <Input label="Latitude" inputMode="decimal" value={s.latitude ?? ""} error={errors.latitude} onChange={(e) => set("latitude", n(e.target.value))} placeholder="-4.0435" />
         <Input label="Longitude" inputMode="decimal" value={s.longitude ?? ""} error={errors.longitude} onChange={(e) => set("longitude", n(e.target.value))} placeholder="39.6682" />
         <div className="sm:col-span-2">

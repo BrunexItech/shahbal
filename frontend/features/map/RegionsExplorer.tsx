@@ -12,6 +12,7 @@ import type { RegionView } from "@/features/map/RegionsMap";
 import { cn } from "@/lib/cn";
 import { num } from "@/lib/format";
 import type { MapWard } from "@/lib/types";
+import { REGISTER } from "@/lib/config";
 
 const RegionsMap = dynamic(() => import("@/features/map/RegionsMap").then((m) => m.RegionsMap), {
   ssr: false,
@@ -161,7 +162,7 @@ function WardPanel({ w, onBack }: { w: MapWard; onBack: () => void }) {
     ["Verified", num(w.verified)],
     ["Supporters", num(w.supporters)],
     ["Visits done", num(w.visits_completed)],
-    ["Registered voters (IEBC)", w.registered_voters != null ? num(w.registered_voters) : "Not recorded"],
+    [`Registered voters (${REGISTER})`, w.registered_voters != null ? num(w.registered_voters) : "Not recorded"],
   ];
   return (
     <div className="p-5">

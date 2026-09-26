@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { num } from "@/lib/format";
+import { REGISTER, REGISTER_YEAR } from "@/lib/config";
 
 type Level = "county" | "constituency" | "ward";
 type Method = "percent_registered" | "split_registered" | "split_equal";
@@ -23,7 +24,7 @@ type Plan = {
 };
 
 const METHODS: { id: Method; icon: typeof Percent; title: string; body: string; input: string; suffix?: string }[] = [
-  { id: "percent_registered", icon: Percent, title: "% of registered voters", body: "Each area's target is a share of its IEBC registered voters.", input: "Percentage", suffix: "%" },
+  { id: "percent_registered", icon: Percent, title: "% of registered voters", body: `Each area's target is a share of its registered voters (${REGISTER}).`, input: "Percentage", suffix: "%" },
   { id: "split_registered", icon: Users, title: "Share a total by voters", body: "Split one total so bigger areas get bigger targets.", input: "Total target" },
   { id: "split_equal", icon: Scale, title: "Share a total equally", body: "Every area gets the same target.", input: "Total target" },
 ];
@@ -171,7 +172,7 @@ export function TargetPlanner({ onClose }: { onClose: () => void }) {
             ) : (
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500 uppercase">
-                  <tr><th className="px-3 py-2 text-left">{p.unit === "stations" ? "Polling station" : "Ward"}</th><th className="px-3 py-2 text-right">Registered</th><th className="px-3 py-2 text-right">Now</th><th className="px-3 py-2 text-right">New</th></tr>
+                  <tr><th className="px-3 py-2 text-left">{p.unit === "stations" ? "Polling station" : "Ward"}</th><th className="px-3 py-2 text-right">Registered ({REGISTER_YEAR})</th><th className="px-3 py-2 text-right">Now</th><th className="px-3 py-2 text-right">New</th></tr>
                 </thead>
                 <tbody>
                   {groups.map(([g, items]) => (

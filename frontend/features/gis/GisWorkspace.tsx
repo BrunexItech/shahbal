@@ -17,7 +17,7 @@ import { CONSTITUENCY_COLORS, PROGRESS_STEPS } from "@/features/map/regions";
 import { PhotoImg, useVisitPhotos } from "@/features/visits/photos";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { API_URL, GIS_URL, MAPILLARY_TOKEN } from "@/lib/config";
+import { API_URL, GIS_URL, MAPILLARY_TOKEN, REGISTER, REGISTER_YEAR } from "@/lib/config";
 import { dateTime, num, pct } from "@/lib/format";
 import type { MapOverview, Station } from "@/lib/types";
 
@@ -315,7 +315,7 @@ function Details({ d, selected, onClose, onFocus, onSelect }: {
         {ward && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2">
-              {([["Registered voters", num(ward.registered_voters)], ["Captured", num(ward.achieved)], ["Target", num(ward.target)], ["Progress", pct(ward.percent)], ["Supporters", num(ward.supporters)], ["Visits done", num(ward.visits_completed)]] as const).map(([k, v]) => (
+              {([[`Registered (${REGISTER_YEAR})`, num(ward.registered_voters)], ["Captured", num(ward.achieved)], ["Target", num(ward.target)], ["Progress", pct(ward.percent)], ["Supporters", num(ward.supporters)], ["Visits done", num(ward.visits_completed)]] as const).map(([k, v]) => (
                 <div key={k} className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-line">
                   <p className="text-xs text-slate-500">{k}</p>
                   <p className="font-display text-xl font-bold text-navy-900 tabular-nums">{v}</p>
@@ -356,7 +356,7 @@ function StationCard({ s, onZoom }: { s: MapStation; onZoom: () => void }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
-        {([["Registered", num(s.registered_voters)], ["Streams", num(s.streams)], ["Captured", num(s.captured)]] as const).map(([k, v]) => (
+        {([[`${REGISTER_YEAR} register`, num(s.registered_voters)], ["Streams", num(s.streams)], ["Captured", num(s.captured)]] as const).map(([k, v]) => (
           <div key={k} className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-line">
             <p className="text-xs text-slate-500">{k}</p>
             <p className="font-display text-xl font-bold text-navy-900 tabular-nums">{v}</p>
@@ -365,7 +365,7 @@ function StationCard({ s, onZoom }: { s: MapStation; onZoom: () => void }) {
       </div>
       {reach != null && (
         <div>
-          <div className="flex justify-between text-xs text-slate-500"><span>Reached of registered voters</span><b className="text-navy-900 tabular-nums">{pct(reach * 100)}</b></div>
+          <div className="flex justify-between text-xs text-slate-500"><span>Reached of registered voters ({REGISTER_YEAR})</span><b className="text-navy-900 tabular-nums">{pct(reach * 100)}</b></div>
           <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-kenya-green" style={{ width: `${Math.min(100, reach * 100)}%` }} /></div>
         </div>
       )}
@@ -428,7 +428,7 @@ function WardCentres({ wardId, d, onPick }: { wardId: string; d: MapOverview; on
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-navy-900">{s.name}</span>
                 <span className="text-xs text-slate-500 tabular-nums">
-                  {num(s.registered_voters)} voters · {s.streams} stream{s.streams === 1 ? "" : "s"}{m ? ` · ${num(m.captured)} captured` : ""}
+                  {num(s.registered_voters)} registered · {s.streams} stream{s.streams === 1 ? "" : "s"}{m ? ` · ${num(m.captured)} captured` : ""}
                   {!look && " · no pin yet"}{s.pin_pending && " · pin awaiting approval"}
                 </span>
               </span>
@@ -444,6 +444,7 @@ function WardCentres({ wardId, d, onPick }: { wardId: string; d: MapOverview; on
         })}
         {!shown.length && <li className="px-3 py-3 text-sm text-slate-500">No centre matches “{q}”.</li>}
       </ul>
+      <p className="mt-2 text-xs text-slate-500">Registered voters: {REGISTER}. Updated when IEBC publishes the new register.</p>
     </section>
   );
 }

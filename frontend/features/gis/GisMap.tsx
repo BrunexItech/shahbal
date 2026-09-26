@@ -9,7 +9,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 
 import { tooltip } from "@/features/map/CoverageMap";
 import { CONSTITUENCY_COLORS, PROGRESS_STEPS } from "@/features/map/regions";
-import { MAP_STYLE, MAPILLARY_TOKEN } from "@/lib/config";
+import { MAP_STYLE, MAPILLARY_TOKEN, REGISTER_YEAR } from "@/lib/config";
 import type { MapOverview } from "@/lib/types";
 
 import { area, type LngLat, pathLength } from "./measure";
@@ -253,7 +253,7 @@ export const GisMap = forwardRef<GisMapHandle, {
         if (!p || cb.current.measuring !== "off") return;
         m.getCanvas().style.cursor = "pointer";
         popup.setLngLat(e.lngLat).setDOMContent(tooltip(p.name,
-          `${Number(p.registered).toLocaleString()} registered · ${p.streams} stream${Number(p.streams) === 1 ? "" : "s"} · ${Number(p.captured).toLocaleString()} captured · ${(STATION_LOOK[p.location] ?? STATION_LOOK.approximate).label.toLowerCase()}`)).addTo(m);
+          `${Number(p.registered).toLocaleString()} registered (${REGISTER_YEAR}) · ${p.streams} stream${Number(p.streams) === 1 ? "" : "s"} · ${Number(p.captured).toLocaleString()} captured · ${(STATION_LOOK[p.location] ?? STATION_LOOK.approximate).label.toLowerCase()}`)).addTo(m);
       });
       m.on("mouseleave", "stations", leave);
       if (m.getLayer("mly-img")) {

@@ -11,6 +11,7 @@ import { STATUS, pctLabel, statusOf } from "@/features/targets/status";
 import { cn } from "@/lib/cn";
 import { dateTime, num } from "@/lib/format";
 import type { WardBreakdown } from "@/lib/types";
+import { REGISTER, REGISTER_YEAR } from "@/lib/config";
 
 export type WardRow = WardBreakdown & { constituency: string };
 type Sort = "gap" | "captured" | "percent" | "name";
@@ -139,7 +140,7 @@ function StationBreakdown({ w }: { w: WardRow }) {
   return (
     <div className="animate-fade-up px-5 pb-5 sm:pl-14">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {([["Verified", w.verified], ["Supporters", w.supporters], ["This week", w.week], ["Registered (IEBC)", w.registered_voters]] as const).map(([k, v]) => (
+        {([["Verified", w.verified], ["Supporters", w.supporters], ["This week", w.week], [`Registered (${REGISTER_YEAR})`, w.registered_voters]] as const).map(([k, v]) => (
           <div key={k} className="rounded-xl bg-white px-3 py-2 ring-1 ring-line">
             <p className="text-xs text-slate-500">{k}</p>
             <p className="font-semibold text-navy-900 tabular-nums">{num(v)}</p>
@@ -184,7 +185,7 @@ function TargetEditor({ w, onDone }: { w: WardRow; onDone: () => void }) {
         <input autoFocus inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/\D/g, ""))}
           className="mt-1 block h-10 w-28 rounded-lg border border-line bg-white px-2.5 text-base focus:border-ocean focus:outline-none" />
       </label>
-      <label className="text-xs font-semibold text-navy-900">Registered voters (IEBC)
+      <label className="text-xs font-semibold text-navy-900">Registered voters ({REGISTER})
         <input inputMode="numeric" value={reg} onChange={(e) => setReg(e.target.value.replace(/\D/g, ""))}
           className="mt-1 block h-10 w-36 rounded-lg border border-line bg-white px-2.5 text-base focus:border-ocean focus:outline-none" />
       </label>
