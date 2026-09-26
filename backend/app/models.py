@@ -11,3 +11,4 @@ from app.modules.visits.models import Visit, VisitPhoto  # noqa: F401
 from app.modules.voters.models import Voter  # noqa: F401
 from app.modules.issues.models import Issue, IssuePhoto, IssueUpdate  # noqa: F401
 from app.modules.calendar.models import CalendarEvent  # noqa: F401
+from app.modules.assignments.models import Assignment  # noqa: F401

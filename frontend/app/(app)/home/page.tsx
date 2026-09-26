@@ -10,6 +10,7 @@ import { Skeleton, Spinner } from "@/components/loaders";
 import { Card, EmptyState, ErrorState, StatusBadge } from "@/components/ui";
 import { CountUp, Ring } from "@/components/ui/Motion";
 import { useStations } from "@/features/geo/api";
+import { TodayPlan } from "@/features/assignments/TodayPlan";
 import { PinStationModal } from "@/features/geo/PinStation";
 import { ReportIssueModal } from "@/features/issues/ReportIssueModal";
 import { useBoundaries, useMapOverview } from "@/features/map/api";
@@ -98,6 +99,8 @@ export default function MyAreaPage() {
           <LocateFixed className="size-5" /> I&apos;m here now
         </button>
       </div>
+
+      <TodayPlan />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <button onClick={() => setReporting(true)} className="flex w-full items-center gap-4 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-line transition hover:ring-ocean/40 active:scale-[.99]">

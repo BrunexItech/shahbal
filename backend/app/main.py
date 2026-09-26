@@ -9,6 +9,7 @@ from app.core.headers import SecurityHeaders
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.ai.router import router as ai_router
+from app.modules.assignments.router import router as assignments_router
 from app.modules.audience.router import router as audience_router
 from app.modules.calls.router import router as calls_router
 from app.modules.calendar.router import router as calendar_router
@@ -55,7 +56,7 @@ app.add_middleware(
 # Each module owns its router; adding a module = one line here.
 for r in (auth_router, users_router, geo_router, voters_router, portal_router, dashboard_router, audit_router,
           messaging_router, visits_router, calls_router, election_router, map_router, live_router, invites_router, audience_router,
-          issues_router, issues_public_router, calendar_router, ai_router):
+          issues_router, issues_public_router, calendar_router, ai_router, assignments_router):
     app.include_router(r)
 
 
