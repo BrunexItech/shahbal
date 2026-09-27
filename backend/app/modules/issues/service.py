@@ -113,25 +113,51 @@ async def create_issue(session: AsyncSession, data: IssueBase, *, source: IssueS
     return issue
 
 
-async def notify_reporter(session: AsyncSession, issue: Issue, status: IssueStatus | None, note: str | None) -> bool:
-    """SMS the resident about their case, if they asked for updates and haven't opted out."""
-    if not (issue.contact_ok and issue.reporter_phone):
-        return False
+RECEIPT_SMS = "we have received your report {ref} ({cat}). We'll text you as it moves."
+
+
+def _track_hint() -> str:
+    """Where residents can follow their case (left out while the app has no public address yet)."""
+    host = settings.app_url.split("://", 1)[-1].rstrip("/")
+    return "" if host.startswith(("localhost", "127.")) else f" Track it at {host}/?track=1"
+
+
+def _masked(phone: str) -> str:
+    local = "0" + phone[4:] if phone.startswith("+254") else phone
+    return f"{local[:4]}•••{local[-3:]}"
+
+
+async def notify_reporter(session: AsyncSession, issue: Issue, status: IssueStatus | None, note: str | None, *, receipt: bool = False) -> str:
+    """Texts the resident about their case when they asked for updates, and records what really happened
+    on the case history (sent, or why not), so staff never assume a message went out when it didn't.
+    Call after the change itself is committed; commits the outcome. Returns sent | failed | not_requested | opted_out | no_phone."""
+    if not issue.reporter_phone:
+        return "no_phone"
+    if not issue.contact_ok:
+        return "not_requested"
     opted_out = (await session.execute(
         select(Voter.id).where(Voter.phone == issue.reporter_phone, Voter.opted_out.is_(True)).limit(1)
     )).first()
     if opted_out:
-        return False
+        session.add(IssueUpdate(issue_id=issue.id, kind="sms_failed", public=False,
+                                note=f"SMS not sent: {_masked(issue.reporter_phone)} has asked not to be contacted"))
+        await session.commit()
+        return "opted_out"
     ward = await session.get(Ward, issue.ward_id)
-    head = STATUS_SMS.get(status, "there's an update on your report {ref} ({cat}).") if status else "there's an update on your report {ref} ({cat})."
-    text = f"{settings.sms_sender_name}: " + head.format(ref=issue.reference, cat=LABELS[issue.category], ward=ward.name if ward else "Mombasa")
+    fields = {"ref": issue.reference, "cat": LABELS[issue.category], "ward": ward.name if ward else "Mombasa"}
+    head = RECEIPT_SMS if receipt else STATUS_SMS.get(status, "there's an update on your report {ref} ({cat}).") if status else "there's an update on your report {ref} ({cat})."
+    text = f"{settings.sms_sender_name}: " + head.format(**fields)
     if note:
-        text += f" {note[:200]}"
+        text += f" {note.strip()[:200]}"
+    text += _track_hint()
     from app.modules.messaging.transactional import send_system_sms
 
-    await send_system_sms(issue.reporter_phone, text)
-    session.add(IssueUpdate(issue_id=issue.id, kind="sms", note="Reporter notified by SMS", public=False))
-    return True
+    ok, error = await send_system_sms(issue.reporter_phone, text)
+    session.add(IssueUpdate(issue_id=issue.id, kind="sms" if ok else "sms_failed", public=False,
+                            note=f"SMS to {_masked(issue.reporter_phone)}: “{text}”" if ok
+                            else f"SMS to {_masked(issue.reporter_phone)} not sent: {error or 'the SMS service refused it'}"))
+    await session.commit()
+    return "sent" if ok else "failed"
 
 
 class IssueService:
@@ -232,6 +258,7 @@ class IssueService:
         audit.record(self.s, actor_id=self.user.id, action="CREATE", entity="issue", entity_id=issue.id, ip=self.ctx.ip,
                      category=issue.category.value, source=source.value)
         await self.s.commit()
+        await notify_reporter(self.s, issue, None, None, receipt=True)  # the resident gets their reference straight away
         return await self.detail(issue.id)
 
     async def _managed(self, issue_id: str) -> tuple[Issue, Ward]:
@@ -282,10 +309,11 @@ class IssueService:
         issue.updated_at = utcnow()
         audit.record(self.s, actor_id=self.user.id, action="UPDATE", entity="issue", entity_id=issue.id, ip=self.ctx.ip,
                      fields=changed, status=issue.status.value)
+        await self.s.commit()
         # The resident hears about progress (never about a case being closed as spam or a duplicate).
+        # Sent after the change is saved, and the outcome goes on the case history either way.
         if (status_changed and issue.status in STATUS_SMS) or (not status_changed and note and data.public):
             await notify_reporter(self.s, issue, issue.status if status_changed else None, note if data.public else None)
-        await self.s.commit()
         return await self.detail(issue.id)
 
     async def assignees(self, issue_id: str) -> list[Assignee]:

@@ -79,7 +79,38 @@ async def test_closing_as_spam_never_texts_the_reporter(client, admin, wards):
     await client.patch(f"/api/v1/issues/{case_id}", json={"status": "closed", "note": "Duplicate"}, headers=admin)
     async with SessionLocal() as s:
         kinds = (await s.execute(select(IssueUpdate.kind).where(IssueUpdate.issue_id == case_id))).scalars().all()
-    assert "sms" not in kinds
+    assert kinds.count("sms") == 1  # only the receipt when they reported; nothing about the closure
+
+
+async def test_residents_get_a_receipt_and_staff_see_whether_each_sms_really_went(client, admin, wards, monkeypatch):
+    sent: list[tuple[str, str]] = []
+
+    async def fake_sms(phone, text):
+        sent.append((phone, text))
+        return (False, "Mobile Sasa balance is too low for this batch (0402)") if "work has started" in text else (True, None)
+
+    monkeypatch.setattr("app.modules.messaging.transactional.send_system_sms", fake_sms)
+    ref = (await client.post("/api/v1/portal/issues", json=report(wards["Tudor"]))).json()["reference"]
+    assert sent[-1][0] == "+254712345678" and ref in sent[-1][1] and "We'll text you" in sent[-1][1]
+    case_id = (await client.get("/api/v1/issues", headers=admin)).json()["items"][0]["id"]
+
+    d = (await client.patch(f"/api/v1/issues/{case_id}", json={"status": "in_progress", "note": "Plumber booked for Monday", "public": True},
+                            headers=admin)).json()
+    failed = [u for u in d["updates"] if u["kind"] == "sms_failed"]
+    assert len(failed) == 1 and "balance is too low" in failed[0]["note"] and "0712•••678" in failed[0]["note"]
+    assert "Plumber booked for Monday" in sent[-1][1]
+    d = (await client.patch(f"/api/v1/issues/{case_id}", json={"note": "Parts delivered", "public": True}, headers=admin)).json()
+    ok = [u for u in d["updates"] if u["kind"] == "sms"]
+    assert "Parts delivered" in ok[-1]["note"]  # the history shows exactly what the resident received
+    # The resident sees the public note on the tracking page whether or not the SMS went.
+    t = (await client.post("/api/v1/portal/issues/track", json={"reference": ref, "phone": "0712345678"})).json()
+    assert "Plumber booked for Monday" in [u["note"] for u in t["updates"]]
+    assert "sms" not in [u.get("kind") for u in t["updates"]] and "sms_failed" not in [u.get("kind") for u in t["updates"]]
+
+    # No SMS when they didn't ask for updates.
+    before = len(sent)
+    await client.post("/api/v1/portal/issues", json=report(wards["Tudor"], contact_ok=False, reporter_phone="0722000333"))
+    assert len(sent) == before
 
 
 async def test_agents_log_cases_offline_safe_and_numbers_add_up(client, admin, wards):

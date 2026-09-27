@@ -28,7 +28,7 @@ from app.modules.issues.schemas import (
     PublicUpdate,
     StaffIssueIn,
 )
-from app.modules.issues.service import UPLOAD_WINDOW, IssueService, create_issue, store_photo, upload_token
+from app.modules.issues.service import UPLOAD_WINDOW, IssueService, create_issue, notify_reporter, store_photo, upload_token
 from app.modules.visits.photos import MAX_BYTES
 
 router = APIRouter(prefix="/api/v1/issues", tags=["community voice"])
@@ -110,6 +110,7 @@ async def report(payload: PublicIssueIn, request: Request, session: AsyncSession
     audit.record(session, actor_id=None, action="CREATE", entity="issue", entity_id=issue.id, ip=ip, source="public",
                  category=issue.category.value)
     await session.commit()
+    await notify_reporter(session, issue, None, None, receipt=True)  # their reference, by SMS, if they asked for updates
     return PublicReceipt(reference=issue.reference, upload_token=upload_token(issue), message=RECEIVED)
 
 

@@ -26,8 +26,20 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { setNote(""); setShare(false); }, [id]);
 
-  const run = (body: Parameters<typeof update.mutate>[0], ok: string) =>
-    update.mutate(body, { onSuccess: () => { toast.success(ok); setNote(""); setShare(false); }, onError: (e) => toast.error(e.message) });
+  const run = (body: Parameters<typeof update.mutate>[0], ok: string) => {
+    const before = new Set(d?.updates.map((u) => u.id));
+    update.mutate(body, {
+      onSuccess: (after) => {
+        setNote(""); setShare(false);
+        // Say plainly whether the resident's SMS went, and why not when it didn't.
+        const sms = after.updates.find((u) => !before.has(u.id) && (u.kind === "sms" || u.kind === "sms_failed"));
+        if (sms?.kind === "sms_failed") toast.warning(`${ok}. The SMS to the resident didn't go through.`, { description: sms.note?.split(" not sent: ")[1] ?? undefined, duration: 10000 });
+        else if (sms) toast.success(`${ok}. The resident was sent an SMS.`);
+        else toast.success(ok);
+      },
+      onError: (e) => toast.error(e.message),
+    });
+  };
 
   const Icon = d ? CATEGORY[d.category].icon : MapPin;
   const at = d ? STATUS_FLOW.indexOf(d.status) : -1;
@@ -77,7 +89,7 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
                   {d.reporter_phone && (d.reporter_phone.startsWith("+") ? (
                     <a href={`tel:${d.reporter_phone}`} className="flex items-center gap-2 font-semibold text-ocean hover:underline"><Phone className="size-4" />{d.reporter_phone}</a>
                   ) : <p className="flex items-center gap-2 text-slate-600"><Phone className="size-4 text-slate-400" />{d.reporter_phone}</p>)}
-                  <p className="text-xs text-slate-500">{d.contact_ok ? "Gets SMS updates on this case" : "Didn't ask for updates"}</p>
+                  <p className="text-xs text-slate-500">{d.contact_ok ? "Gets SMS updates on this case" : "Didn't ask for SMS updates. They can follow the case on the tracking page."}</p>
                 </div>
               ) : <p className="mt-1.5 text-sm text-slate-600">Reported anonymously.</p>}
             </div>
@@ -143,8 +155,13 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
                 placeholder="What was done, who was contacted, what happens next…" />
               <label className="flex items-center gap-2 text-sm text-navy-900">
                 <input type="checkbox" className="size-4 accent-kenya-green" checked={share} onChange={(e) => setShare(e.target.checked)} />
-                Share this with the resident{d.contact_ok ? " (they'll get it by SMS)" : ""}
+                Share this with the resident
               </label>
+              <p className="-mt-1 pl-6 text-xs text-slate-500">
+                {d.contact_ok
+                  ? "Shared updates go to them by SMS and appear on their tracking page. Moving the case on also texts them."
+                  : "They didn't ask for SMS, so shared updates appear only on their tracking page (reference " + d.reference + ")."}
+              </p>
               <div className="flex flex-wrap gap-2">
                 {next && <Button size="sm" loading={update.isPending} onClick={() => run({ status: next, note: note || undefined, public: share }, `Marked ${STATUS[next].en.toLowerCase()}`)}>
                   Mark {STATUS[next].en.toLowerCase()}</Button>}
@@ -168,7 +185,7 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
                 <li key={u.id} className="relative text-sm">
                   <span className="absolute top-1.5 -left-[21px] size-2.5 rounded-full ring-2 ring-white" style={{ background: u.status ? STATUS[u.status].color : "#94a3b8" }} />
                   <p className="text-navy-900">
-                    <b>{u.kind === "status" && u.status ? STATUS[u.status].en : u.kind === "created" ? "Reported" : u.kind === "sms" ? "SMS sent" : u.kind === "note" ? "Note" : "Updated"}</b>
+                    <b>{u.kind === "status" && u.status ? STATUS[u.status].en : u.kind === "created" ? "Reported" : u.kind === "sms" ? "SMS sent" : u.kind === "sms_failed" ? <span className="text-kenya-red">SMS not sent</span> : u.kind === "note" ? "Note" : "Updated"}</b>
                     {u.note && <span className="text-slate-700"> · {u.note}</span>}
                     {u.public && u.kind !== "created" && <Badge tone="blue" className="ml-2">Shared with resident</Badge>}
                   </p>

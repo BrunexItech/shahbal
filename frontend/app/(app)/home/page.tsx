@@ -14,7 +14,6 @@ import { TodayPlan } from "@/features/assignments/TodayPlan";
 import { PinStationModal } from "@/features/geo/PinStation";
 import { ReportIssueModal } from "@/features/issues/ReportIssueModal";
 import { useBoundaries, useMapOverview } from "@/features/map/api";
-import type { Layers } from "@/features/map/CoverageMap";
 import { QuickVisitModal } from "@/features/visits/QuickVisit";
 import { api } from "@/lib/api";
 import { useUser } from "@/lib/auth";
@@ -22,11 +21,10 @@ import { cn } from "@/lib/cn";
 import { num, timeAgo } from "@/lib/format";
 import type { VoterStatus } from "@/lib/types";
 
-const CoverageMap = dynamic(() => import("@/features/map/CoverageMap").then((m) => m.CoverageMap), {
+const AreaMap = dynamic(() => import("@/features/map/AreaMap").then((m) => m.AreaMap), {
   ssr: false,
   loading: () => <div className="absolute inset-0 grid place-items-center bg-slate-100"><Spinner /></div>,
 });
-const LAYERS: Layers = { wards: true, visited: true, stations: true, visits: true, labels: true };
 
 type Area = {
   ward: { id: string; name: string; constituency: string; target: number; captured: number; today: number; week: number; gap: number; percent: number | null; visits_done: number };
@@ -151,10 +149,10 @@ export default function MyAreaPage() {
 
       {/* Ward map */}
       <Card className="overflow-hidden">
-        <div className="px-5 pt-4 pb-3"><p className="text-sm font-bold text-navy-900">Your ward</p><p className="text-xs text-slate-500">Places the team has been, and the polling stations.</p></div>
-        <div className="relative h-72 bg-slate-100 sm:h-80">
+        <div className="px-5 pt-4 pb-3"><p className="text-sm font-bold text-navy-900">Your ward</p><p className="text-xs text-slate-500">Polling centres, places the team has been and today&apos;s visits. Tap “Where am I?” to see yourself on it.</p></div>
+        <div className="relative h-96 bg-[#06101f] sm:h-[28rem]">
           {overview.data && boundaries.data ? (
-            <CoverageMap data={overview.data} boundaries={boundaries.data} layers={LAYERS} selected={a.ward.id} onSelect={() => {}} mode="visits" fitWard={a.ward.id} />
+            <AreaMap data={overview.data} boundaries={boundaries.data} wardId={a.ward.id} visitIdsToday={a.visits_today.map((v) => v.id)} />
           ) : <div className="absolute inset-0 grid place-items-center"><Spinner /></div>}
         </div>
       </Card>

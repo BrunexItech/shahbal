@@ -21,7 +21,7 @@ from app.core.roles import MANAGERS, PUBLISHERS
 from app.core.scope import can_touch_ward, ward_scope
 from app.modules.geo.models import Constituency, Ward
 from app.modules.site import media as store
-from app.modules.site.models import NewsPost, SiteMedia, SitePage, Volunteer
+from app.modules.site.models import AgendaItem, NewsPost, SiteMedia, SitePage, Volunteer
 from app.modules.visits.models import Visit, VisitStatus
 
 public = APIRouter(prefix="/api/v1/site", tags=["public website"])
@@ -77,9 +77,11 @@ async def save_page(key: str, payload: PageIn, ctx: Ctx = Depends(hq)):
 MEDIA_TOKEN = re.compile(r"^\[\[media:([0-9a-f-]{36})\]\]$", re.M)
 
 
-def _media(m: SiteMedia) -> dict:
-    return {"id": m.id, "kind": m.kind, "content_type": m.content_type, "width": m.width, "height": m.height,
-            "caption": m.caption, "size": m.size, "has_thumb": bool(m.thumb), "created_at": m.created_at.isoformat()}
+def _media(m: SiteMedia, admin: bool = False) -> dict:
+    out = {"id": m.id, "kind": m.kind, "content_type": m.content_type, "width": m.width, "height": m.height,
+           "caption": m.caption, "has_thumb": bool(m.thumb)}
+    # HQ's own file names stay inside the Command Centre.
+    return out | ({"label": m.label, "size": m.size, "created_at": m.created_at.isoformat()} if admin else {})
 
 
 async def _post(session: AsyncSession, p: NewsPost, full: bool = True) -> dict:
@@ -187,22 +189,50 @@ async def media_file(mid: str, thumb: bool = False, session: AsyncSession = Depe
 
 
 @router.get("/media")
-async def media_library(ctx: Ctx = Depends(hq)):
-    rows = (await ctx.session.execute(select(SiteMedia).order_by(SiteMedia.created_at.desc()).limit(200))).scalars()
-    return [_media(m) for m in rows]
+async def media_library(q: str | None = Query(None, max_length=80), ctx: Ctx = Depends(hq)):
+    stmt = select(SiteMedia).order_by(SiteMedia.created_at.desc()).limit(300)
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(SiteMedia.label.ilike(like) | SiteMedia.caption.ilike(like))
+    return [_media(m, admin=True) for m in (await ctx.session.execute(stmt)).scalars()]
+
+
+def _default_label(filename: str | None) -> str | None:
+    stem = (filename or "").rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    return " ".join(re.sub(r"[_\-]+", " ", stem).split())[:120] or None
 
 
 @router.post("/media", status_code=201)
-async def upload_media(file: UploadFile = File(...), caption: str | None = Form(None, max_length=200), ctx: Ctx = Depends(hq)):
+async def upload_media(file: UploadFile = File(...), caption: str | None = Form(None, max_length=200),
+                       label: str | None = Form(None, max_length=120), ctx: Ctx = Depends(hq)):
     video = (file.content_type or "").startswith("video/")
     info = await (store.save_video(file) if video else store.save_image(file))
-    m = SiteMedia(**info, caption=(caption or "").strip() or None, uploaded_by_id=ctx.user.id)
+    m = SiteMedia(**info, caption=(caption or "").strip() or None, label=(label or "").strip() or _default_label(file.filename),
+                  uploaded_by_id=ctx.user.id)
     ctx.session.add(m)
     await ctx.session.flush()
     audit.record(ctx.session, actor_id=ctx.user.id, action="UPLOAD", entity="site_media", entity_id=m.id, ip=ctx.ip, kind=m.kind, size=m.size)
     await ctx.session.commit()
     await ctx.session.refresh(m)
-    return _media(m)
+    return _media(m, admin=True)
+
+
+class MediaPatch(BaseModel):
+    label: str | None = Field(default=None, max_length=120)
+    caption: str | None = Field(default=None, max_length=200)
+
+
+@router.patch("/media/{mid}")
+async def update_media(mid: str, payload: MediaPatch, ctx: Ctx = Depends(hq)):
+    m = await ctx.session.get(SiteMedia, mid)
+    if m is None:
+        raise HTTPException(404, "Not found")
+    for field in payload.model_fields_set:
+        setattr(m, field, (getattr(payload, field) or "").strip() or None)
+    audit.record(ctx.session, actor_id=ctx.user.id, action="UPDATE", entity="site_media", entity_id=m.id, ip=ctx.ip)
+    await ctx.session.commit()
+    await ctx.session.refresh(m)
+    return _media(m, admin=True)
 
 
 @router.delete("/media/{mid}", status_code=204)
@@ -216,6 +246,86 @@ async def delete_media(mid: str, ctx: Ctx = Depends(hq)):
     await ctx.session.commit()
     for n in names:
         store.remove(n)
+
+
+# ---- agenda -------------------------------------------------------------------------------
+async def _item(session: AsyncSession, a: AgendaItem) -> dict:
+    return {"id": a.id, "title": a.title, "summary": a.summary, "body": a.body, "cover_id": a.cover_id, "position": a.position,
+            "published": a.published, "media": await _media_in(session, a.body), "updated_at": a.updated_at.isoformat()}
+
+
+@public.get("/agenda")
+async def agenda(session: AsyncSession = Depends(get_session)):
+    rows = (await session.execute(select(AgendaItem).where(AgendaItem.published.is_(True))
+                                  .order_by(AgendaItem.position, AgendaItem.created_at))).scalars().all()
+    return [await _item(session, a) for a in rows]
+
+
+class AgendaIn(BaseModel):
+    title: str = Field(min_length=3, max_length=120)
+    summary: str = Field(min_length=10, max_length=300)
+    body: str = Field(default="", max_length=20000)
+    cover_id: str | None = None
+    published: bool = True
+
+
+@router.get("/agenda")
+async def all_agenda(ctx: Ctx = Depends(hq)):
+    rows = (await ctx.session.execute(select(AgendaItem).order_by(AgendaItem.position, AgendaItem.created_at))).scalars().all()
+    return [await _item(ctx.session, a) for a in rows]
+
+
+@router.post("/agenda", status_code=201)
+async def create_agenda(payload: AgendaIn, ctx: Ctx = Depends(hq)):
+    await _check_cover(ctx.session, payload.cover_id)
+    last = (await ctx.session.execute(select(func.max(AgendaItem.position)))).scalar() or 0
+    a = AgendaItem(**payload.model_dump(), position=last + 1, updated_by_id=ctx.user.id)
+    ctx.session.add(a)
+    await ctx.session.flush()
+    audit.record(ctx.session, actor_id=ctx.user.id, action="CREATE", entity="agenda_item", entity_id=a.id, ip=ctx.ip)
+    await ctx.session.commit()
+    await ctx.session.refresh(a)
+    return await _item(ctx.session, a)
+
+
+@router.put("/agenda/{aid}")
+async def update_agenda(aid: str, payload: AgendaIn, ctx: Ctx = Depends(hq)):
+    a = await ctx.session.get(AgendaItem, aid)
+    if a is None:
+        raise HTTPException(404, "Agenda item not found")
+    await _check_cover(ctx.session, payload.cover_id)
+    for k, v in payload.model_dump().items():
+        setattr(a, k, v)
+    a.updated_by_id = ctx.user.id
+    audit.record(ctx.session, actor_id=ctx.user.id, action="UPDATE", entity="agenda_item", entity_id=a.id, ip=ctx.ip)
+    await ctx.session.commit()
+    await ctx.session.refresh(a)
+    return await _item(ctx.session, a)
+
+
+@router.delete("/agenda/{aid}", status_code=204)
+async def delete_agenda(aid: str, ctx: Ctx = Depends(hq)):
+    a = await ctx.session.get(AgendaItem, aid)
+    if a is None:
+        raise HTTPException(404, "Agenda item not found")
+    await ctx.session.delete(a)
+    audit.record(ctx.session, actor_id=ctx.user.id, action="DELETE", entity="agenda_item", entity_id=aid, ip=ctx.ip)
+    await ctx.session.commit()
+
+
+class OrderIn(BaseModel):
+    ids: list[str] = Field(max_length=100)
+
+
+@router.post("/agenda/order")
+async def reorder_agenda(payload: OrderIn, ctx: Ctx = Depends(hq)):
+    items = {a.id: a for a in (await ctx.session.execute(select(AgendaItem))).scalars()}
+    if set(payload.ids) != set(items):
+        raise HTTPException(422, "Send every agenda item once")
+    for i, aid in enumerate(payload.ids, start=1):
+        items[aid].position = i
+    await ctx.session.commit()
+    return {"ok": True}
 
 
 # ---- events -------------------------------------------------------------------------------

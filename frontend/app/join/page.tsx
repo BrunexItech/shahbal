@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, BellRing, CalendarCheck, Check, Copy, HeartHandshake, Lock, MapPin, Megaphone, Search, Share2, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { BrandMark, Spinner } from "@/components/loaders";
@@ -11,7 +11,7 @@ import { FlagStripe } from "@/components/shell/FlagStripe";
 import { Button, Input, Segmented } from "@/components/ui";
 import { BirthYearInput, birthYearError } from "@/components/ui/BirthYearInput";
 import { usePortalGeo, usePortalStations } from "@/features/geo/api";
-import { LocationPicker, type LocationValue } from "@/features/geo/LocationPicker";
+import { LocationPicker, type LocationValue, PICKER_COPY } from "@/features/geo/LocationPicker";
 import { ReportIssue, TrackIssue } from "@/features/issues/PublicVoice";
 import { api, ApiError, apiUrl } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -79,6 +79,17 @@ export default function JoinPage() {
   const [ref, setRef] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [mode, setMode] = useState<Mode>("join");
+  const formTop = useRef<HTMLOListElement>(null);
+  const firstStep = useRef(true);
+  // Each new step starts at its top, with the first field ready to type in.
+  useEffect(() => {
+    if (firstStep.current) { firstStep.current = false; return; }
+    const top = formTop.current;
+    if (!top) return;
+    window.scrollTo({ top: top.getBoundingClientRect().top + window.scrollY - 16, behavior: "smooth" });
+    const first = top.parentElement?.querySelector<HTMLElement>("section input:not([disabled]):not([type=checkbox]), section select:not([disabled])");
+    first?.focus({ preventScroll: true });
+  }, [step]);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => { setF((x) => ({ ...x, [k]: v })); setErrors((e) => ({ ...e, [k]: "" })); };
 
   useEffect(() => {
@@ -113,7 +124,14 @@ export default function JoinPage() {
     }
     if (s === 2 && !f.consent) e.consent = lang === "sw" ? "Tafadhali kubali kabla ya kutuma" : "Please tick to agree before joining";
     setErrors(e);
-    return !Object.values(e).some(Boolean);
+    const ok = !Object.values(e).some(Boolean);
+    // Take them to the first thing that needs fixing.
+    if (!ok) requestAnimationFrame(() => {
+      const bad = document.querySelector<HTMLElement>("[aria-invalid=true]");
+      bad?.scrollIntoView({ behavior: "smooth", block: "center" });
+      bad?.focus({ preventScroll: true });
+    });
+    return ok;
   }
 
   async function submit() {
@@ -201,7 +219,7 @@ export default function JoinPage() {
           ) : (
             <>
               {/* Stepper */}
-              <ol className="grid grid-cols-3 border-b border-line">
+              <ol ref={formTop} className="grid scroll-mt-4 grid-cols-3 border-b border-line">
                 {t.steps.map((s, i) => (
                   <li key={s} className={cn("relative flex items-center gap-2 px-3 py-4 text-sm font-semibold sm:px-6", i === step ? "text-navy-900" : i < step ? "text-kenya-green" : "text-slate-400")}>
                     <span className={cn("grid size-7 shrink-0 place-items-center rounded-full text-xs font-extrabold", i < step ? "bg-kenya-green text-white" : i === step ? "bg-navy-950 text-gold" : "bg-slate-100 text-slate-400")}>
@@ -238,7 +256,7 @@ export default function JoinPage() {
                     {geo.isLoading || !geo.data ? (
                       <div className="grid place-items-center py-8">{geo.error ? <p className="text-sm text-kenya-red">Couldn&apos;t load locations. Refresh to try again.</p> : <Spinner size="lg" />}</div>
                     ) : (
-                      <LocationPicker tree={geo.data} stations={stations.data} stationsLoading={stations.isFetching} value={f.loc}
+                      <LocationPicker tree={geo.data} stations={stations.data} stationsLoading={stations.isFetching} value={f.loc} copy={PICKER_COPY[lang]}
                         onChange={(v) => { set("loc", v); setErrors((e) => ({ ...e, ward_id: "", constituency_id: "" })); }} errors={errors} />
                     )}
                     <Input label={lang === "sw" ? "Nambari ya kadi ya mpiga kura" : "Voter card number"} hint={lang === "sw" ? "Si lazima" : "Optional"} value={f.voter_card_no} onChange={(e) => set("voter_card_no", e.target.value)} />

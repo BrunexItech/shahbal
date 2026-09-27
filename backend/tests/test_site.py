@@ -110,3 +110,33 @@ async def test_communications_role_posts_news_with_media_and_nothing_else(client
     # Field staff can't publish.
     lead = await make_user(client, admin, "coordinator", constituency_id=wards["Tudor"].constituency_id)
     assert (await client.post("/api/v1/site-admin/media", headers=lead, files={"file": ("clip.mp4", mp4, "video/mp4")})).status_code == 403
+
+
+async def test_agenda_items_and_media_names(client, admin, wards):
+    comms = await make_user(client, admin, "communications")
+    up = (await client.post("/api/v1/site-admin/media", headers=comms,
+                            files={"file": ("Likoni_ferry-launch.jpg", _jpeg_with_gps(), "image/jpeg")})).json()
+    assert up["label"] == "Likoni ferry launch"  # named from the file until HQ renames it
+    renamed = (await client.patch(f"/api/v1/site-admin/media/{up['id']}", json={"label": "Ferry launch, June", "caption": "At the Likoni channel"},
+                                  headers=comms)).json()
+    assert renamed["label"] == "Ferry launch, June" and renamed["caption"] == "At the Likoni channel"
+    assert [m["id"] for m in (await client.get("/api/v1/site-admin/media?q=ferry", headers=comms)).json()] == [up["id"]]
+    assert (await client.get("/api/v1/site-admin/media?q=rally", headers=comms)).json() == []
+
+    water = (await client.post("/api/v1/site-admin/agenda", headers=comms, json={
+        "title": "Water every day", "summary": "Piped water to every ward within the first term.",
+        "body": f"Our plan.\n[[media:{up['id']}]]", "cover_id": up["id"]})).json()
+    jobs = (await client.post("/api/v1/site-admin/agenda", headers=comms, json={
+        "title": "Jobs at the port", "summary": "Local hiring first for port and county jobs.", "published": False})).json()
+    public = (await client.get("/api/v1/site/agenda")).json()
+    assert [a["title"] for a in public] == ["Water every day"]  # drafts stay private
+    assert "label" not in public[0]["media"][up["id"]]  # HQ's file names never reach the public
+    assert (await client.post("/api/v1/site-admin/agenda/order", json={"ids": [jobs["id"]]}, headers=comms)).status_code == 422
+    await client.post("/api/v1/site-admin/agenda/order", json={"ids": [jobs["id"], water["id"]]}, headers=comms)
+    await client.put(f"/api/v1/site-admin/agenda/{jobs['id']}", headers=comms, json={**{k: jobs[k] for k in ("title", "summary", "body")}, "published": True})
+    assert [a["title"] for a in (await client.get("/api/v1/site/agenda")).json()] == ["Jobs at the port", "Water every day"]
+    assert (await client.delete(f"/api/v1/site-admin/agenda/{jobs['id']}", headers=comms)).status_code == 204
+    assert [a["title"] for a in (await client.get("/api/v1/site/agenda")).json()] == ["Water every day"]
+    lead = await make_user(client, admin, "coordinator", constituency_id=wards["Tudor"].constituency_id)
+    assert (await client.delete(f"/api/v1/site-admin/agenda/{water['id']}", headers=lead)).status_code == 403
+    await client.delete(f"/api/v1/site-admin/media/{up['id']}", headers=comms)

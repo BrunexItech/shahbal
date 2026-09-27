@@ -31,7 +31,8 @@ class SiteMedia(Base):
     size: Mapped[int]
     width: Mapped[int | None]
     height: Mapped[int | None]
-    caption: Mapped[str | None] = mapped_column(String(200))
+    caption: Mapped[str | None] = mapped_column(String(200))  # shown under it on the website
+    label: Mapped[str | None] = mapped_column(String(120))  # HQ's own name for finding it; never public
     uploaded_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
@@ -46,6 +47,20 @@ class NewsPost(Base):
     published_at: Mapped[datetime | None] = mapped_column(index=True)
     author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     cover_id: Mapped[str | None] = mapped_column(ForeignKey("site_media.id", ondelete="SET NULL"))
+
+
+class AgendaItem(Base):
+    """One pledge on the Our Agenda page (water, jobs, health…), ordered by HQ."""
+
+    __tablename__ = "agenda_items"
+
+    title: Mapped[str] = mapped_column(String(120))
+    summary: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text, default="")
+    cover_id: Mapped[str | None] = mapped_column(ForeignKey("site_media.id", ondelete="SET NULL"))
+    position: Mapped[int] = mapped_column(default=0, index=True)
+    published: Mapped[bool] = mapped_column(default=True)
+    updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
 class Volunteer(Base):

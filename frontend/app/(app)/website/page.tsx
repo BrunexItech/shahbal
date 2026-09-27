@@ -1,95 +1,206 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Eye, FilePen, ImageIcon, Newspaper, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ExternalLink, Eye, EyeOff, FilePen, ImageIcon, Images, ListChecks, Newspaper, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { SkeletonRows } from "@/components/loaders";
 import { Badge, Button, Card, Input, Modal, PageHeader, Textarea, useConfirm } from "@/components/ui";
-import type { NewsItem, SitePage } from "@/features/site/api";
-import { MediaLibrary, type MediaMap, mediaUrl, MediaToolbar, RichBody, useCaret, useMediaLibrary } from "@/features/site/media";
+import type { AgendaItem, NewsItem, SitePage } from "@/features/site/api";
+import { BlockEditor, CoverPicker, MediaLibrary, mediaUrl, RichBody, useMediaMap } from "@/features/site/media";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { dateTime } from "@/lib/format";
 
-const PAGES: [string, string, string][] = [
-  ["about", "About", "/about"], ["agenda", "Our agenda", "/agenda"], ["contact", "Contact", "/contact"],
-];
-const HELP = "Plain text. Start a line with ## for a heading or - for a bullet; wrap words in **double stars** for bold. Photos and videos sit on their own lines.";
-
-/** Media the preview needs: everything in the library, by id. */
-function useMediaMap(): MediaMap {
-  const lib = useMediaLibrary();
-  return Object.fromEntries((lib.data ?? []).map((m) => [m.id, m]));
-}
+const TABS = [["news", "News"], ["agenda", "Agenda"], ["about", "About"], ["contact", "Contact"]] as const;
+type Tab = (typeof TABS)[number][0];
 
 export default function WebsitePage() {
-  const [tab, setTab] = useState("about");
+  const [tab, setTab] = useState<Tab>("news");
+  const [library, setLibrary] = useState(false);
   return (
     <>
       <PageHeader eyebrow="Communications" title="Public website"
-        subtitle="The pages and news the public sees. Events come from the calendar when a field event is marked “Show on the public website”."
-        actions={<Link href="/about" target="_blank" className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-navy-900 ring-1 ring-line hover:bg-slate-50"><ExternalLink className="size-4" /> View the site</Link>} />
+        subtitle="The pages, agenda and news the public sees. Events come from the calendar when a field event is marked “Show on the public website”."
+        actions={<div className="flex flex-wrap gap-2">
+          <Button variant="secondary" icon={<Images className="size-4" />} onClick={() => setLibrary(true)}>Media library</Button>
+          <Link href="/about" target="_blank" className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-navy-900 ring-1 ring-line hover:bg-slate-50"><ExternalLink className="size-4" /> View the site</Link>
+        </div>} />
       <div role="tablist" aria-label="Website" className="mb-6 flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 sm:inline-flex">
-        {[...PAGES.map(([k, l]) => [k, l]), ["news", "News"]].map(([k, l]) => (
+        {TABS.map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={cn("rounded-lg px-4 py-1.5 text-sm font-semibold", tab === k ? "bg-white text-navy-900 shadow-sm" : "text-muted")}>{l}</button>
         ))}
       </div>
-      {tab === "news" ? <NewsEditor /> : <PageEditor key={tab} pageKey={tab} href={PAGES.find(([k]) => k === tab)![2]} />}
+      {tab === "news" ? <NewsEditor /> : tab === "agenda" ? <AgendaManager /> : <PageEditor key={tab} pageKey={tab} href={`/${tab}`} />}
+      {library && <MediaLibrary onClose={() => setLibrary(false)} />}
     </>
   );
 }
 
-function PageEditor({ pageKey, href }: { pageKey: string; href: string }) {
-  const qc = useQueryClient();
+// ---- About / Contact / Agenda introduction -------------------------------------------------
+function PageEditor({ pageKey, href, intro }: { pageKey: string; href: string; intro?: boolean }) {
   const page = useQuery({ queryKey: ["site", "page", pageKey], queryFn: () => api<SitePage>(`/site/pages/${pageKey}`) });
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const caret = useCaret();
+  if (!page.data) return <Card><SkeletonRows rows={4} /></Card>;
+  return <PageForm page={page.data} href={href} intro={intro} />;
+}
+
+function PageForm({ page, href, intro }: { page: SitePage; href: string; intro?: boolean }) {
+  const qc = useQueryClient();
+  const [title, setTitle] = useState(page.title);
+  const [body, setBody] = useState(page.body);
+  const [preview, setPreview] = useState(false);
   const media = useMediaMap();
-  useEffect(() => { if (page.data) { setTitle(page.data.title); setBody(page.data.body); } }, [page.data]);
   const save = useMutation({
-    mutationFn: () => api<SitePage>(`/site-admin/pages/${pageKey}`, { method: "PUT", body: { title, body } }),
-    onSuccess: (p) => { qc.setQueryData(["site", "page", pageKey], p); toast.success("Page published"); },
+    mutationFn: () => api<SitePage>(`/site-admin/pages/${page.key}`, { method: "PUT", body: { title, body } }),
+    onSuccess: (p) => { qc.setQueryData(["site", "page", page.key], p); toast.success("Published"); },
     onError: (e) => toast.error(e.message),
   });
-  if (!page.data) return <Card><SkeletonRows rows={4} /></Card>;
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <Card className="space-y-4 p-5">
-        <Input label="Page title" value={title} maxLength={140} onChange={(e) => setTitle(e.target.value)} />
-        <MediaToolbar onInsert={(t) => setBody((b) => caret.insert(b, t))} />
-        <Textarea {...caret.trackProps} label="Page text" rows={16} maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} hint={HELP} />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-slate-500">{page.data.updated_at ? `Last published ${dateTime(page.data.updated_at)}` : "Not published yet"}</p>
-          <div className="flex gap-2">
-            <Link href={href} target="_blank" className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-ocean hover:bg-ocean-50"><Eye className="size-4" /> Open page</Link>
-            <Button loading={save.isPending} disabled={title.trim().length < 3} onClick={() => save.mutate()}>Publish changes</Button>
-          </div>
+    <Card className="space-y-4 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-bold text-navy-900">{intro ? "Introduction above the agenda" : "Page"}</p>
+        <Button size="sm" variant="ghost" icon={preview ? <FilePen className="size-4" /> : <Eye className="size-4" />} onClick={() => setPreview((p) => !p)}>{preview ? "Edit" : "Preview"}</Button>
+      </div>
+      {preview ? (
+        <div className="rounded-xl bg-slate-50 p-5">
+          <p className="font-display text-xl font-extrabold text-navy-900">{title}</p>
+          {body.trim() ? <RichBody text={body} media={{ ...page.media, ...media }} className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-700" /> : <p className="mt-3 text-sm text-slate-400">Nothing written yet.</p>}
         </div>
+      ) : (
+        <>
+          <Input label="Page title" value={title} maxLength={140} onChange={(e) => setTitle(e.target.value)} />
+          <BlockEditor initial={body} onChange={setBody} label={intro ? "Introduction" : "Page text"} />
+        </>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+        <p className="text-xs text-slate-500">{page.updated_at ? `Last published ${dateTime(page.updated_at)}` : "Not published yet"}</p>
+        <div className="flex gap-2">
+          <Link href={href} target="_blank" className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-ocean hover:bg-ocean-50"><ExternalLink className="size-4" /> Open page</Link>
+          <Button loading={save.isPending} disabled={title.trim().length < 3} onClick={() => save.mutate()}>Publish changes</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ---- Agenda --------------------------------------------------------------------------------
+function AgendaManager() {
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  const items = useQuery({ queryKey: ["site-admin", "agenda"], queryFn: () => api<AgendaItem[]>("/site-admin/agenda") });
+  const [editing, setEditing] = useState<Partial<AgendaItem> | null>(null);
+  const refresh = () => { qc.invalidateQueries({ queryKey: ["site-admin", "agenda"] }); qc.invalidateQueries({ queryKey: ["site", "agenda"] }); };
+  const order = useMutation({
+    mutationFn: (ids: string[]) => api("/site-admin/agenda/order", { body: { ids } }),
+    onMutate: (ids) => qc.setQueryData<AgendaItem[]>(["site-admin", "agenda"], (l) => ids.map((id) => l!.find((a) => a.id === id)!)),
+    onError: (e) => toast.error(e.message),
+    onSettled: refresh,
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => api(`/site-admin/agenda/${id}`, { method: "DELETE" }),
+    onSuccess: () => { refresh(); toast.success("Removed from the agenda"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const toggle = useMutation({
+    mutationFn: (a: AgendaItem) => api(`/site-admin/agenda/${a.id}`, { method: "PUT", body: { title: a.title, summary: a.summary, body: a.body, cover_id: a.cover_id, published: !a.published } }),
+    onSuccess: (_, a) => { refresh(); toast.success(a.published ? "Hidden from the website" : "Shown on the website"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const list = items.data ?? [];
+  const move = (i: number, d: -1 | 1) => {
+    const ids = list.map((a) => a.id);
+    [ids[i], ids[i + d]] = [ids[i + d], ids[i]];
+    order.mutate(ids);
+  };
+  return (
+    <div className="space-y-6">
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+          <div><p className="font-bold text-navy-900">Agenda items</p><p className="text-xs text-slate-500">Each pledge is a card on the Our Agenda page, in this order. Hidden items are kept as drafts.</p></div>
+          <Button icon={<Plus className="size-4" />} onClick={() => setEditing({ published: true })}>Add item</Button>
+        </div>
+        {items.isLoading ? <SkeletonRows rows={3} /> : !list.length ? (
+          <div className="flex flex-col items-center px-6 py-12 text-center"><ListChecks className="size-8 text-slate-300" /><p className="mt-2 text-sm text-slate-500">No agenda items yet. Add the first pledge.</p></div>
+        ) : (
+          <ol className="divide-y divide-line">
+            {list.map((a, i) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-3 sm:flex-nowrap">
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-navy-950 text-xs font-bold text-gold">{i + 1}</span>
+                {a.cover_id ? <img src={mediaUrl(a.cover_id, true)} alt="" className="hidden h-12 w-16 shrink-0 rounded-lg object-cover sm:block" />
+                  : <span className="hidden h-12 w-16 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-300 sm:grid"><ImageIcon className="size-5" /></span>}
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 truncate font-semibold text-navy-900">{a.title}{!a.published && <Badge tone="slate">Hidden</Badge>}</p>
+                  <p className="truncate text-xs text-slate-500">{a.summary}</p>
+                </div>
+                <div className="ml-auto flex shrink-0 items-center">
+                  <RowBtn label="Move up" disabled={i === 0 || order.isPending} onClick={() => move(i, -1)}><ArrowUp className="size-4" /></RowBtn>
+                  <RowBtn label="Move down" disabled={i === list.length - 1 || order.isPending} onClick={() => move(i, 1)}><ArrowDown className="size-4" /></RowBtn>
+                  <RowBtn label={a.published ? `Hide ${a.title}` : `Show ${a.title}`} onClick={() => toggle.mutate(a)}>{a.published ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</RowBtn>
+                  <RowBtn label={`Edit ${a.title}`} onClick={() => setEditing(a)}><FilePen className="size-4" /></RowBtn>
+                  <RowBtn label={`Delete ${a.title}`} danger onClick={async () => { if (await confirm({ title: "Delete this agenda item?", body: a.title, confirmLabel: "Delete", danger: true })) del.mutate(a.id); }}><Trash2 className="size-4" /></RowBtn>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
       </Card>
-      <Card className="p-6">
-        <p className="mb-3 text-xs font-bold tracking-wider text-slate-500 uppercase">Preview</p>
-        <p className="font-display text-xl font-extrabold text-navy-900">{title}</p>
-        {body.trim() ? <RichBody text={body} media={{ ...page.data.media, ...media }} className="mt-3 text-sm leading-relaxed text-slate-700" /> : <p className="mt-3 text-sm text-slate-400">Nothing written yet.</p>}
-      </Card>
+      <PageEditor pageKey="agenda" href="/agenda" intro />
+      {editing && <AgendaModal initial={editing} onClose={() => setEditing(null)} onSaved={() => { refresh(); setEditing(null); }} />}
     </div>
   );
 }
 
+function RowBtn({ label, onClick, disabled, danger, children }: { label: string; onClick: () => void; disabled?: boolean; danger?: boolean; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} aria-label={label} title={label}
+      className={cn("grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30", danger ? "hover:bg-red-50 hover:text-kenya-red" : "hover:text-navy-900")}>
+      {children}
+    </button>
+  );
+}
+
+function AgendaModal({ initial, onClose, onSaved }: { initial: Partial<AgendaItem>; onClose: () => void; onSaved: () => void }) {
+  const [s, setS] = useState({ title: initial.title ?? "", summary: initial.summary ?? "", body: initial.body ?? "", cover_id: initial.cover_id ?? null as string | null, published: initial.published ?? true });
+  const save = useMutation({
+    mutationFn: () => initial.id ? api(`/site-admin/agenda/${initial.id}`, { method: "PUT", body: s }) : api("/site-admin/agenda", { body: s }),
+    onSuccess: () => { toast.success("Agenda updated"); onSaved(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const ok = s.title.trim().length >= 3 && s.summary.trim().length >= 10;
+  return (
+    <Modal open onClose={onClose} size="lg" title={initial.id ? "Edit agenda item" : "New agenda item"}
+      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!ok} onClick={() => save.mutate()}>Save</Button></>}>
+      <div className="space-y-4">
+        <Input label="Title" required maxLength={120} placeholder="e.g. Clean water in every ward" value={s.title} onChange={(e) => setS({ ...s, title: e.target.value })} />
+        <Textarea label="Summary" required rows={2} maxLength={300} value={s.summary} onChange={(e) => setS({ ...s, summary: e.target.value })} hint="One or two sentences shown on the card." />
+        <CoverPicker value={s.cover_id} onChange={(id) => setS((x) => ({ ...x, cover_id: id }))} />
+        <BlockEditor initial={s.body} onChange={(body) => setS((x) => ({ ...x, body }))} label="Details, shown when someone opens the card" />
+        <label className="flex items-center gap-2 text-sm font-semibold text-navy-900">
+          <input type="checkbox" className="size-4 accent-kenya-green" checked={s.published} onChange={(e) => setS({ ...s, published: e.target.checked })} /> Show on the website
+        </label>
+      </div>
+    </Modal>
+  );
+}
+
+// ---- News ----------------------------------------------------------------------------------
 function NewsEditor() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const news = useQuery({ queryKey: ["site-admin", "news"], queryFn: () => api<NewsItem[]>("/site-admin/news") });
   const [editing, setEditing] = useState<Partial<NewsItem> | null>(null);
   const refresh = () => { qc.invalidateQueries({ queryKey: ["site-admin", "news"] }); qc.invalidateQueries({ queryKey: ["site", "news"] }); };
-  const del = useMutation({ mutationFn: (id: string) => api(`/site-admin/news/${id}`, { method: "DELETE" }), onSuccess: () => { refresh(); toast.success("Story deleted"); } });
+  const del = useMutation({
+    mutationFn: (id: string) => api(`/site-admin/news/${id}`, { method: "DELETE" }),
+    onSuccess: () => { refresh(); toast.success("Story deleted"); },
+    onError: (e) => toast.error(e.message),
+  });
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center justify-between border-b border-line px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
         <div><p className="font-bold text-navy-900">News stories</p><p className="text-xs text-slate-500">Drafts stay private until you publish them.</p></div>
         <Button icon={<Plus className="size-4" />} onClick={() => setEditing({ published: false })}>New story</Button>
       </div>
@@ -106,9 +217,8 @@ function NewsEditor() {
                 <p className="truncate text-xs text-slate-500">{n.summary}</p>
               </div>
               <Badge tone={n.published ? "green" : "slate"}>{n.published ? "Published" : "Draft"}</Badge>
-              <button onClick={() => setEditing(n)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-navy-900" aria-label={`Edit ${n.title}`}><FilePen className="size-4" /></button>
-              <button onClick={async () => { if (await confirm({ title: "Delete this story?", body: n.title, confirmLabel: "Delete", danger: true })) del.mutate(n.id); }}
-                className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-kenya-red" aria-label={`Delete ${n.title}`}><Trash2 className="size-4" /></button>
+              <RowBtn label={`Edit ${n.title}`} onClick={() => setEditing(n)}><FilePen className="size-4" /></RowBtn>
+              <RowBtn label={`Delete ${n.title}`} danger onClick={async () => { if (await confirm({ title: "Delete this story?", body: n.title, confirmLabel: "Delete", danger: true })) del.mutate(n.id); }}><Trash2 className="size-4" /></RowBtn>
             </li>
           ))}
         </ul>
@@ -122,8 +232,6 @@ function StoryModal({ initial, onClose, onSaved }: { initial: Partial<NewsItem>;
   const [s, setS] = useState({ title: initial.title ?? "", summary: initial.summary ?? "", body: initial.body ?? "", published: initial.published ?? false,
     cover_id: initial.cover_id ?? null as string | null });
   const [preview, setPreview] = useState(false);
-  const [coverPicker, setCoverPicker] = useState(false);
-  const caret = useCaret();
   const media = useMediaMap();
   const save = useMutation({
     mutationFn: () => initial.id ? api(`/site-admin/news/${initial.id}`, { method: "PUT", body: s }) : api("/site-admin/news", { body: s }),
@@ -134,7 +242,7 @@ function StoryModal({ initial, onClose, onSaved }: { initial: Partial<NewsItem>;
   return (
     <Modal open onClose={onClose} size="lg" title={initial.id ? "Edit story" : "New story"}
       footer={<>
-        <Button variant="ghost" onClick={() => setPreview((p) => !p)} icon={<Eye className="size-4" />}>{preview ? "Edit" : "Preview"}</Button>
+        <Button variant="ghost" onClick={() => setPreview((p) => !p)} icon={preview ? <FilePen className="size-4" /> : <Eye className="size-4" />}>{preview ? "Edit" : "Preview"}</Button>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button loading={save.isPending} disabled={!ok} onClick={() => save.mutate()}>{s.published ? "Publish" : "Save draft"}</Button>
       </>}>
@@ -146,27 +254,16 @@ function StoryModal({ initial, onClose, onSaved }: { initial: Partial<NewsItem>;
           <RichBody text={s.body} media={{ ...initial.media, ...media }} className="mt-4 text-sm leading-relaxed text-slate-700" />
         </article>
       ) : (
-      <div className="space-y-4">
-        <Input label="Headline" required maxLength={140} value={s.title} onChange={(e) => setS({ ...s, title: e.target.value })} />
-        <Textarea label="Summary" required rows={2} maxLength={300} value={s.summary} onChange={(e) => setS({ ...s, summary: e.target.value })} hint="One or two sentences shown on the news list." />
-        <div>
-          <p className="mb-1.5 text-sm font-semibold text-navy-900">Cover photo</p>
-          <div className="flex items-center gap-3">
-            {s.cover_id
-              ? <img src={mediaUrl(s.cover_id, true)} alt="" className="h-16 w-24 rounded-lg object-cover ring-1 ring-line" />
-              : <span className="grid h-16 w-24 place-items-center rounded-lg bg-slate-100 text-slate-300"><ImageIcon className="size-6" /></span>}
-            <Button size="sm" variant="secondary" onClick={() => setCoverPicker(true)}>{s.cover_id ? "Change" : "Choose"}</Button>
-            {s.cover_id && <Button size="sm" variant="ghost" icon={<X className="size-4" />} onClick={() => setS({ ...s, cover_id: null })}>Remove</Button>}
-          </div>
+        <div className="space-y-4">
+          <Input label="Headline" required maxLength={140} value={s.title} onChange={(e) => setS({ ...s, title: e.target.value })} />
+          <Textarea label="Summary" required rows={2} maxLength={300} value={s.summary} onChange={(e) => setS({ ...s, summary: e.target.value })} hint="One or two sentences shown on the news list." />
+          <CoverPicker value={s.cover_id} onChange={(id) => setS((x) => ({ ...x, cover_id: id }))} />
+          <BlockEditor initial={s.body} onChange={(body) => setS((x) => ({ ...x, body }))} label="Story" />
+          <label className="flex items-center gap-2 text-sm font-semibold text-navy-900">
+            <input type="checkbox" className="size-4 accent-kenya-green" checked={s.published} onChange={(e) => setS({ ...s, published: e.target.checked })} /> Published on the website
+          </label>
         </div>
-        <MediaToolbar onInsert={(t) => setS((x) => ({ ...x, body: caret.insert(x.body, t) }))} />
-        <Textarea {...caret.trackProps} label="Story" required rows={12} maxLength={20000} value={s.body} onChange={(e) => setS({ ...s, body: e.target.value })} hint={HELP} />
-        <label className="flex items-center gap-2 text-sm font-semibold text-navy-900">
-          <input type="checkbox" className="size-4 accent-kenya-green" checked={s.published} onChange={(e) => setS({ ...s, published: e.target.checked })} /> Published on the website
-        </label>
-      </div>
       )}
-      {coverPicker && <MediaLibrary only="image" selected={s.cover_id} onClose={() => setCoverPicker(false)} onPick={(m) => { setS((x) => ({ ...x, cover_id: m.id })); setCoverPicker(false); }} />}
     </Modal>
   );
 }
