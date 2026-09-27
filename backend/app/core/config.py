@@ -105,6 +105,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-5-mini"
     openai_base_url: str = "https://api.openai.com/v1"
+    # Voice assistant on the phone line (ElevenLabs): empty = off.
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = ""
+    elevenlabs_agent_id: str = ""  # made by `python -m scripts.voice_agent`
+    elevenlabs_llm: str = "gemini-2.5-flash"  # the model behind the phone assistant (ElevenLabs-hosted)
     ai_requests_per_hour: int = 60  # per person
     stun_servers: list[str] = ["stun:stun.l.google.com:19302"]
     recordings_dir: str = "./data/recordings"  # a persistent volume in production (photos live in a sibling folder)
