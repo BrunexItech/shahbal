@@ -92,7 +92,7 @@ function ConsoleHeader({ phone, tab, tabs, onTab }: {
           <span className="grid size-12 place-items-center rounded-2xl bg-white/[.07] ring-1 ring-white/10"><PhoneCall className="size-6 text-gold" /></span>
           <div>
             <p className="text-xs font-semibold tracking-[.18em] text-gold uppercase">Outreach</p>
-            <h1 className="font-display text-2xl leading-tight font-extrabold">Call centre</h1>
+            <h1 className="font-display text-xl leading-tight font-extrabold">Call centre</h1>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -105,7 +105,7 @@ function ConsoleHeader({ phone, tab, tabs, onTab }: {
             <ShieldCheck className="size-3.5 text-gold" /> Recorded with consent · encrypted
           </span>
         </div>
-        <p className="ml-auto hidden font-mono text-2xl font-bold text-white/90 tabular-nums sm:block" suppressHydrationWarning>
+        <p className="ml-auto hidden font-mono text-xl font-bold text-white/90 tabular-nums sm:block" suppressHydrationWarning>
           {now ? now.toLocaleTimeString("en-KE", { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "--:--:--"}
         </p>
       </div>
@@ -243,7 +243,7 @@ function Console({ phone, canManualDial, picked }: { phone: Softphone; canManual
                   {waiting > 0 && <span className="relative flex size-2.5"><span className="absolute inset-0 animate-ping rounded-full opacity-60" style={{ background: x.color }} /><span className="relative size-2.5 rounded-full" style={{ background: x.color }} /></span>}
                 </div>
                 <p className={cn("relative mt-3 text-xs font-bold tracking-[.14em] uppercase", on ? "text-gold" : "text-slate-500")}>{x.label}</p>
-                <p className="relative mt-1 font-display text-3xl leading-none font-extrabold tabular-nums">{counts.data ? num(waiting) : "–"}<span className={cn("ml-1.5 text-xs font-semibold", on ? "text-slate-400" : "text-slate-400")}>waiting</span></p>
+                <p className="relative mt-1 font-display text-2xl leading-none font-extrabold tabular-nums">{counts.data ? num(waiting) : "–"}<span className={cn("ml-1.5 text-xs font-semibold", on ? "text-slate-400" : "text-slate-400")}>waiting</span></p>
                 <span className={cn("relative mt-3 block h-1.5 overflow-hidden rounded-full", on ? "bg-white/10" : "bg-slate-100")}>
                   <span className="block h-full rounded-full" style={{ width: `${share}%`, background: x.color }} />
                 </span>
@@ -264,13 +264,13 @@ function Console({ phone, canManualDial, picked }: { phone: Softphone; canManual
         ) : (
           <Card className="relative overflow-hidden">
             <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[.35] [background-image:radial-gradient(circle_at_center,#e2e8f0_1px,transparent_1px)] [background-size:22px_22px]" />
-            <div className="relative flex flex-col items-center px-6 py-14 text-center">
-              <span className="relative grid size-24 place-items-center">
+            <div className="relative flex flex-col items-center px-6 py-10 text-center">
+              <span className="relative grid size-16 place-items-center">
                 <span aria-hidden className="absolute inset-0 animate-ping rounded-full opacity-20" style={{ background: q.color }} />
-                <span aria-hidden className="absolute inset-3 rounded-full opacity-20" style={{ background: q.color }} />
-                <span className="relative grid size-14 place-items-center rounded-full text-white shadow-lg" style={{ background: q.color }}><Headphones className="size-7" /></span>
+                <span aria-hidden className="absolute inset-2 rounded-full opacity-20" style={{ background: q.color }} />
+                <span className="relative grid size-11 place-items-center rounded-full text-white shadow-lg" style={{ background: q.color }}><Headphones className="size-5" /></span>
               </span>
-              <p className="mt-5 font-display text-2xl font-extrabold text-navy-900">{empty ? `${q.label} is clear` : "Ready when you are"}</p>
+              <p className="mt-4 font-display text-lg font-extrabold text-navy-900">{empty ? `${q.label} is clear` : "Ready when you are"}</p>
               <p className="mt-1 max-w-md text-sm text-slate-500">
                 {empty ? "Nobody left to call in this queue right now. Try another queue or check back later."
                   : <>Press start and the next voter in <b className="text-navy-900">{q.label}</b> is reserved for you: {q.hint.toLowerCase()}.</>}
@@ -332,7 +332,7 @@ function UnknownCaller({ phone, number }: { phone: Softphone; number: string }) 
         <span className="grid size-14 place-items-center rounded-2xl bg-white/10 text-gold"><PhoneIncoming className="size-6" /></span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold tracking-[.16em] text-[#8ff0bf] uppercase">{live ? "Inbound call in progress" : "Inbound call ended"}</p>
-          <p className="font-display text-2xl font-bold">Unknown caller</p>
+          <p className="font-display text-xl font-bold">Unknown caller</p>
           <p className="font-mono text-sm text-slate-300">{number}{finished ? ` · ${Math.floor(finished.seconds / 60)}m ${finished.seconds % 60}s` : ""}</p>
         </div>
         {live && (
@@ -473,14 +473,14 @@ function CallCard({ claim, queue, phone, onDone, onSkip }: { claim: Claim; queue
         <div className="relative overflow-hidden bg-[#06101f] p-5 text-white">
           <div aria-hidden className="pointer-events-none absolute -top-20 -right-10 size-64 rounded-full blur-3xl" style={{ background: `${q.color}40` }} />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
-            <span className="relative grid size-16 shrink-0 place-items-center rounded-2xl bg-white/10 font-display text-2xl font-bold text-gold ring-1 ring-white/10">
+            <span className="relative grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 font-display text-lg font-bold text-gold ring-1 ring-white/10">
               {initials(v.full_name)}
               {thisCall && phone.state === "in_call" && <span className="absolute -right-1 -bottom-1 size-4 animate-pulse rounded-full bg-[#34c77b] ring-2 ring-[#06101f]" />}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold tracking-[.16em] uppercase" style={{ color: q.color === "#006b3f" ? "#5fd39a" : q.color }}>{q.label} queue</p>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-display text-2xl font-bold">{v.full_name}</p>
+                <p className="font-display text-xl font-bold">{v.full_name}</p>
                 <StatusBadge status={v.status} />
                 <SupportBadge support={v.support} />
               </div>

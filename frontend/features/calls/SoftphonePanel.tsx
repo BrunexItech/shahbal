@@ -68,13 +68,8 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
   };
 
   return (
-    <div className="relative mx-auto max-w-[380px] overflow-hidden rounded-[2.6rem] border-[9px] border-[#0b1220] bg-gradient-to-b from-[#0a1830] via-[#06101f] to-[#040a14] text-white shadow-[0_30px_70px_-30px_rgba(6,16,31,.9),inset_0_0_0_1px_rgba(255,255,255,.06)]">
-      {/* handset notch */}
-      <div aria-hidden className="mx-auto mt-2 flex h-6 w-28 items-center justify-center gap-2 rounded-full bg-[#0b1220]">
-        <span className="h-1.5 w-10 rounded-full bg-white/10" /><span className="size-2 rounded-full bg-white/15" />
-      </div>
+    <div className="relative mx-auto max-w-[340px] overflow-hidden rounded-2xl bg-gradient-to-b from-[#0a1830] to-[#06101f] text-white shadow-sm ring-1 ring-navy-900/20">
       <div className="relative px-5 pt-3 pb-4">
-        <div className="pointer-events-none absolute -top-16 -right-10 size-48 rounded-full bg-ocean/25 blur-3xl" />
         <div className="relative flex items-center justify-between">
           <p className="flex items-center gap-2 text-sm font-semibold"><Signal className="size-4 text-gold" /> Softphone</p>
           <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", status.cls)}>{status.text}</span>
@@ -84,8 +79,8 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
       {/* Screen */}
       <div className="px-5">
         {inCall || phone.state === "ended" ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4 text-center">
-            <span className="relative mx-auto grid size-16 place-items-center">
+          <div className="rounded-xl border border-white/10 bg-white/[.04] p-3 text-center">
+            <span className="relative mx-auto grid size-12 place-items-center">
               {(phone.state === "dialing" || phone.state === "ringing") && (
                 <>
                   <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-gold/30" />
@@ -93,13 +88,13 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
                 </>
               )}
               {phone.state === "in_call" && <span aria-hidden className="absolute -inset-1 rounded-full ring-2 ring-[#34c77b]/60" />}
-              <span className="relative grid size-14 place-items-center rounded-full bg-gradient-to-br from-gold to-[#8a6d12] text-lg font-extrabold text-navy-950">
+              <span className="relative grid size-11 place-items-center rounded-full bg-gradient-to-br from-gold to-[#8a6d12] text-sm font-extrabold text-navy-950">
                 {initials(phone.party?.name ?? "?")}
               </span>
             </span>
-            <p className="mt-2 font-display text-lg font-bold">{phone.party?.name}</p>
+            <p className="mt-2 font-display text-base font-bold">{phone.party?.name}</p>
             <p className="text-xs text-slate-400">{phone.party?.number}</p>
-            <p className="mt-2 font-mono text-2xl font-bold tabular-nums">
+            <p className="mt-1.5 font-mono text-lg font-bold tabular-nums">
               {phone.state === "dialing" ? "Dialling…" : phone.state === "ringing" ? "Ringing…" : phone.state === "ended" ? "Call ended" : mmss(phone.elapsed)}
             </p>
             {phone.recording && (
@@ -110,12 +105,12 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
             {phone.state === "in_call" && <div className="mt-4"><Meters phone={phone} /></div>}
           </div>
         ) : (
-          <div className="rounded-2xl border border-white/10 bg-white/[.04] px-4 py-3">
+          <div className="rounded-xl border border-white/10 bg-white/[.04] px-3 py-2">
             {canManualDial ? (
               <div className="flex items-center gap-2">
                 <input ref={inputRef} value={number} onChange={(e) => setNumber(e.target.value.replace(/[^\d+*#]/g, "").slice(0, 16))}
                   placeholder="Enter a number" inputMode="tel" aria-label="Number to dial"
-                  className="w-full bg-transparent font-mono text-xl tracking-wider text-white placeholder:text-slate-600 focus:outline-none" />
+                  className="w-full bg-transparent font-mono text-base tracking-wider text-white placeholder:text-slate-600 focus:outline-none" />
                 {number && <button onClick={() => setNumber((n) => n.slice(0, -1))} className="text-slate-400 hover:text-white" aria-label="Delete digit"><Delete className="size-5" /></button>}
               </div>
             ) : (
@@ -146,37 +141,36 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
 
       {/* Keypad */}
       {(!inCall && canManualDial) || (inCall && keypad) ? (
-        <div className="grid grid-cols-3 gap-y-3 px-7 pt-4">
+        <div className="grid grid-cols-3 gap-1.5 px-5 pt-3">
           {KEYS.map(([k, sub]) => (
             <button key={k} onClick={() => press(k)}
-              className="mx-auto flex size-[4.25rem] flex-col items-center justify-center rounded-full bg-gradient-to-b from-white/[.10] to-white/[.03] shadow-[inset_0_1px_0_rgba(255,255,255,.08)] ring-1 ring-white/[.07] transition hover:from-white/[.16] active:scale-90 active:bg-white/20">
-              <span className="font-display text-xl font-semibold leading-none">{k}</span>
-              {sub && <span className="mt-0.5 text-xs leading-none tracking-[.14em] text-slate-500">{sub}</span>}
+              className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-white/[.06] ring-1 ring-white/[.06] transition hover:bg-white/[.12] active:bg-white/20">
+              <span className="text-base font-semibold leading-none">{k}</span>
+              {sub && <span className="text-xs leading-none text-slate-500">{sub}</span>}
             </button>
           ))}
         </div>
       ) : null}
 
       {/* Controls */}
-      <div className="p-5">
+      <div className="px-5 pt-3 pb-4">
         {inCall ? (
           <div className="grid grid-cols-4 gap-2.5">
             <Ctl on={!!l?.muted} onClick={() => phone.mute(!l?.muted)} label={l?.muted ? "Unmute" : "Mute"} icon={l?.muted ? MicOff : Mic} disabled={phone.state !== "in_call"} />
             <Ctl on={!!l?.held} onClick={() => void phone.hold(!l?.held)} label={l?.held ? "Resume" : "Hold"} icon={l?.held ? Play : Pause} disabled={phone.state !== "in_call"} />
             <Ctl on={keypad} onClick={() => setKeypad((k) => !k)} label="Keypad" icon={Grid3x3} />
-            <button onClick={() => void phone.hangup()} className="flex flex-col items-center gap-1 rounded-full bg-gradient-to-b from-[#e0402f] to-kenya-red py-2.5 text-xs font-semibold shadow-[0_10px_24px_-8px_rgba(187,30,16,.9)] hover:brightness-110 active:scale-95" aria-label="Hang up">
-              <PhoneOff className="size-5" /> End
+            <button onClick={() => void phone.hangup()} className="flex flex-col items-center gap-0.5 rounded-lg bg-kenya-red py-2 text-xs font-semibold hover:brightness-110" aria-label="Hang up">
+              <PhoneOff className="size-4" /> End
             </button>
           </div>
         ) : canManualDial ? (
           <button disabled={!number || phone.state !== "ready" && phone.state !== "ended"}
             onClick={() => void phone.dial({ name: "Manual call", number })} aria-label="Call"
-            className="mx-auto grid size-[4.25rem] place-items-center rounded-full bg-gradient-to-b from-[#34c77b] to-[#1b8f55] shadow-[0_10px_24px_-8px_rgba(31,164,99,.8)] transition hover:brightness-110 active:scale-90 disabled:opacity-40">
-            <Phone className="size-7" />
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#1f9d5c] text-sm font-semibold transition hover:brightness-110 disabled:opacity-40">
+            <Phone className="size-4" /> Call
           </button>
         ) : null}
-        <div aria-hidden className="mx-auto mt-4 h-1 w-28 rounded-full bg-white/20" />
-        <p className="mt-3 text-center text-xs text-slate-500">
+        <p className="mt-2.5 text-center text-xs text-slate-500">
           Calls are recorded after the disclosure, encrypted, and kept {phone.config?.recording_retention_days ?? 90} days.
         </p>
       </div>
@@ -187,9 +181,9 @@ export function SoftphonePanel({ phone, canManualDial }: { phone: Softphone; can
 function Ctl({ on, onClick, label, icon: Icon, disabled }: { on: boolean; onClick: () => void; label: string; icon: typeof Mic; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className={cn("flex flex-col items-center gap-1 rounded-2xl py-2.5 text-xs font-semibold ring-1 transition active:scale-95 disabled:opacity-40",
+      className={cn("flex flex-col items-center gap-0.5 rounded-lg py-2 text-xs font-semibold ring-1 transition disabled:opacity-40",
         on ? "bg-white text-navy-950 ring-white" : "bg-white/[.06] text-slate-200 ring-white/[.08] hover:bg-white/10")}>
-      <Icon className="size-5" /> {label}
+      <Icon className="size-4" /> {label}
     </button>
   );
 }
