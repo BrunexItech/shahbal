@@ -54,12 +54,14 @@ async def test_publishing_refreshes_the_assistant_by_itself(client, admin, monke
     for k, v in (("elevenlabs_api_key", "sk_test"), ("elevenlabs_voice_id", "voice"), ("elevenlabs_agent_id", "agent_test")):
         monkeypatch.setattr(settings, k, v)
     monkeypatch.setattr(agent, "sync", fake_sync)
-    monkeypatch.setattr(agent, "REFRESH_DELAY", 0.2)
+    monkeypatch.setattr(agent, "REFRESH_DELAY", 3)
     body = {"title": "Jobs at the port", "summary": "Local hiring first for port and county jobs."}
     await client.post("/api/v1/site-admin/agenda", headers=admin, json=body)
-    await client.post("/api/v1/site-admin/agenda", headers=admin, json={**body, "title": "Clean water"})  # two edits in a row
-    await asyncio.sleep(0.6)
-    assert calls == [1]  # one refresh for both
+    await asyncio.sleep(0.5)
+    await client.post("/api/v1/site-admin/agenda", headers=admin, json={**body, "title": "Clean water"})  # still editing
+    assert calls == []  # the timer restarts with each change
+    await asyncio.sleep(5)
+    assert calls == [1]  # one refresh for the whole session
     await client.put("/api/v1/site-admin/pages/about", headers=admin, json={"title": "About", "body": "Updated."})
-    await asyncio.sleep(0.6)
+    await asyncio.sleep(5)
     assert calls == [1, 1]

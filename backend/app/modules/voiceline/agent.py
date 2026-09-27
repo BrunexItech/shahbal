@@ -170,7 +170,8 @@ async def sync() -> dict:
 # ---- automatic refresh ---------------------------------------------------------------------
 log = logging.getLogger("voiceline")
 _pending: asyncio.Task | None = None
-REFRESH_DELAY = 20  # seconds: several edits in a row become one refresh
+_last_change = 0.0
+REFRESH_DELAY = 20  # seconds of quiet after the last change: an editing session becomes one refresh
 
 
 def configured() -> bool:
@@ -178,21 +179,26 @@ def configured() -> bool:
 
 
 def schedule_refresh() -> None:
-    """Called after HQ publishes on the website: the assistant picks up the change on its own, shortly after.
-    Never raises; a failed refresh is logged and the Refresh button remains."""
-    global _pending
-    if settings.testing or not configured() or (_pending and not _pending.done()):
+    """Called after HQ publishes on the website: the assistant picks up the change on its own once the editing
+    goes quiet. Never raises; a failed refresh is logged and the Refresh button remains."""
+    global _pending, _last_change
+    if settings.testing or not configured():
         return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:  # no event loop (e.g. a script): nothing to schedule
+        return
+    _last_change = loop.time()
+    if _pending and not _pending.done():
+        return  # the waiting refresh will see the new change
 
     async def run() -> None:
-        await asyncio.sleep(REFRESH_DELAY)
+        while (wait := _last_change + REFRESH_DELAY - loop.time()) > 0:
+            await asyncio.sleep(wait)
         try:
             done = await sync()
             log.info("phone assistant refreshed (%s characters)", done["knowledge_chars"])
         except Exception:
             log.exception("phone assistant refresh failed")
 
-    try:
-        _pending = asyncio.get_running_loop().create_task(run())
-    except RuntimeError:  # no event loop (e.g. a script): nothing to schedule
-        pass
+    _pending = loop.create_task(run())
