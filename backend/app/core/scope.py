@@ -1,7 +1,7 @@
 """Area-based access. Every query over area-owned data passes through
 `voter_scope` / `ward_scope`, so a ward coordinator can never page into another
 ward regardless of which endpoint they hit."""
-from sqlalchemy import ColumnElement, select, true
+from sqlalchemy import ColumnElement, false, select, true
 
 from app.core.roles import Role
 from app.modules.geo.models import Ward
@@ -10,6 +10,8 @@ from app.modules.voters.models import Voter
 
 
 def ward_scope(user: User) -> ColumnElement[bool]:
+    if user.role == Role.communications:
+        return false()  # no area data at all
     if user.role == Role.coordinator:
         return Ward.constituency_id == user.constituency_id
     if user.role in (Role.ward_coordinator, Role.field_agent):
@@ -18,6 +20,8 @@ def ward_scope(user: User) -> ColumnElement[bool]:
 
 
 def voter_scope(user: User) -> ColumnElement[bool]:
+    if user.role == Role.communications:
+        return false()
     if user.role == Role.field_agent:
         return Voter.captured_by_id == user.id
     if user.role == Role.coordinator:
@@ -28,6 +32,8 @@ def voter_scope(user: User) -> ColumnElement[bool]:
 
 
 def can_touch_ward(user: User, ward: Ward) -> bool:
+    if user.role == Role.communications:
+        return False
     if user.role == Role.coordinator:
         return ward.constituency_id == user.constituency_id
     if user.role in (Role.ward_coordinator, Role.field_agent):

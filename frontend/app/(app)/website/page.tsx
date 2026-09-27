@@ -1,15 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Eye, FilePen, Newspaper, Plus, Trash2 } from "lucide-react";
+import { ExternalLink, Eye, FilePen, ImageIcon, Newspaper, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { SkeletonRows } from "@/components/loaders";
 import { Badge, Button, Card, Input, Modal, PageHeader, Textarea, useConfirm } from "@/components/ui";
-import { Markdown } from "@/features/ai/Markdown";
 import type { NewsItem, SitePage } from "@/features/site/api";
+import { MediaLibrary, type MediaMap, mediaUrl, MediaToolbar, RichBody, useCaret, useMediaLibrary } from "@/features/site/media";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { dateTime } from "@/lib/format";
@@ -17,14 +17,20 @@ import { dateTime } from "@/lib/format";
 const PAGES: [string, string, string][] = [
   ["about", "About", "/about"], ["agenda", "Our agenda", "/agenda"], ["contact", "Contact", "/contact"],
 ];
-const HELP = "Write in plain text. Start a line with ## for a heading, - for a bullet, and wrap words in **double stars** for bold.";
+const HELP = "Plain text. Start a line with ## for a heading or - for a bullet; wrap words in **double stars** for bold. Photos and videos sit on their own lines.";
+
+/** Media the preview needs: everything in the library, by id. */
+function useMediaMap(): MediaMap {
+  const lib = useMediaLibrary();
+  return Object.fromEntries((lib.data ?? []).map((m) => [m.id, m]));
+}
 
 export default function WebsitePage() {
   const [tab, setTab] = useState("about");
   return (
     <>
-      <PageHeader eyebrow="Setup" title="Public website"
-        subtitle="What the public sees at the home address: the pages below and the news. Events come from the calendar when you tick “Show on the public website”."
+      <PageHeader eyebrow="Communications" title="Public website"
+        subtitle="The pages and news the public sees. Events come from the calendar when a field event is marked “Show on the public website”."
         actions={<Link href="/about" target="_blank" className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-navy-900 ring-1 ring-line hover:bg-slate-50"><ExternalLink className="size-4" /> View the site</Link>} />
       <div role="tablist" aria-label="Website" className="mb-6 flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 sm:inline-flex">
         {[...PAGES.map(([k, l]) => [k, l]), ["news", "News"]].map(([k, l]) => (
@@ -42,6 +48,8 @@ function PageEditor({ pageKey, href }: { pageKey: string; href: string }) {
   const page = useQuery({ queryKey: ["site", "page", pageKey], queryFn: () => api<SitePage>(`/site/pages/${pageKey}`) });
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const caret = useCaret();
+  const media = useMediaMap();
   useEffect(() => { if (page.data) { setTitle(page.data.title); setBody(page.data.body); } }, [page.data]);
   const save = useMutation({
     mutationFn: () => api<SitePage>(`/site-admin/pages/${pageKey}`, { method: "PUT", body: { title, body } }),
@@ -53,7 +61,8 @@ function PageEditor({ pageKey, href }: { pageKey: string; href: string }) {
     <div className="grid gap-6 xl:grid-cols-2">
       <Card className="space-y-4 p-5">
         <Input label="Page title" value={title} maxLength={140} onChange={(e) => setTitle(e.target.value)} />
-        <Textarea label="Page text" rows={18} maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} hint={HELP} />
+        <MediaToolbar onInsert={(t) => setBody((b) => caret.insert(b, t))} />
+        <Textarea {...caret.trackProps} label="Page text" rows={16} maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} hint={HELP} />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-slate-500">{page.data.updated_at ? `Last published ${dateTime(page.data.updated_at)}` : "Not published yet"}</p>
           <div className="flex gap-2">
@@ -64,8 +73,8 @@ function PageEditor({ pageKey, href }: { pageKey: string; href: string }) {
       </Card>
       <Card className="p-6">
         <p className="mb-3 text-xs font-bold tracking-wider text-slate-500 uppercase">Preview</p>
-        <p className="font-display text-2xl font-extrabold text-navy-900">{title}</p>
-        {body.trim() ? <Markdown text={body} className="mt-3 text-sm leading-relaxed text-slate-700" /> : <p className="mt-3 text-sm text-slate-400">Nothing written yet.</p>}
+        <p className="font-display text-xl font-extrabold text-navy-900">{title}</p>
+        {body.trim() ? <RichBody text={body} media={{ ...page.data.media, ...media }} className="mt-3 text-sm leading-relaxed text-slate-700" /> : <p className="mt-3 text-sm text-slate-400">Nothing written yet.</p>}
       </Card>
     </div>
   );
@@ -90,6 +99,8 @@ function NewsEditor() {
         <ul className="divide-y divide-line">
           {news.data.map((n) => (
             <li key={n.id} className="flex items-center gap-3 px-5 py-3">
+              {n.cover_id ? <img src={mediaUrl(n.cover_id, true)} alt="" className="hidden h-12 w-16 shrink-0 rounded-lg object-cover sm:block" />
+                : <span className="hidden h-12 w-16 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-300 sm:grid"><ImageIcon className="size-5" /></span>}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-navy-900">{n.title}</p>
                 <p className="truncate text-xs text-slate-500">{n.summary}</p>
@@ -108,7 +119,12 @@ function NewsEditor() {
 }
 
 function StoryModal({ initial, onClose, onSaved }: { initial: Partial<NewsItem>; onClose: () => void; onSaved: () => void }) {
-  const [s, setS] = useState({ title: initial.title ?? "", summary: initial.summary ?? "", body: initial.body ?? "", published: initial.published ?? false });
+  const [s, setS] = useState({ title: initial.title ?? "", summary: initial.summary ?? "", body: initial.body ?? "", published: initial.published ?? false,
+    cover_id: initial.cover_id ?? null as string | null });
+  const [preview, setPreview] = useState(false);
+  const [coverPicker, setCoverPicker] = useState(false);
+  const caret = useCaret();
+  const media = useMediaMap();
   const save = useMutation({
     mutationFn: () => initial.id ? api(`/site-admin/news/${initial.id}`, { method: "PUT", body: s }) : api("/site-admin/news", { body: s }),
     onSuccess: () => { toast.success(s.published ? "Story published" : "Draft saved"); onSaved(); },
@@ -117,15 +133,40 @@ function StoryModal({ initial, onClose, onSaved }: { initial: Partial<NewsItem>;
   const ok = s.title.trim().length >= 5 && s.summary.trim().length >= 10 && s.body.trim().length >= 20;
   return (
     <Modal open onClose={onClose} size="lg" title={initial.id ? "Edit story" : "New story"}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!ok} onClick={() => save.mutate()}>{s.published ? "Publish" : "Save draft"}</Button></>}>
+      footer={<>
+        <Button variant="ghost" onClick={() => setPreview((p) => !p)} icon={<Eye className="size-4" />}>{preview ? "Edit" : "Preview"}</Button>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button loading={save.isPending} disabled={!ok} onClick={() => save.mutate()}>{s.published ? "Publish" : "Save draft"}</Button>
+      </>}>
+      {preview ? (
+        <article>
+          {s.cover_id && <img src={mediaUrl(s.cover_id)} alt="" className="mb-4 aspect-[16/9] w-full rounded-xl object-cover" />}
+          <p className="font-display text-xl font-extrabold text-navy-900">{s.title || "Headline"}</p>
+          <p className="mt-1 text-sm text-slate-500">{s.summary}</p>
+          <RichBody text={s.body} media={{ ...initial.media, ...media }} className="mt-4 text-sm leading-relaxed text-slate-700" />
+        </article>
+      ) : (
       <div className="space-y-4">
         <Input label="Headline" required maxLength={140} value={s.title} onChange={(e) => setS({ ...s, title: e.target.value })} />
         <Textarea label="Summary" required rows={2} maxLength={300} value={s.summary} onChange={(e) => setS({ ...s, summary: e.target.value })} hint="One or two sentences shown on the news list." />
-        <Textarea label="Story" required rows={12} maxLength={20000} value={s.body} onChange={(e) => setS({ ...s, body: e.target.value })} hint={HELP} />
+        <div>
+          <p className="mb-1.5 text-sm font-semibold text-navy-900">Cover photo</p>
+          <div className="flex items-center gap-3">
+            {s.cover_id
+              ? <img src={mediaUrl(s.cover_id, true)} alt="" className="h-16 w-24 rounded-lg object-cover ring-1 ring-line" />
+              : <span className="grid h-16 w-24 place-items-center rounded-lg bg-slate-100 text-slate-300"><ImageIcon className="size-6" /></span>}
+            <Button size="sm" variant="secondary" onClick={() => setCoverPicker(true)}>{s.cover_id ? "Change" : "Choose"}</Button>
+            {s.cover_id && <Button size="sm" variant="ghost" icon={<X className="size-4" />} onClick={() => setS({ ...s, cover_id: null })}>Remove</Button>}
+          </div>
+        </div>
+        <MediaToolbar onInsert={(t) => setS((x) => ({ ...x, body: caret.insert(x.body, t) }))} />
+        <Textarea {...caret.trackProps} label="Story" required rows={12} maxLength={20000} value={s.body} onChange={(e) => setS({ ...s, body: e.target.value })} hint={HELP} />
         <label className="flex items-center gap-2 text-sm font-semibold text-navy-900">
           <input type="checkbox" className="size-4 accent-kenya-green" checked={s.published} onChange={(e) => setS({ ...s, published: e.target.checked })} /> Published on the website
         </label>
       </div>
+      )}
+      {coverPicker && <MediaLibrary only="image" selected={s.cover_id} onClose={() => setCoverPicker(false)} onPick={(m) => { setS((x) => ({ ...x, cover_id: m.id })); setCoverPicker(false); }} />}
     </Modal>
   );
 }

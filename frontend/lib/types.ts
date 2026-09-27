@@ -1,4 +1,4 @@
-export type Role = "super_admin" | "coordinator" | "ward_coordinator" | "field_agent" | "call_agent" | "viewer";
+export type Role = "super_admin" | "coordinator" | "ward_coordinator" | "field_agent" | "call_agent" | "viewer" | "communications";
 export type VoterStatus = "pending" | "verified" | "rejected";
 export type Support = "supporter" | "leaning" | "undecided" | "opposed" | "unknown";
 export type Source = "field" | "portal" | "call_centre" | "import";

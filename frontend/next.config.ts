@@ -30,7 +30,9 @@ const csp = [
   `img-src 'self' data: blob: ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY_IMG}`,
   "font-src 'self' data:",
   `connect-src 'self' ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY} ${MAPILLARY_IMG} ${SIP_WSS}${isDev ? " ws:" : ""}`,
-  "media-src 'self' blob: mediastream:",
+  `media-src 'self' blob: mediastream: ${origin(API)}`,
+  // News stories may embed YouTube clips (privacy-enhanced domain only).
+  "frame-src https://www.youtube-nocookie.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "frame-ancestors 'none'",

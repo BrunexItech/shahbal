@@ -9,7 +9,7 @@ from app.core.clock import utcnow
 from app.core.config import settings
 from app.core.db import get_session
 from app.core.ratelimit import client_ip
-from app.core.roles import PORTAL_ROLES, Role
+from app.core.roles import PORTAL_ROLES, STAFF, Role
 from app.core.security import decode_token
 from app.modules.users.models import User, UserSession
 
@@ -113,4 +113,4 @@ def require_step_up(*roles: Role, allow_mfa_pending: bool = False):
     return dep
 
 
-any_user = require()
+any_user = require(*STAFF)  # every campaign role; not the website editor

@@ -7,6 +7,7 @@ import { Spinner } from "@/components/loaders";
 import { PublicShell } from "@/components/public/PublicShell";
 import { Card } from "@/components/ui";
 import { useNews } from "@/features/site/api";
+import { mediaUrl } from "@/features/site/media";
 
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Nairobi" }) : "");
 
@@ -20,11 +21,14 @@ export default function NewsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {data.map((n) => (
             <Link key={n.id} href={`/news/${n.slug}`} className="group">
-              <Card className="h-full p-6 transition group-hover:-translate-y-0.5 group-hover:shadow-lg">
+              <Card className="h-full overflow-hidden transition group-hover:-translate-y-0.5 group-hover:shadow-lg">
+                {n.cover_id && <img src={mediaUrl(n.cover_id, true)} alt="" loading="lazy" className="aspect-[16/9] w-full object-cover" />}
+                <div className="p-6">
                 <p className="text-xs font-semibold text-slate-500">{day(n.published_at)}</p>
                 <h2 className="mt-1 font-display text-xl font-bold text-navy-900">{n.title}</h2>
                 <p className="mt-2 text-sm text-slate-600">{n.summary}</p>
                 <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-ocean">Read the story <ArrowRight className="size-4" /></span>
+                </div>
               </Card>
             </Link>
           ))}

@@ -7,6 +7,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   field_agent: "Field Agent",
   call_agent: "Call Centre Agent",
   viewer: "Observer",
+  communications: "Communications",
 };
 
 const MANAGERS: Role[] = ["super_admin", "coordinator", "ward_coordinator"];
@@ -15,7 +16,10 @@ const MANAGERS: Role[] = ["super_admin", "coordinator", "ward_coordinator"];
 export const can = {
   /** Campaign-wide overviews (Command Centre, plan, targets, analytics). Agents get their own workspace. */
   oversee: (r: Role) => [...MANAGERS, "viewer"].includes(r),
-  capture: (r: Role) => r !== "viewer",
+  capture: (r: Role) => r !== "viewer" && r !== "communications",
+  /** Everyone who works with campaign data. Communications only runs the public website. */
+  staff: (r: Role) => r !== "communications",
+  publish: (r: Role) => r === "super_admin" || r === "communications",
   verify: (r: Role) => [...MANAGERS, "call_agent"].includes(r),
   edit: (r: Role) => ["super_admin", "coordinator", "ward_coordinator", "call_agent"].includes(r),
   setTargets: (r: Role) => r === "super_admin" || r === "coordinator",
@@ -29,20 +33,25 @@ export const can = {
   planVisits: (r: Role) => MANAGERS.includes(r),
   runVisits: (r: Role) => [...MANAGERS, "field_agent"].includes(r),
   callCentre: (r: Role) => [...MANAGERS, "call_agent"].includes(r),
-  markVoted: (r: Role) => r !== "viewer",
+  markVoted: (r: Role) => r !== "viewer" && r !== "communications",
   electionAdmin: (r: Role) => r === "super_admin",
   gisLab: (r: Role) => r === "super_admin",
   exportData: (r: Role) => r === "super_admin",
 };
 
 export const GRANTABLE: Record<Role, Role[]> = {
-  super_admin: ["super_admin", "coordinator", "ward_coordinator", "field_agent", "call_agent", "viewer"],
+  super_admin: ["super_admin", "coordinator", "ward_coordinator", "field_agent", "call_agent", "viewer", "communications"],
   coordinator: ["ward_coordinator", "field_agent"],
   ward_coordinator: ["field_agent"],
   field_agent: [],
   call_agent: [],
   viewer: [],
+  communications: [],
 };
 
+/** The only pages the Communications role opens. */
+export const PUBLISHER_PAGES = ["/website", "/account"];
+
 /** Where each role lands after signing in. */
-export const homeFor = (r: Role) => (r === "field_agent" ? "/home" : r === "call_agent" ? "/calls" : "/dashboard");
+export const homeFor = (r: Role) =>
+  r === "field_agent" ? "/home" : r === "call_agent" ? "/calls" : r === "communications" ? "/website" : "/dashboard";

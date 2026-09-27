@@ -35,13 +35,14 @@ const REFRESH_EVERY = 8_000;
  * One Server-Sent Events connection per signed-in tab. Small counters arrive every
  * few seconds; when they move, heavy queries are refreshed, at most every 8 s.
  */
-export function LiveProvider({ children }: { children: React.ReactNode }) {
+export function LiveProvider({ children, enabled = true }: { children: React.ReactNode; enabled?: boolean }) {
   const qc = useQueryClient();
   const [state, setState] = useState<LiveState>({ connected: false, pulse: null, events: [], calls: null, lastAt: null });
   const prev = useRef<Pulse | null>(null);
   const lastRefresh = useRef(0);
 
   useEffect(() => {
+    if (!enabled) return; // the website editor has no campaign feed
     let es: EventSource | null = null;
     let closed = false;
     const open = () => {
@@ -80,7 +81,7 @@ export function LiveProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisible);
       es?.close();
     };
-  }, [qc]);
+  }, [qc, enabled]);
 
   return <Ctx.Provider value={state}>{children}</Ctx.Provider>;
 }

@@ -4,8 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 
-export type SitePage = { key: string; title: string; body: string; updated_at: string | null };
-export type NewsItem = { id: string; slug: string; title: string; summary: string; published: boolean; published_at: string | null; body?: string };
+import type { MediaMap } from "./media";
+
+export type SitePage = { key: string; title: string; body: string; media: MediaMap; updated_at: string | null };
+export type NewsItem = { id: string; slug: string; title: string; summary: string; published: boolean; published_at: string | null; cover_id: string | null; body?: string; media?: MediaMap };
 export type PublicEvent = { id: string; title: string; kind: string; venue: string; starts_at: string; ends_at: string | null; ward: string; constituency: string };
 
 export const usePage = (key: string) => useQuery({ queryKey: ["site", "page", key], queryFn: () => api<SitePage>(`/site/pages/${key}`, { silent401: true }) });

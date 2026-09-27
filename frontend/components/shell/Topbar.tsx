@@ -61,10 +61,10 @@ export function Topbar() {
 
         {/* Status, quick action, clock, me */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <span className={`hidden items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold tracking-wider uppercase ring-1 md:inline-flex ${connected ? "bg-[#34c77b]/15 text-[#7ee2b0] ring-[#34c77b]/30" : "bg-white/5 text-slate-400 ring-white/10"}`}>
+          {can.staff(user.role) && <span className={`hidden items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold tracking-wider uppercase ring-1 md:inline-flex ${connected ? "bg-[#34c77b]/15 text-[#7ee2b0] ring-[#34c77b]/30" : "bg-white/5 text-slate-400 ring-white/10"}`}>
             <LiveDot on={connected} className="size-2" /> {connected ? "Live" : "Connecting"}
             {connected && lastAt && now && <span className="font-medium tracking-normal normal-case text-slate-400">· {Math.max(0, Math.round((now.getTime() - lastAt) / 1000))}s ago</span>}
-          </span>
+          </span>}
           {can.capture(user.role) && !pathname.startsWith("/voters/new") && (
             <Link href="/voters/new" className="hidden items-center gap-1.5 rounded-xl bg-gradient-to-br from-gold to-[#a8861a] px-3 py-2 text-sm font-bold text-navy-950 shadow-[0_6px_18px_-8px_rgba(201,162,39,.8)] transition hover:brightness-110 lg:inline-flex">
               <UserPlus className="size-4" /> Capture voter

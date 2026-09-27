@@ -4,7 +4,8 @@ import re
 import unicodedata
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,15 +17,16 @@ from app.core.db import get_session
 from app.core.deps import Ctx, require
 from app.core.phone import to_e164
 from app.core.ratelimit import RateLimiter, client_ip
-from app.core.roles import ADMINS, MANAGERS
+from app.core.roles import MANAGERS, PUBLISHERS
 from app.core.scope import can_touch_ward, ward_scope
 from app.modules.geo.models import Constituency, Ward
-from app.modules.site.models import NewsPost, SitePage, Volunteer
+from app.modules.site import media as store
+from app.modules.site.models import NewsPost, SiteMedia, SitePage, Volunteer
 from app.modules.visits.models import Visit, VisitStatus
 
 public = APIRouter(prefix="/api/v1/site", tags=["public website"])
 router = APIRouter(prefix="/api/v1/site-admin", tags=["public website"])
-hq = require(*ADMINS)
+hq = require(*PUBLISHERS)  # HQ administrators and the Communications role
 managers = require(*MANAGERS)
 _limit = RateLimiter(limit=settings.portal_rate_limit_per_hour, window_seconds=3600)
 
@@ -47,7 +49,9 @@ async def page(key: str, session: AsyncSession = Depends(get_session)):
     if key not in PAGES:
         raise HTTPException(404, "Page not found")
     p = (await session.execute(select(SitePage).where(SitePage.key == key))).scalar_one_or_none()
-    return {"key": key, "title": p.title if p else PAGES[key], "body": p.body if p else "", "updated_at": p.updated_at.isoformat() if p else None}
+    body = p.body if p else ""
+    return {"key": key, "title": p.title if p else PAGES[key], "body": body, "media": await _media_in(session, body),
+            "updated_at": p.updated_at.isoformat() if p else None}
 
 
 class PageIn(BaseModel):
@@ -70,16 +74,40 @@ async def save_page(key: str, payload: PageIn, ctx: Ctx = Depends(hq)):
 
 
 # ---- news ---------------------------------------------------------------------------------
-def _post(p: NewsPost, full: bool = True) -> dict:
+MEDIA_TOKEN = re.compile(r"^\[\[media:([0-9a-f-]{36})\]\]$", re.M)
+
+
+def _media(m: SiteMedia) -> dict:
+    return {"id": m.id, "kind": m.kind, "content_type": m.content_type, "width": m.width, "height": m.height,
+            "caption": m.caption, "size": m.size, "has_thumb": bool(m.thumb), "created_at": m.created_at.isoformat()}
+
+
+async def _post(session: AsyncSession, p: NewsPost, full: bool = True) -> dict:
     out = {"id": p.id, "slug": p.slug, "title": p.title, "summary": p.summary, "published": p.published,
-           "published_at": p.published_at.isoformat() if p.published_at else None}
-    return out | ({"body": p.body} if full else {})
+           "published_at": p.published_at.isoformat() if p.published_at else None, "cover_id": p.cover_id}
+    if not full:
+        return out
+    return out | {"body": p.body, "media": await _media_in(session, p.body)}
+
+
+async def _media_in(session: AsyncSession, body: str) -> dict:
+    """The photos and videos a body places with [[media:id]] lines, keyed by id."""
+    ids = set(MEDIA_TOKEN.findall(body))
+    found = (await session.execute(select(SiteMedia).where(SiteMedia.id.in_(ids)))).scalars().all() if ids else []
+    return {m.id: _media(m) for m in found}
+
+
+async def _check_cover(session: AsyncSession, cover_id: str | None) -> None:
+    if cover_id:
+        c = await session.get(SiteMedia, cover_id)
+        if c is None or c.kind != "image":
+            raise HTTPException(422, "The cover must be one of your uploaded photos")
 
 
 @public.get("/news")
 async def news(limit: int = Query(20, ge=1, le=50), session: AsyncSession = Depends(get_session)):
     rows = (await session.execute(select(NewsPost).where(NewsPost.published.is_(True)).order_by(NewsPost.published_at.desc()).limit(limit))).scalars()
-    return [_post(p, full=False) for p in rows]
+    return [await _post(session, p, full=False) for p in rows]
 
 
 @public.get("/news/{slug}")
@@ -87,7 +115,7 @@ async def news_post(slug: str, session: AsyncSession = Depends(get_session)):
     p = (await session.execute(select(NewsPost).where(NewsPost.slug == slug, NewsPost.published.is_(True)))).scalar_one_or_none()
     if p is None:
         raise HTTPException(404, "Story not found")
-    return _post(p)
+    return await _post(session, p)
 
 
 class PostIn(BaseModel):
@@ -95,16 +123,18 @@ class PostIn(BaseModel):
     summary: str = Field(min_length=10, max_length=300)
     body: str = Field(min_length=20, max_length=20000)
     published: bool = False
+    cover_id: str | None = None
 
 
 @router.get("/news")
 async def all_news(ctx: Ctx = Depends(hq)):
     rows = (await ctx.session.execute(select(NewsPost).order_by(NewsPost.created_at.desc()))).scalars()
-    return [_post(p) for p in rows]
+    return [await _post(ctx.session, p) for p in rows]
 
 
 @router.post("/news", status_code=201)
 async def create_post(payload: PostIn, ctx: Ctx = Depends(hq)):
+    await _check_cover(ctx.session, payload.cover_id)
     base, n = slugify(payload.title), 1
     slug = base
     while (await ctx.session.execute(select(NewsPost.id).where(NewsPost.slug == slug))).first():
@@ -115,7 +145,7 @@ async def create_post(payload: PostIn, ctx: Ctx = Depends(hq)):
     await ctx.session.flush()
     audit.record(ctx.session, actor_id=ctx.user.id, action="CREATE", entity="news", entity_id=p.id, ip=ctx.ip, published=p.published)
     await ctx.session.commit()
-    return _post(p)
+    return await _post(ctx.session, p)
 
 
 @router.put("/news/{pid}")
@@ -123,12 +153,13 @@ async def update_post(pid: str, payload: PostIn, ctx: Ctx = Depends(hq)):
     p = await ctx.session.get(NewsPost, pid)
     if p is None:
         raise HTTPException(404, "Story not found")
+    await _check_cover(ctx.session, payload.cover_id)
     if payload.published and not p.published:
         p.published_at = utcnow()
-    p.title, p.summary, p.body, p.published = payload.title, payload.summary, payload.body, payload.published
+    p.title, p.summary, p.body, p.published, p.cover_id = payload.title, payload.summary, payload.body, payload.published, payload.cover_id
     audit.record(ctx.session, actor_id=ctx.user.id, action="UPDATE", entity="news", entity_id=p.id, ip=ctx.ip, published=p.published)
     await ctx.session.commit()
-    return _post(p)
+    return await _post(ctx.session, p)
 
 
 @router.delete("/news/{pid}", status_code=204)
@@ -139,6 +170,52 @@ async def delete_post(pid: str, ctx: Ctx = Depends(hq)):
     await ctx.session.delete(p)
     audit.record(ctx.session, actor_id=ctx.user.id, action="DELETE", entity="news", entity_id=pid, ip=ctx.ip)
     await ctx.session.commit()
+
+
+# ---- media --------------------------------------------------------------------------------
+@public.get("/media/{mid}")
+async def media_file(mid: str, thumb: bool = False, session: AsyncSession = Depends(get_session)):
+    m = await session.get(SiteMedia, mid)
+    if m is None:
+        raise HTTPException(404, "Not found")
+    name = m.thumb if thumb and m.thumb else m.name
+    path = store.path_of(name)
+    if not path.exists():
+        raise HTTPException(404, "Not found")
+    # Names are random and files never change, so browsers and proxies may keep them.
+    return FileResponse(path, media_type=m.content_type, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@router.get("/media")
+async def media_library(ctx: Ctx = Depends(hq)):
+    rows = (await ctx.session.execute(select(SiteMedia).order_by(SiteMedia.created_at.desc()).limit(200))).scalars()
+    return [_media(m) for m in rows]
+
+
+@router.post("/media", status_code=201)
+async def upload_media(file: UploadFile = File(...), caption: str | None = Form(None, max_length=200), ctx: Ctx = Depends(hq)):
+    video = (file.content_type or "").startswith("video/")
+    info = await (store.save_video(file) if video else store.save_image(file))
+    m = SiteMedia(**info, caption=(caption or "").strip() or None, uploaded_by_id=ctx.user.id)
+    ctx.session.add(m)
+    await ctx.session.flush()
+    audit.record(ctx.session, actor_id=ctx.user.id, action="UPLOAD", entity="site_media", entity_id=m.id, ip=ctx.ip, kind=m.kind, size=m.size)
+    await ctx.session.commit()
+    await ctx.session.refresh(m)
+    return _media(m)
+
+
+@router.delete("/media/{mid}", status_code=204)
+async def delete_media(mid: str, ctx: Ctx = Depends(hq)):
+    m = await ctx.session.get(SiteMedia, mid)
+    if m is None:
+        raise HTTPException(404, "Not found")
+    names = (m.name, m.thumb)
+    await ctx.session.delete(m)  # stories that used it as a cover lose the cover
+    audit.record(ctx.session, actor_id=ctx.user.id, action="DELETE", entity="site_media", entity_id=mid, ip=ctx.ip)
+    await ctx.session.commit()
+    for n in names:
+        store.remove(n)
 
 
 # ---- events -------------------------------------------------------------------------------

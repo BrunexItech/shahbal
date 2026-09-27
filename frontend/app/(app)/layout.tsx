@@ -11,7 +11,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { useAuth } from "@/lib/auth";
 import { LiveProvider } from "@/lib/live";
 import { lastPortal, PORTAL_LOGIN } from "@/lib/portal";
-import { can, homeFor } from "@/lib/roles";
+import { can, homeFor, PUBLISHER_PAGES } from "@/lib/roles";
 
 const OVERSIGHT_PAGES = ["/dashboard", "/plan", "/targets", "/stations"];
 
@@ -22,7 +22,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const mustEnrol = !!user?.mfa_setup_required;
 
   // Agents have their own workspace; campaign-wide pages send them home.
-  const offLimits = !!user && !can.oversee(user.role) && OVERSIGHT_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const under = (pages: string[]) => pages.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const offLimits = !!user && (can.staff(user.role) ? !can.oversee(user.role) && under(OVERSIGHT_PAGES) : !under(PUBLISHER_PAGES));
 
   useEffect(() => {
     if (ready && !user) router.replace(PORTAL_LOGIN[lastPortal()]);
@@ -34,7 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!ready || !user || offLimits || (mustEnrol && pathname !== "/account")) return <BrandLoader />;
 
   return (
-    <LiveProvider>
+    <LiveProvider enabled={can.staff(user.role)}>
       <ShellProvider>
         <Shell role={user.role}>{children}</Shell>
         <IdleGuard />

@@ -18,6 +18,23 @@ class SitePage(Base):
     updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
+class SiteMedia(Base):
+    """A photo or video for the public website. Public by nature, so stored as plain files
+    (not in the encrypted vault); photos are re-encoded, which strips location metadata."""
+
+    __tablename__ = "site_media"
+
+    kind: Mapped[str] = mapped_column(String(8))  # image | video
+    content_type: Mapped[str] = mapped_column(String(40))
+    name: Mapped[str] = mapped_column(String(80))  # file name on disk
+    thumb: Mapped[str | None] = mapped_column(String(80))  # smaller copy of a photo
+    size: Mapped[int]
+    width: Mapped[int | None]
+    height: Mapped[int | None]
+    caption: Mapped[str | None] = mapped_column(String(200))
+    uploaded_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
 class NewsPost(Base):
     __tablename__ = "news_posts"
 
@@ -28,6 +45,7 @@ class NewsPost(Base):
     published: Mapped[bool] = mapped_column(default=False, index=True)
     published_at: Mapped[datetime | None] = mapped_column(index=True)
     author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    cover_id: Mapped[str | None] = mapped_column(ForeignKey("site_media.id", ondelete="SET NULL"))
 
 
 class Volunteer(Base):

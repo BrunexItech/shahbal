@@ -11,6 +11,7 @@ class Role(str, enum.Enum):
     field_agent = "field_agent"  # captures in one ward, sees own captures
     call_agent = "call_agent"  # county-wide queue, masked PII
     viewer = "viewer"  # read-only Command Centre
+    communications = "communications"  # the public website and news only; no voter data
 
 
 ADMINS = {Role.super_admin}
@@ -20,11 +21,16 @@ VERIFIERS = MANAGERS | {Role.call_agent}
 # workspace instead: field agents "My area", call agents the call centre.
 OVERSIGHT = MANAGERS | {Role.viewer}
 CAPTURERS = MANAGERS | {Role.field_agent, Role.call_agent}
+# Every role that works with campaign data. Communications is deliberately outside it:
+# endpoints open to "any signed-in user" are open to STAFF, never to the website editor.
+STAFF = MANAGERS | {Role.viewer, Role.field_agent, Role.call_agent}
+# Who edits the public website and news.
+PUBLISHERS = {Role.super_admin, Role.communications}
 
 # Sign-in portals. HQ/management and field staff never share a sign-in page:
 # each portal accepts only its roles, and every session stays bound to its portal.
 PORTAL_ROLES: dict[str, set[Role]] = {
-    "command": {Role.super_admin, Role.coordinator, Role.ward_coordinator, Role.viewer},
+    "command": {Role.super_admin, Role.coordinator, Role.ward_coordinator, Role.viewer, Role.communications},
     "field": {Role.field_agent, Role.call_agent},
 }
 
@@ -40,4 +46,5 @@ ROLE_LABELS: dict[Role, str] = {
     Role.field_agent: "Field Agent",
     Role.call_agent: "Call Centre Agent",
     Role.viewer: "Observer",
+    Role.communications: "Communications",
 }
