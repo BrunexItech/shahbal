@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { BrandMark, Spinner } from "@/components/loaders";
 import { PublicFooter } from "@/components/public/PublicShell";
+import { Highlights } from "@/features/site/Highlights";
 import { FlagStripe } from "@/components/shell/FlagStripe";
 import { Button, Input, Segmented } from "@/components/ui";
 import { BirthYearInput, birthYearError } from "@/components/ui/BirthYearInput";
@@ -40,6 +41,7 @@ const T = {
     voiceTag: "Community Voice", voiceA: "Your street, your voice,", voiceB: "Mombasa.",
     voiceLead: "Water, roads, security, jobs: tell us what needs fixing where you live. Every report reaches the ward team and gets a reference you can follow.",
     voicePerks: ["Goes straight to your ward team", "Anonymous if you prefer", "Follow it with a reference"],
+    nav: [["/about", "About"], ["/agenda", "Our agenda"], ["/news", "News"], ["/events", "Events"], ["/volunteer", "Volunteer"]],
   },
   sw: {
     tag: "Jisajili kama mfuasi", h1a: "Jiunge na harakati,", h1b: "Mombasa.", lead: "Dakika mbili tu. Jua mapema timu ikifika wadi yako, na upate ukumbusho siku ya kupiga kura.",
@@ -58,6 +60,7 @@ const T = {
     voiceTag: "Sauti ya Jamii", voiceA: "Mtaa wako, sauti yako,", voiceB: "Mombasa.",
     voiceLead: "Maji, barabara, usalama, ajira: tuambie kinachohitaji kurekebishwa unapoishi. Kila ripoti inafika kwa timu ya wadi na inapata nambari ya kufuatilia.",
     voicePerks: ["Inafika moja kwa moja kwa timu ya wadi", "Bila jina ukipenda", "Ifuatilie kwa nambari"],
+    nav: [["/about", "Kuhusu"], ["/agenda", "Ajenda yetu"], ["/news", "Habari"], ["/events", "Matukio"], ["/volunteer", "Jitolee"]],
   },
 } as const;
 
@@ -180,7 +183,15 @@ export default function JoinPage() {
               ))}
             </div>
           </div>
-          <h1 className="mt-10 text-4xl leading-[1.05] font-extrabold sm:text-6xl">{mode === "join" ? t.h1a : t.voiceA} <span className="bg-gradient-to-r from-gold to-[#f1d57a] bg-clip-text text-transparent">{mode === "join" ? t.h1b : t.voiceB}</span></h1>
+          {/* The rest of the site, one tap away, without taking over the sign-up. */}
+          <nav aria-label="Campaign" className="-mx-5 mt-5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <ul className="flex w-max gap-1.5">
+              {t.nav.map(([href, label]) => (
+                <li key={href}><Link href={href} className="block rounded-full bg-white/[.07] px-3.5 py-1.5 text-sm font-semibold text-slate-200 ring-1 ring-white/10 transition hover:bg-white/15 hover:text-white">{label}</Link></li>
+              ))}
+            </ul>
+          </nav>
+          <h1 className="mt-8 text-4xl leading-[1.05] font-extrabold sm:text-6xl">{mode === "join" ? t.h1a : t.voiceA} <span className="bg-gradient-to-r from-gold to-[#f1d57a] bg-clip-text text-transparent">{mode === "join" ? t.h1b : t.voiceB}</span></h1>
           <p className="mt-4 max-w-xl text-base text-slate-300 sm:text-lg">{mode === "join" ? t.lead : t.voiceLead}</p>
           <ul className="mt-6 flex flex-wrap gap-2">
             {(mode === "join" ? t.perks : t.voicePerks).map((p, i) => {
@@ -294,6 +305,7 @@ export default function JoinPage() {
           )}
         </div>
       </main>
+      {!done && <Highlights lang={lang} />}
       <PublicFooter />
     </div>
   );
