@@ -41,7 +41,7 @@ const T = {
     voiceTag: "Community Voice", voiceA: "Your street, your voice,", voiceB: "Mombasa.",
     voiceLead: "Water, roads, security, jobs: tell us what needs fixing where you live. Every report reaches the ward team and gets a reference you can follow.",
     voicePerks: ["Goes straight to your ward team", "Anonymous if you prefer", "Follow it with a reference"],
-    nav: [["/about", "About"], ["/agenda", "Our agenda"], ["/news", "News"], ["/events", "Events"], ["/volunteer", "Volunteer"]],
+    nav: [["/about", "About"], ["/agenda", "Our agenda"], ["/news", "News"], ["/videos", "Videos"], ["/events", "Events"], ["/volunteer", "Volunteer"]],
   },
   sw: {
     tag: "Jisajili kama mfuasi", h1a: "Jiunge na harakati,", h1b: "Mombasa.", lead: "Dakika mbili tu. Jua mapema timu ikifika wadi yako, na upate ukumbusho siku ya kupiga kura.",
@@ -60,7 +60,7 @@ const T = {
     voiceTag: "Sauti ya Jamii", voiceA: "Mtaa wako, sauti yako,", voiceB: "Mombasa.",
     voiceLead: "Maji, barabara, usalama, ajira: tuambie kinachohitaji kurekebishwa unapoishi. Kila ripoti inafika kwa timu ya wadi na inapata nambari ya kufuatilia.",
     voicePerks: ["Inafika moja kwa moja kwa timu ya wadi", "Bila jina ukipenda", "Ifuatilie kwa nambari"],
-    nav: [["/about", "Kuhusu"], ["/agenda", "Ajenda yetu"], ["/news", "Habari"], ["/events", "Matukio"], ["/volunteer", "Jitolee"]],
+    nav: [["/about", "Kuhusu"], ["/agenda", "Ajenda yetu"], ["/news", "Habari"], ["/videos", "Video"], ["/events", "Matukio"], ["/volunteer", "Jitolee"]],
   },
 } as const;
 

@@ -13,4 +13,4 @@ from app.modules.issues.models import Issue, IssuePhoto, IssueUpdate  # noqa: F4
 from app.modules.calendar.models import CalendarEvent  # noqa: F401
 from app.modules.assignments.models import Assignment  # noqa: F401
 from app.modules.privacy.models import DataRequest  # noqa: F401
-from app.modules.site.models import AgendaItem, NewsPost, SiteMedia, SitePage, Volunteer  # noqa: F401
+from app.modules.site.models import AgendaItem, NewsPost, SiteMedia, SitePage, Video, Volunteer  # noqa: F401

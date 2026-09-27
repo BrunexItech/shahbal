@@ -10,8 +10,11 @@ import { Markdown } from "@/features/ai/Markdown";
 import { api, apiUrl } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
+import { VideoPlayer, VideoPoster } from "./videos";
+
 export type Media = {
   id: string; kind: "image" | "video"; content_type: string; width: number | null; height: number | null; caption: string | null; has_thumb: boolean;
+  duration?: number | null;
   label?: string | null; size?: number; created_at?: string; // HQ only
 };
 export type MediaMap = Record<string, Media>;
@@ -58,14 +61,54 @@ export function useMediaMap(): MediaMap {
 
 /** Page or story text with its photos, videos and YouTube clips. */
 export function RichBody({ text, media, className, compact }: { text: string; media?: MediaMap; className?: string; compact?: boolean }) {
-  const blocks = parseBlocks(text);
+  // Two or more videos in a row become one player with a strip to pick from, instead of a long column.
+  const isVideo = (b: Block) => b.kind === "youtube" || (b.kind === "media" && media?.[b.id]?.kind === "video");
+  const groups: (Block | Block[])[] = [];
+  for (const b of parseBlocks(text)) {
+    const last = groups[groups.length - 1];
+    if (isVideo(b) && Array.isArray(last)) last.push(b);
+    else groups.push(isVideo(b) ? [b] : b);
+  }
   return (
     <div className={className}>
-      {blocks.map((b) => (
-        <Fragment key={b.key}>
-          {b.kind === "text" ? (b.text ? <Markdown text={b.text} /> : null) : <MediaBlock kind={b.kind} id={b.id} item={media?.[b.id]} compact={compact} />}
-        </Fragment>
-      ))}
+      {groups.map((g) => {
+        if (Array.isArray(g)) {
+          return g.length > 1
+            ? <StoryVideos key={g[0].key} clips={g.map((b) => toClip(b, media))} compact={compact} />
+            : <MediaBlock key={g[0].key} kind={g[0].kind} id={(g[0] as { id: string }).id} item={media?.[(g[0] as { id: string }).id]} compact={compact} />;
+        }
+        return <Fragment key={g.key}>{g.kind === "text" ? (g.text ? <Markdown text={g.text} /> : null) : <MediaBlock kind={g.kind} id={g.id} item={media?.[g.id]} compact={compact} />}</Fragment>;
+      })}
+    </div>
+  );
+}
+
+type Clip = { key: string; youtube_id: string | null; media_id: string | null; has_poster: boolean; duration: number | null; caption: string | null };
+function toClip(b: Block, media?: MediaMap): Clip {
+  const id = (b as { id: string }).id;
+  const m = b.kind === "media" ? media?.[id] : undefined;
+  return { key: b.key, youtube_id: b.kind === "youtube" ? id : null, media_id: b.kind === "media" ? id : null, has_poster: !!m?.has_thumb, duration: m?.duration ?? null, caption: m?.caption ?? null };
+}
+
+/** Several videos in a story: the chosen one plays above, the rest wait in a strip below. */
+function StoryVideos({ clips, compact }: { clips: Clip[]; compact?: boolean }) {
+  const [at, setAt] = useState(0);
+  const [started, setStarted] = useState(false);
+  const cur = clips[at];
+  return (
+    <div className={cn("my-4 overflow-hidden rounded-xl bg-[#06101f]", compact ? "max-w-sm" : "max-w-2xl")}>
+      <VideoPlayer key={cur.key} v={cur} autoPlay={started} />
+      {cur.caption && <p className="px-3 pt-2 text-sm text-slate-300">{cur.caption}</p>}
+      <ul className="flex gap-2 overflow-x-auto p-3 [scrollbar-width:thin]">
+        {clips.map((c, i) => (
+          <li key={c.key} className="shrink-0">
+            <button type="button" onClick={() => { setAt(i); setStarted(true); }} aria-label={`Play video ${i + 1} of ${clips.length}`} aria-current={i === at}
+              className={cn("group block w-28 overflow-hidden rounded-lg ring-2 transition", i === at ? "ring-gold" : "ring-transparent opacity-80 hover:opacity-100")}>
+              <VideoPoster v={c} small className="aspect-video w-full" />
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -120,6 +163,7 @@ function useUpdateMedia() {
 
 const ACCEPT_ALL = "image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime";
 const ACCEPT_PHOTO = "image/jpeg,image/png,image/webp";
+export const ACCEPT_VIDEO = "video/mp4,video/webm,video/quicktime";
 
 /**
  * The writing area for pages, stories and agenda items: text boxes and media cards in order.
@@ -260,7 +304,12 @@ function MetaField({ label, value, placeholder, max, onSave }: { label: string; 
 
 function Thumb({ item, className }: { item: Media; className?: string }) {
   return item.kind === "video"
-    ? <span className={cn("grid shrink-0 place-items-center rounded-lg bg-navy-950 text-white", className)}><Play className="size-6" /></span>
+    ? (
+      <span className={cn("relative grid shrink-0 place-items-center overflow-hidden rounded-lg bg-navy-950 text-white", className)}>
+        {item.has_thumb && <img src={mediaUrl(item.id, true)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />}
+        <span className="relative grid size-8 place-items-center rounded-full bg-black/55"><Play className="ml-0.5 size-4 fill-current" /></span>
+      </span>
+    )
     : <img src={mediaUrl(item.id, true)} alt="" loading="lazy" className={cn("shrink-0 rounded-lg object-cover", className)} />;
 }
 
@@ -283,7 +332,7 @@ export function CoverPicker({ value, onChange }: { value: string | null; onChang
 }
 
 /** Everything uploaded: search by name, rename, pick one, or delete what's no longer needed. */
-export function MediaLibrary({ onClose, onPick, only, selected }: { onClose: () => void; onPick?: (m: Media) => void; only?: "image"; selected?: string | null }) {
+export function MediaLibrary({ onClose, onPick, only, selected }: { onClose: () => void; onPick?: (m: Media) => void; only?: "image" | "video"; selected?: string | null }) {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const [q, setQ] = useState("");
@@ -298,9 +347,9 @@ export function MediaLibrary({ onClose, onPick, only, selected }: { onClose: () 
   });
   const items = (lib.data ?? []).filter((m) => !only || m.kind === only);
   return (
-    <Modal open onClose={onClose} size="lg" title={only ? "Choose a cover photo" : "Media library"} subtitle="Photos and videos uploaded for the website. Names are only seen by HQ."
+    <Modal open onClose={onClose} size="lg" title={only === "image" ? "Choose a cover photo" : only === "video" ? "Choose a video" : "Media library"} subtitle="Photos and videos uploaded for the website. Names are only seen by HQ."
       footer={<>
-        <input ref={file} type="file" hidden accept={only ? ACCEPT_PHOTO : ACCEPT_ALL}
+        <input ref={file} type="file" hidden accept={only === "image" ? ACCEPT_PHOTO : only === "video" ? ACCEPT_VIDEO : ACCEPT_ALL}
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload.mutate({ file: f }, { onSuccess: () => toast.success("Uploaded") }); }} />
         <Button variant="ghost" onClick={onClose}>Close</Button>
         <Button icon={<ImagePlus className="size-4" />} loading={upload.isPending} onClick={() => file.current?.click()}>Upload</Button>

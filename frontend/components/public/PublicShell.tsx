@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { CAMPAIGN_NAME, CANDIDATE_NAME } from "@/lib/config";
 
 export const PUBLIC_LINKS: [string, string][] = [
-  ["/", "Join"], ["/about", "About"], ["/agenda", "Our agenda"], ["/events", "Events"], ["/news", "News"], ["/volunteer", "Volunteer"], ["/?voice=1", "Report an issue"],
+  ["/", "Join"], ["/about", "About"], ["/agenda", "Our agenda"], ["/events", "Events"], ["/news", "News"], ["/videos", "Videos"], ["/volunteer", "Volunteer"], ["/?voice=1", "Report an issue"],
 ];
 
 /** The public website's frame: header with the menu, the page, and the footer. */
@@ -39,23 +39,23 @@ export function PublicNav({ dark = true }: { dark?: boolean }) {
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
   return (
-    <nav aria-label="Main" className="relative mx-auto flex max-w-5xl items-center justify-between gap-3 px-5 pt-5">
-      <Link href="/" className="flex items-center gap-3">
+    <nav aria-label="Main" className="relative mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 pt-5">
+      <Link href="/" className="flex shrink-0 items-center gap-3">
         <BrandMark className="size-10" />
         <span><span className="block font-display font-bold">{CAMPAIGN_NAME}</span><span className="block text-xs text-slate-400">{CANDIDATE_NAME} · Mombasa</span></span>
       </Link>
-      <div className="hidden items-center gap-1 lg:flex">
+      <div className="hidden items-center gap-0.5 xl:flex">
         {PUBLIC_LINKS.slice(1).map(([href, label]) => (
-          <Link key={href} href={href} className={cn("rounded-full px-3 py-1.5 text-sm font-semibold transition",
+          <Link key={href} href={href} className={cn("rounded-full px-3 py-1.5 text-sm font-semibold whitespace-nowrap transition",
             path === href ? "bg-white/15 text-white" : dark ? "text-slate-300 hover:text-white" : "text-navy-900")}>{label}</Link>
         ))}
-        <Link href="/" className="ml-1 rounded-full bg-gold px-4 py-1.5 text-sm font-bold text-navy-950 hover:brightness-105">Join the team</Link>
+        <Link href="/" className="ml-2 rounded-full bg-gold px-4 py-1.5 text-sm font-bold whitespace-nowrap text-navy-950 hover:brightness-105">Join the team</Link>
       </div>
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Menu" className="grid size-10 place-items-center rounded-xl bg-white/10 lg:hidden">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Menu" className="grid size-10 place-items-center rounded-xl bg-white/10 xl:hidden">
         {open ? <X className="size-5" /> : <Menu className="size-5" />}
       </button>
       {open && (
-        <div className="absolute inset-x-4 top-full z-40 mt-3 rounded-2xl bg-[#0b1a30] p-2 shadow-2xl ring-1 ring-white/10 lg:hidden">
+        <div className="absolute inset-x-4 top-full z-40 mt-3 rounded-2xl bg-[#0b1a30] p-2 shadow-2xl ring-1 ring-white/10 xl:hidden">
           {PUBLIC_LINKS.map(([href, label]) => (
             <Link key={href} href={href} className={cn("block rounded-xl px-4 py-3 text-base font-semibold", path === href ? "bg-white/10 text-white" : "text-slate-200 hover:bg-white/5")}>{label}</Link>
           ))}

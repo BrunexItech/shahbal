@@ -140,3 +140,57 @@ async def test_agenda_items_and_media_names(client, admin, wards):
     lead = await make_user(client, admin, "coordinator", constituency_id=wards["Tudor"].constituency_id)
     assert (await client.delete(f"/api/v1/site-admin/agenda/{water['id']}", headers=lead)).status_code == 403
     await client.delete(f"/api/v1/site-admin/media/{up['id']}", headers=comms)
+
+
+def _real_mp4(seconds: int = 3) -> bytes:
+    import shutil
+    import subprocess
+    import tempfile
+
+    if not shutil.which("ffmpeg"):
+        return b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 2048
+    with tempfile.NamedTemporaryFile(suffix=".mp4") as f:
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc=duration={seconds}:size=320x180:rate=15",
+                        "-pix_fmt", "yuv420p", f.name], check=True)
+        return open(f.name, "rb").read()
+
+
+async def test_videos_page_newest_first_with_topics_search_and_paging(client, admin, wards):
+    import shutil
+
+    comms = await make_user(client, admin, "communications")
+    up = (await client.post("/api/v1/site-admin/media", headers=comms, files={"file": ("Likoni rally.mp4", _real_mp4(), "video/mp4")})).json()
+    if shutil.which("ffmpeg"):
+        assert up["duration"] == 3 and up["has_thumb"]  # length and a preview picture, made on upload
+        assert (await client.get(f"/api/v1/site/media/{up['id']}?thumb=1")).headers["content-type"] == "image/webp"
+
+    base = {"title": "Rally at Likoni", "topic": "rallies", "media_id": up["id"]}
+    assert (await client.post("/api/v1/site-admin/videos", json={**base, "youtube": "dQw4w9WgXcQ"}, headers=comms)).status_code == 422
+    assert (await client.post("/api/v1/site-admin/videos", json={**base, "topic": "gossip"}, headers=comms)).status_code == 422
+    first = (await client.post("/api/v1/site-admin/videos", json=base, headers=comms)).json()
+    yt = (await client.post("/api/v1/site-admin/videos", headers=comms, json={
+        "title": "Interview on Radio Salaam", "topic": "interviews", "description": "Water and jobs", "youtube": "https://youtu.be/dQw4w9WgXcQ"})).json()
+    assert yt["youtube_id"] == "dQw4w9WgXcQ"
+    assert (await client.post("/api/v1/site-admin/videos", headers=comms, json={"title": "Bad link", "youtube": "https://vimeo.com/1"})).status_code == 422
+    await client.post("/api/v1/site-admin/videos", headers=comms, json={"title": "Draft town hall", "topic": "town_halls", "youtube": "abcdefghijk", "published": False})
+
+    page = (await client.get("/api/v1/site/videos")).json()
+    assert [v["title"] for v in page["items"]] == ["Interview on Radio Salaam", "Rally at Likoni"]  # newest first, drafts hidden
+    assert {t["id"]: t["count"] for t in page["topics"]} == {"rallies": 1, "interviews": 1}
+    assert [v["title"] for v in (await client.get("/api/v1/site/videos?topic=rallies")).json()["items"]] == ["Rally at Likoni"]
+    assert [v["title"] for v in (await client.get("/api/v1/site/videos?q=water")).json()["items"]] == ["Interview on Radio Salaam"]
+    one = (await client.get("/api/v1/site/videos?size=1")).json()
+    assert len(one["items"]) == 1 and one["more"] and not (await client.get("/api/v1/site/videos?size=1&page=2")).json()["more"]
+    assert (await client.get(f"/api/v1/site/videos/{first['id']}")).json()["media_id"] == up["id"]
+
+    # Re-publishing an older video brings it to the top.
+    await client.put(f"/api/v1/site-admin/videos/{first['id']}", json={**base, "published": False}, headers=comms)
+    await client.put(f"/api/v1/site-admin/videos/{first['id']}", json=base, headers=comms)
+    assert (await client.get("/api/v1/site/videos")).json()["items"][0]["title"] == "Rally at Likoni"
+
+    lead = await make_user(client, admin, "coordinator", constituency_id=wards["Tudor"].constituency_id)
+    assert (await client.post("/api/v1/site-admin/videos", json=base, headers=lead)).status_code == 403
+    assert (await client.delete(f"/api/v1/site-admin/videos/{yt['id']}", headers=comms)).status_code == 204
+    # Deleting the file from the library takes its entry off the page too.
+    await client.delete(f"/api/v1/site-admin/media/{up['id']}", headers=comms)
+    assert (await client.get("/api/v1/site/videos")).json()["items"] == []

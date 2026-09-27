@@ -1,15 +1,17 @@
 "use client";
 
 import { ArrowRight, CalendarDays, Clock, MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-import { useAgenda, useNews, usePublicEvents } from "./api";
+import { useAgenda, useNews, usePublicEvents, useVideos } from "./api";
 import { mediaUrl } from "./media";
+import { VideoCard } from "./videos";
 
 type Lang = "en" | "sw";
 const T = {
-  en: { eyebrow: "The campaign", title: "What we stand for, and where we'll be", agenda: "Our agenda", news: "Latest news", events: "Coming up", all: "See all", read: "Read" },
-  sw: { eyebrow: "Kampeni", title: "Tunachosimamia, na tutakapokuwa", agenda: "Ajenda yetu", news: "Habari mpya", events: "Matukio yajayo", all: "Ona zote", read: "Soma" },
+  en: { eyebrow: "The campaign", title: "What we stand for, and where we'll be", agenda: "Our agenda", news: "Latest news", videos: "Latest videos", events: "Coming up", all: "See all", read: "Read" },
+  sw: { eyebrow: "Kampeni", title: "Tunachosimamia, na tutakapokuwa", agenda: "Ajenda yetu", news: "Habari mpya", videos: "Video mpya", events: "Matukio yajayo", all: "Ona zote", read: "Soma" },
 };
 const when = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleString("en-KE", { timeZone: "Africa/Nairobi", ...o });
 
@@ -22,10 +24,13 @@ export function Highlights({ lang }: { lang: Lang }) {
   const agenda = useAgenda();
   const news = useNews();
   const events = usePublicEvents();
+  const videos = useVideos("", "", 3);
+  const router = useRouter();
+  const clips = videos.data?.pages[0]?.items ?? [];
   const pledges = (agenda.data ?? []).slice(0, 3);
   const stories = (news.data ?? []).slice(0, 3);
   const next = (events.data ?? []).slice(0, 3);
-  if (!pledges.length && !stories.length && !next.length) return null;
+  if (!pledges.length && !stories.length && !next.length && !clips.length) return null;
 
   return (
     <section aria-labelledby="highlights" className="mx-auto max-w-5xl space-y-10 px-4 pb-16">
@@ -72,6 +77,15 @@ export function Highlights({ lang }: { lang: Lang }) {
                 </Link>
               </li>
             ))}
+          </ul>
+        </div>
+      )}
+
+      {clips.length > 0 && (
+        <div>
+          <Heading title={t.videos} href="/videos" all={t.all} />
+          <ul className="grid gap-3 md:grid-cols-3">
+            {clips.map((v) => <li key={v.id}><VideoCard v={v} onPlay={() => router.push(`/videos?v=${v.id}`)} /></li>)}
           </ul>
         </div>
       )}

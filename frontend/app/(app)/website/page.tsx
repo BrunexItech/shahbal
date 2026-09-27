@@ -1,20 +1,21 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, Eye, EyeOff, FilePen, ImageIcon, Images, ListChecks, Newspaper, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Clapperboard, ExternalLink, Eye, EyeOff, FilePen, ImageIcon, Images, ListChecks, Newspaper, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { SkeletonRows } from "@/components/loaders";
-import { Badge, Button, Card, Input, Modal, PageHeader, Textarea, useConfirm } from "@/components/ui";
-import type { AgendaItem, NewsItem, SitePage } from "@/features/site/api";
-import { BlockEditor, CoverPicker, MediaLibrary, mediaUrl, RichBody, useMediaMap } from "@/features/site/media";
+import { Badge, Button, Card, Input, Modal, PageHeader, Select, Textarea, useConfirm } from "@/components/ui";
+import type { AgendaItem, NewsItem, SitePage, Video } from "@/features/site/api";
+import { ACCEPT_VIDEO, BlockEditor, CoverPicker, MediaLibrary, mediaUrl, RichBody, useMediaMap, useUpload, youtubeId } from "@/features/site/media";
+import { shortDate, topicLabel, VIDEO_TOPICS, VideoPlayer, VideoPoster } from "@/features/site/videos";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { dateTime } from "@/lib/format";
 
-const TABS = [["news", "News"], ["agenda", "Agenda"], ["about", "About"], ["contact", "Contact"]] as const;
+const TABS = [["news", "News"], ["videos", "Videos"], ["agenda", "Agenda"], ["about", "About"], ["contact", "Contact"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export default function WebsitePage() {
@@ -34,7 +35,7 @@ export default function WebsitePage() {
             className={cn("rounded-lg px-4 py-1.5 text-sm font-semibold", tab === k ? "bg-white text-navy-900 shadow-sm" : "text-muted")}>{l}</button>
         ))}
       </div>
-      {tab === "news" ? <NewsEditor /> : tab === "agenda" ? <AgendaManager /> : <PageEditor key={tab} pageKey={tab} href={`/${tab}`} />}
+      {tab === "news" ? <NewsEditor /> : tab === "videos" ? <VideosManager /> : tab === "agenda" ? <AgendaManager /> : <PageEditor key={tab} pageKey={tab} href={`/${tab}`} />}
       {library && <MediaLibrary onClose={() => setLibrary(false)} />}
     </>
   );
@@ -207,6 +208,133 @@ function AgendaModal({ initial, onClose, onSaved }: { initial: Partial<AgendaIte
         </label>
       </div>
       )}
+    </Modal>
+  );
+}
+
+// ---- Videos --------------------------------------------------------------------------------
+function VideosManager() {
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  const list = useQuery({ queryKey: ["site-admin", "videos"], queryFn: () => api<Video[]>("/site-admin/videos") });
+  const [editing, setEditing] = useState<Partial<Video> | null>(null);
+  const refresh = () => { qc.invalidateQueries({ queryKey: ["site-admin", "videos"] }); qc.invalidateQueries({ queryKey: ["site", "videos"] }); };
+  const del = useMutation({
+    mutationFn: (id: string) => api(`/site-admin/videos/${id}`, { method: "DELETE" }),
+    onSuccess: () => { refresh(); toast.success("Taken off the Videos page"); },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+        <div><p className="font-bold text-navy-900">Videos page</p><p className="text-xs text-slate-500">Newest first on the website. Uploads and YouTube links both work.</p></div>
+        <Button icon={<Plus className="size-4" />} onClick={() => setEditing({ published: true, topic: "rallies" })}>Add video</Button>
+      </div>
+      {list.isLoading ? <SkeletonRows rows={3} /> : !list.data?.length ? (
+        <div className="flex flex-col items-center px-6 py-12 text-center"><Clapperboard className="size-8 text-slate-300" /><p className="mt-2 text-sm text-slate-500">No videos yet. Add the first one.</p></div>
+      ) : (
+        <ul className="divide-y divide-line">
+          {list.data.map((v) => (
+            <li key={v.id} className="flex items-center gap-3 px-5 py-3">
+              <VideoPoster v={v} small className="hidden h-14 w-24 shrink-0 rounded-lg sm:block" />
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 truncate font-semibold text-navy-900">{v.title}{!v.published && <Badge tone="slate">Hidden</Badge>}</p>
+                <p className="truncate text-xs text-slate-500">{topicLabel(v.topic)} · {shortDate(v.published_at)} · {v.youtube_id ? "YouTube" : "Uploaded"}</p>
+              </div>
+              <RowBtn label={`Edit ${v.title}`} onClick={() => setEditing(v)}><FilePen className="size-4" /></RowBtn>
+              <RowBtn label={`Remove ${v.title}`} danger onClick={async () => {
+                if (await confirm({ title: "Take this video off the Videos page?", body: v.youtube_id ? v.title : `${v.title}. The file stays in the media library.`, confirmLabel: "Remove", danger: true })) del.mutate(v.id);
+              }}><Trash2 className="size-4" /></RowBtn>
+            </li>
+          ))}
+        </ul>
+      )}
+      {editing && <VideoModal initial={editing} onClose={() => setEditing(null)} onSaved={() => { refresh(); setEditing(null); }} />}
+    </Card>
+  );
+}
+
+function VideoModal({ initial, onClose, onSaved }: { initial: Partial<Video>; onClose: () => void; onSaved: () => void }) {
+  const [s, setS] = useState({ title: initial.title ?? "", description: initial.description ?? "", topic: initial.topic ?? "rallies", published: initial.published ?? true,
+    media_id: initial.media_id ?? null as string | null, youtube: initial.youtube_id ? `https://youtu.be/${initial.youtube_id}` : "" });
+  const [source, setSource] = useState<"upload" | "youtube">(initial.youtube_id ? "youtube" : "upload");
+  const [library, setLibrary] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const file = useRef<HTMLInputElement>(null);
+  const upload = useUpload();
+  const media = useMediaMap();
+  const picked = s.media_id ? media[s.media_id] : undefined;
+  const yt = source === "youtube" ? youtubeId(s.youtube) : null;
+  const save = useMutation({
+    mutationFn: () => {
+      const body = { title: s.title, description: s.description || null, topic: s.topic, published: s.published,
+        media_id: source === "upload" ? s.media_id : null, youtube: source === "youtube" ? s.youtube : null };
+      return initial.id ? api(`/site-admin/videos/${initial.id}`, { method: "PUT", body }) : api("/site-admin/videos", { body });
+    },
+    onSuccess: () => { toast.success(s.published ? "On the Videos page" : "Saved as hidden"); onSaved(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const ok = s.title.trim().length >= 3 && (source === "upload" ? !!s.media_id : !!yt);
+  const clip = { youtube_id: yt, media_id: source === "upload" ? s.media_id : null, has_poster: !!picked?.has_thumb, duration: picked?.duration ?? null };
+  return (
+    <Modal open onClose={onClose} size="lg" title={initial.id ? "Edit video" : "Add a video"}
+      footer={<>
+        {preview
+          ? <Button variant="ghost" icon={<ArrowLeft className="size-4" />} onClick={() => setPreview(false)}>Back to editing</Button>
+          : <Button variant="ghost" icon={<Eye className="size-4" />} disabled={!ok} onClick={() => setPreview(true)}>Preview</Button>}
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button loading={save.isPending} disabled={!ok} onClick={() => save.mutate()}>Save</Button>
+      </>}>
+      {preview ? (
+        <article>
+          <PreviewBar onBack={() => setPreview(false)} />
+          <div className="max-w-lg overflow-hidden rounded-2xl bg-[#06101f] text-white">
+            <VideoPlayer v={clip} />
+            <div className="p-4">
+              <p className="text-xs font-bold tracking-wider text-gold uppercase">{topicLabel(s.topic)}</p>
+              <p className="mt-1 font-display text-lg font-bold">{s.title}</p>
+              {s.description && <p className="mt-1 text-sm text-slate-300">{s.description}</p>}
+            </div>
+          </div>
+        </article>
+      ) : (
+        <div className="space-y-4">
+          <div role="radiogroup" aria-label="Where the video comes from" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+            {([["upload", "Uploaded video"], ["youtube", "YouTube link"]] as const).map(([k, l]) => (
+              <button key={k} type="button" role="radio" aria-checked={source === k} onClick={() => setSource(k)}
+                className={cn("rounded-lg py-2 text-sm font-semibold", source === k ? "bg-white text-navy-900 shadow-sm" : "text-muted")}>{l}</button>
+            ))}
+          </div>
+          {source === "upload" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {picked ? <VideoPoster v={clip} small className="h-20 w-36 rounded-lg" />
+                : <span className="grid h-20 w-36 place-items-center rounded-lg bg-slate-100 text-slate-300"><Clapperboard className="size-6" /></span>}
+              <div className="flex flex-wrap gap-2">
+                <input ref={file} type="file" hidden accept={ACCEPT_VIDEO} onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) upload.mutate({ file: f }, { onSuccess: (m) => { setS((x) => ({ ...x, media_id: m.id, title: x.title || m.label || "" })); toast.success("Video uploaded"); } });
+                }} />
+                <Button size="sm" variant="secondary" loading={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload a video"}</Button>
+                <Button size="sm" variant="ghost" onClick={() => setLibrary(true)}>From library</Button>
+              </div>
+              <p className="w-full text-xs text-slate-500">MP4, WebM or MOV, up to 95 MB. A preview picture is made automatically.</p>
+            </div>
+          ) : (
+            <Input label="YouTube link" required placeholder="https://www.youtube.com/watch?v=…" value={s.youtube} onChange={(e) => setS({ ...s, youtube: e.target.value })}
+              error={s.youtube.trim() && !yt ? "That doesn't look like a YouTube link" : undefined} />
+          )}
+          <Input label="Title" required maxLength={140} placeholder="e.g. Town hall in Kisauni" value={s.title} onChange={(e) => setS({ ...s, title: e.target.value })} />
+          <Select label="Topic" value={s.topic} onChange={(e) => setS({ ...s, topic: e.target.value })}>
+            {VIDEO_TOPICS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </Select>
+          <Textarea label="Description" hint="Optional. A sentence or two under the video." rows={2} maxLength={600} value={s.description} onChange={(e) => setS({ ...s, description: e.target.value })} />
+          <label className="flex items-center gap-2 text-sm font-semibold text-navy-900">
+            <input type="checkbox" className="size-4 accent-kenya-green" checked={s.published} onChange={(e) => setS({ ...s, published: e.target.checked })} /> Show on the Videos page
+          </label>
+        </div>
+      )}
+      {library && <MediaLibrary only="video" selected={s.media_id} onClose={() => setLibrary(false)} onPick={(m) => { setS((x) => ({ ...x, media_id: m.id, title: x.title || m.label || "" })); setLibrary(false); }} />}
     </Modal>
   );
 }

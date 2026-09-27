@@ -4,6 +4,10 @@ os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://shahbal:shahbal@localhost:5436/shahbal_test"
 )
 os.environ["TESTING"] = "true"
+# Uploaded files (recordings, photos, website media) go to a throwaway folder, never the app's own data.
+import tempfile  # noqa: E402
+
+os.environ["RECORDINGS_DIR"] = os.path.join(tempfile.mkdtemp(prefix="shahbal-tests-"), "recordings")
 # Tests never reach real providers, whatever keys backend/.env holds (env vars win over .env).
 os.environ.update(SMS_PROVIDER="sandbox", WHATSAPP_PROVIDER="sandbox", OPENAI_API_KEY="")
 
@@ -37,7 +41,7 @@ async def schema():
 async def clean():
     async with engine.begin() as conn:
         # DELETE, not TRUNCATE: tiny tables, and TRUNCATE's file rewrite + fsync is slow per test.
-        for table in ("audit_logs", "volunteers", "news_posts", "agenda_items", "site_media", "site_pages", "data_requests", "result_forms", "candidates", "assignments", "calendar_events", "issue_photos", "issue_updates", "issues", "call_recordings", "sip_accounts", "agent_presence", "messages", "call_logs", "visit_photos", "visits", "message_campaigns", "election_settings", "plan_weeks", "voters",
+        for table in ("audit_logs", "volunteers", "news_posts", "agenda_items", "videos", "site_media", "site_pages", "data_requests", "result_forms", "candidates", "assignments", "calendar_events", "issue_photos", "issue_updates", "issues", "call_recordings", "sip_accounts", "agent_presence", "messages", "call_logs", "visit_photos", "visits", "message_campaigns", "election_settings", "plan_weeks", "voters",
                       "auth_challenges", "known_devices", "passkeys", "user_invites", "user_sessions", "users", "polling_stations",
                       "wards", "constituencies"):
             await conn.execute(text(f"DELETE FROM {table}"))

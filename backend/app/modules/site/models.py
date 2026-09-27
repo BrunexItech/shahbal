@@ -31,6 +31,7 @@ class SiteMedia(Base):
     size: Mapped[int]
     width: Mapped[int | None]
     height: Mapped[int | None]
+    duration: Mapped[int | None]  # seconds, for videos
     caption: Mapped[str | None] = mapped_column(String(200))  # shown under it on the website
     label: Mapped[str | None] = mapped_column(String(120))  # HQ's own name for finding it; never public
     uploaded_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
@@ -47,6 +48,21 @@ class NewsPost(Base):
     published_at: Mapped[datetime | None] = mapped_column(index=True)
     author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     cover_id: Mapped[str | None] = mapped_column(ForeignKey("site_media.id", ondelete="SET NULL"))
+
+
+class Video(Base):
+    """An entry on the public Videos page: an uploaded video from the library, or a YouTube link."""
+
+    __tablename__ = "videos"
+
+    title: Mapped[str] = mapped_column(String(140))
+    description: Mapped[str | None] = mapped_column(String(600))
+    topic: Mapped[str] = mapped_column(String(20), default="other", index=True)
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("site_media.id", ondelete="CASCADE"))
+    youtube_id: Mapped[str | None] = mapped_column(String(11))
+    published: Mapped[bool] = mapped_column(default=True, index=True)
+    published_at: Mapped[datetime] = mapped_column(index=True)  # newest first on the page
+    added_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
 class AgendaItem(Base):

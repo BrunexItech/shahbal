@@ -21,7 +21,7 @@ from app.core.roles import MANAGERS, PUBLISHERS
 from app.core.scope import can_touch_ward, ward_scope
 from app.modules.geo.models import Constituency, Ward
 from app.modules.site import media as store
-from app.modules.site.models import AgendaItem, NewsPost, SiteMedia, SitePage, Volunteer
+from app.modules.site.models import AgendaItem, NewsPost, SiteMedia, SitePage, Video, Volunteer
 from app.modules.visits.models import Visit, VisitStatus
 
 public = APIRouter(prefix="/api/v1/site", tags=["public website"])
@@ -79,7 +79,7 @@ MEDIA_TOKEN = re.compile(r"^\[\[media:([0-9a-f-]{36})\]\]$", re.M)
 
 def _media(m: SiteMedia, admin: bool = False) -> dict:
     out = {"id": m.id, "kind": m.kind, "content_type": m.content_type, "width": m.width, "height": m.height,
-           "caption": m.caption, "has_thumb": bool(m.thumb)}
+           "caption": m.caption, "has_thumb": bool(m.thumb), "duration": m.duration}
     # HQ's own file names stay inside the Command Centre.
     return out | ({"label": m.label, "size": m.size, "created_at": m.created_at.isoformat()} if admin else {})
 
@@ -180,12 +180,12 @@ async def media_file(mid: str, thumb: bool = False, session: AsyncSession = Depe
     m = await session.get(SiteMedia, mid)
     if m is None:
         raise HTTPException(404, "Not found")
-    name = m.thumb if thumb and m.thumb else m.name
-    path = store.path_of(name)
+    small = bool(thumb and m.thumb)  # a photo's smaller copy, or a video's preview picture
+    path = store.path_of(m.thumb if small else m.name)
     if not path.exists():
         raise HTTPException(404, "Not found")
     # Names are random and files never change, so browsers and proxies may keep them.
-    return FileResponse(path, media_type=m.content_type, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    return FileResponse(path, media_type="image/webp" if small else m.content_type, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @router.get("/media")
@@ -246,6 +246,129 @@ async def delete_media(mid: str, ctx: Ctx = Depends(hq)):
     await ctx.session.commit()
     for n in names:
         store.remove(n)
+
+
+# ---- videos -------------------------------------------------------------------------------
+TOPICS = {"rallies": "Rallies", "town_halls": "Town halls", "interviews": "Interviews", "agenda": "Our agenda",
+          "community": "In the community", "other": "Other"}
+YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def _video(v: Video, m: SiteMedia | None) -> dict:
+    return {"id": v.id, "title": v.title, "description": v.description, "topic": v.topic, "published": v.published,
+            "published_at": v.published_at.isoformat(), "youtube_id": v.youtube_id, "media_id": v.media_id,
+            "has_poster": bool(m and m.thumb), "duration": m.duration if m else None, "content_type": m.content_type if m else None}
+
+
+@public.get("/videos")
+async def videos(topic: str | None = Query(None, max_length=20), q: str | None = Query(None, max_length=80),
+                 page: int = Query(1, ge=1, le=500), size: int = Query(12, ge=1, le=48), session: AsyncSession = Depends(get_session)):
+    """The Videos page: newest first, by topic, searchable, a page at a time."""
+    base = [Video.published.is_(True)]
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        base.append(Video.title.ilike(like) | Video.description.ilike(like))
+    counts = dict((await session.execute(select(Video.topic, func.count()).where(*base).group_by(Video.topic))).all())
+    stmt = select(Video, SiteMedia).outerjoin(SiteMedia, SiteMedia.id == Video.media_id).where(*base)
+    if topic:
+        stmt = stmt.where(Video.topic == topic)
+    rows = (await session.execute(stmt.order_by(Video.published_at.desc(), Video.id).offset((page - 1) * size).limit(size + 1))).all()
+    return {"items": [_video(v, m) for v, m in rows[:size]], "more": len(rows) > size,
+            "topics": [{"id": k, "label": TOPICS[k], "count": counts.get(k, 0)} for k in TOPICS if counts.get(k)]}
+
+
+@public.get("/videos/{vid}")
+async def video(vid: str, session: AsyncSession = Depends(get_session)):
+    row = (await session.execute(select(Video, SiteMedia).outerjoin(SiteMedia, SiteMedia.id == Video.media_id)
+                                 .where(Video.id == vid, Video.published.is_(True)))).first()
+    if row is None:
+        raise HTTPException(404, "Video not found")
+    return _video(*row)
+
+
+class VideoIn(BaseModel):
+    title: str = Field(min_length=3, max_length=140)
+    description: str | None = Field(default=None, max_length=600)
+    topic: str = "other"
+    media_id: str | None = None
+    youtube: str | None = Field(default=None, max_length=200)  # a YouTube link or id
+    published: bool = True
+
+    @field_validator("topic")
+    @classmethod
+    def _topic(cls, v: str) -> str:
+        if v not in TOPICS:
+            raise ValueError("Choose a topic")
+        return v
+
+
+def _youtube_id(raw: str | None) -> str | None:
+    if not raw or not raw.strip():
+        return None
+    raw = raw.strip()
+    if YOUTUBE_ID.match(raw):
+        return raw
+    m = re.search(r"(?:youtu\.be/|youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/))([A-Za-z0-9_-]{11})", raw)
+    if not m:
+        raise HTTPException(422, "That doesn't look like a YouTube link")
+    return m.group(1)
+
+
+async def _video_source(session: AsyncSession, payload: VideoIn) -> tuple[str | None, str | None]:
+    yt = _youtube_id(payload.youtube)
+    if bool(yt) == bool(payload.media_id):
+        raise HTTPException(422, "Upload a video or paste a YouTube link (one of them)")
+    if payload.media_id:
+        m = await session.get(SiteMedia, payload.media_id)
+        if m is None or m.kind != "video":
+            raise HTTPException(422, "Pick one of your uploaded videos")
+    return payload.media_id, yt
+
+
+@router.get("/videos")
+async def all_videos(ctx: Ctx = Depends(hq)):
+    rows = (await ctx.session.execute(select(Video, SiteMedia).outerjoin(SiteMedia, SiteMedia.id == Video.media_id)
+                                      .order_by(Video.published_at.desc()))).all()
+    return [_video(v, m) for v, m in rows]
+
+
+@router.post("/videos", status_code=201)
+async def add_video(payload: VideoIn, ctx: Ctx = Depends(hq)):
+    media_id, yt = await _video_source(ctx.session, payload)
+    v = Video(title=payload.title.strip(), description=(payload.description or "").strip() or None, topic=payload.topic,
+              media_id=media_id, youtube_id=yt, published=payload.published, published_at=utcnow(), added_by_id=ctx.user.id)
+    ctx.session.add(v)
+    await ctx.session.flush()
+    audit.record(ctx.session, actor_id=ctx.user.id, action="CREATE", entity="video", entity_id=v.id, ip=ctx.ip)
+    await ctx.session.commit()
+    m = await ctx.session.get(SiteMedia, media_id) if media_id else None
+    return _video(v, m)
+
+
+@router.put("/videos/{vid}")
+async def update_video(vid: str, payload: VideoIn, ctx: Ctx = Depends(hq)):
+    v = await ctx.session.get(Video, vid)
+    if v is None:
+        raise HTTPException(404, "Video not found")
+    v.media_id, v.youtube_id = await _video_source(ctx.session, payload)
+    if payload.published and not v.published:
+        v.published_at = utcnow()  # published now = newest now
+    v.title, v.description, v.topic, v.published = payload.title.strip(), (payload.description or "").strip() or None, payload.topic, payload.published
+    audit.record(ctx.session, actor_id=ctx.user.id, action="UPDATE", entity="video", entity_id=v.id, ip=ctx.ip)
+    await ctx.session.commit()
+    m = await ctx.session.get(SiteMedia, v.media_id) if v.media_id else None
+    return _video(v, m)
+
+
+@router.delete("/videos/{vid}", status_code=204)
+async def delete_video(vid: str, ctx: Ctx = Depends(hq)):
+    """Takes it off the Videos page. An uploaded file stays in the media library until deleted there."""
+    v = await ctx.session.get(Video, vid)
+    if v is None:
+        raise HTTPException(404, "Video not found")
+    await ctx.session.delete(v)
+    audit.record(ctx.session, actor_id=ctx.user.id, action="DELETE", entity="video", entity_id=vid, ip=ctx.ip)
+    await ctx.session.commit()
 
 
 # ---- agenda -------------------------------------------------------------------------------

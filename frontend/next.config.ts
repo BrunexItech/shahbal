@@ -12,6 +12,8 @@ const origin = (u: string) => {
 const isDev = process.env.NODE_ENV !== "production";
 // GIS Lab: satellite imagery (Esri World Imagery) and street-level photos (Mapillary).
 const IMAGERY = "https://server.arcgisonline.com";
+// Preview pictures of YouTube videos on the Videos page.
+const YT_IMG = "https://i.ytimg.com";
 const MAPILLARY = "https://tiles.mapillary.com https://graph.mapillary.com";
 const MAPILLARY_IMG = "https://*.fbcdn.net";
 // The browser softphone registers over a WebSocket to the SIP provider.
@@ -27,7 +29,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY_IMG}`,
+  `img-src 'self' data: blob: ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY_IMG} ${YT_IMG}`,
   "font-src 'self' data:",
   `connect-src 'self' ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY} ${MAPILLARY_IMG} ${SIP_WSS}${isDev ? " ws:" : ""}`,
   `media-src 'self' blob: mediastream: ${origin(API)}`,

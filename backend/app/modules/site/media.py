@@ -3,8 +3,13 @@
 Photos are decoded and re-encoded (WebP): that proves they really are images, drops EXIF
 (phones stamp GPS positions into photos), fixes rotation and caps the size. Videos are
 checked by their signature and streamed to disk in chunks, never held in memory."""
+import asyncio
 import io
+import json
+import logging
 import secrets
+import shutil
+import subprocess
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
@@ -17,6 +22,7 @@ VIDEO_MAX_MB = 95  # Cloudflare accepts at most 100 MB per request
 MAX_SIDE, THUMB_SIDE = 2000, 720
 Image.MAX_IMAGE_PIXELS = 60_000_000  # refuse decompression bombs
 
+log = logging.getLogger("site.media")
 VIDEO_TYPES = {"video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov"}
 
 
@@ -85,7 +91,37 @@ async def save_video(file: UploadFile) -> dict:
     except BaseException:
         path.unlink(missing_ok=True)
         raise
-    return {"kind": "video", "content_type": ctype, "name": name, "thumb": None, "size": size, "width": None, "height": None}
+    return {"kind": "video", "content_type": ctype, "name": name, "size": size, **await asyncio.to_thread(_video_extras, path)}
+
+
+def _video_extras(path: Path) -> dict:
+    """Length, size and a preview picture for an uploaded video, via ffprobe/ffmpeg when installed.
+    Each step has a time limit, and a video that can't be read simply goes without a preview."""
+    out: dict = {"thumb": None, "duration": None, "width": None, "height": None}
+    if not (shutil.which("ffprobe") and shutil.which("ffmpeg")):
+        return out
+    try:
+        probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration",
+                                "-of", "json", str(path)], capture_output=True, timeout=20, check=True)
+        info = json.loads(probe.stdout or b"{}")
+        stream = (info.get("streams") or [{}])[0]
+        duration = float((info.get("format") or {}).get("duration") or 0)
+        out.update(width=stream.get("width"), height=stream.get("height"), duration=round(duration) or None)
+        # A frame a little way in (not the black first frame), scaled down, re-encoded to WebP.
+        at = min(max(duration * 0.1, 0.5), 5.0) if duration else 0
+        frame = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{at:.2f}", "-i", str(path), "-frames:v", "1",
+                                "-vf", f"scale='min({THUMB_SIDE},iw)':-2", "-f", "image2pipe", "-vcodec", "png", "-"],
+                               capture_output=True, timeout=30, check=True)
+        if frame.stdout:
+            img = Image.open(io.BytesIO(frame.stdout)).convert("RGB")
+            buf = io.BytesIO()
+            img.save(buf, "WEBP", quality=80)
+            thumb = f"{path.stem}-t.webp"
+            path_of(thumb).write_bytes(buf.getvalue())
+            out["thumb"] = thumb
+    except (subprocess.SubprocessError, OSError, ValueError, UnidentifiedImageError) as exc:
+        log.warning("couldn't read video %s: %s", path.name, exc)
+    return out
 
 
 def remove(name: str | None) -> None:
