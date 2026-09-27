@@ -39,3 +39,27 @@ async def test_the_assistant_only_knows_what_is_published(client, admin, wards):
     text = await agent.knowledge()
     assert "Water every day" in text and "A son of Mombasa." in text
     assert "Secret draft plan" not in text and "[[" not in text and "**" not in text
+
+
+async def test_publishing_refreshes_the_assistant_by_itself(client, admin, monkeypatch):
+    import asyncio
+
+    calls = []
+
+    async def fake_sync():
+        calls.append(1)
+        return {"agent_id": "agent_test", "created": False, "knowledge_chars": 1}
+
+    monkeypatch.setattr(settings, "testing", False)
+    for k, v in (("elevenlabs_api_key", "sk_test"), ("elevenlabs_voice_id", "voice"), ("elevenlabs_agent_id", "agent_test")):
+        monkeypatch.setattr(settings, k, v)
+    monkeypatch.setattr(agent, "sync", fake_sync)
+    monkeypatch.setattr(agent, "REFRESH_DELAY", 0.2)
+    body = {"title": "Jobs at the port", "summary": "Local hiring first for port and county jobs."}
+    await client.post("/api/v1/site-admin/agenda", headers=admin, json=body)
+    await client.post("/api/v1/site-admin/agenda", headers=admin, json={**body, "title": "Clean water"})  # two edits in a row
+    await asyncio.sleep(0.6)
+    assert calls == [1]  # one refresh for both
+    await client.put("/api/v1/site-admin/pages/about", headers=admin, json={"title": "About", "body": "Updated."})
+    await asyncio.sleep(0.6)
+    assert calls == [1, 1]

@@ -17,6 +17,7 @@ from app.modules.users.models import User
 from app.modules.visits.models import Visit, VisitStatus
 from app.modules.geo.locate import ward_code_at
 from app.modules.visits.schemas import CheckinIn, CompleteIn, QuickVisitIn, VisitIn, VisitOut, VisitUpdate
+from app.modules.voiceline.agent import schedule_refresh
 from app.modules.voters.audience import Audience
 
 DEFAULT_MESSAGE = "Habari {first_name}! Our campaign team will be at {venue} in {ward} on {date} from {time}. Karibu sana!"
@@ -99,6 +100,8 @@ class VisitService:
             await self._announce(v, data)
         audit.record(self.s, actor_id=self.user.id, action="CREATE", entity="visit", entity_id=v.id, ip=self.ctx.ip)
         await self.s.commit()
+        if v.public:
+            schedule_refresh()  # the phone assistant tells callers about public events
         return await self.get(v.id)
 
     async def _announce(self, v: Visit, data: VisitIn) -> None:
@@ -116,6 +119,7 @@ class VisitService:
     async def update(self, vid: str, data: VisitUpdate) -> VisitOut:
         self._manager()
         v = await self._visit(vid)
+        was_public = v.public
         if v.status in (VisitStatus.completed, VisitStatus.cancelled):
             raise HTTPException(409, "This visit is closed")
         fields = data.model_dump(exclude_unset=True)
@@ -133,6 +137,8 @@ class VisitService:
                 c.body = announcement_text(None, v.venue, v.scheduled_at)
         audit.record(self.s, actor_id=self.user.id, action="UPDATE", entity="visit", entity_id=v.id, ip=self.ctx.ip, fields=sorted(fields))
         await self.s.commit()
+        if was_public or v.public:
+            schedule_refresh()
         return await self.get(vid)
 
     async def cancel(self, vid: str) -> VisitOut:
@@ -147,6 +153,8 @@ class VisitService:
                 c.status = CampaignStatus.cancelled
         audit.record(self.s, actor_id=self.user.id, action="CANCEL", entity="visit", entity_id=v.id, ip=self.ctx.ip)
         await self.s.commit()
+        if v.public:
+            schedule_refresh()  # a cancelled public event drops out of what the assistant says
         return await self.get(vid)
 
     async def quick(self, data: QuickVisitIn) -> VisitOut:

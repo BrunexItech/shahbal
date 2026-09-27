@@ -23,6 +23,7 @@ from app.modules.geo.models import Constituency, Ward
 from app.modules.site import media as store
 from app.modules.site.models import AgendaItem, NewsPost, SiteMedia, SitePage, Video, Volunteer
 from app.modules.visits.models import Visit, VisitStatus
+from app.modules.voiceline.agent import schedule_refresh
 
 public = APIRouter(prefix="/api/v1/site", tags=["public website"])
 router = APIRouter(prefix="/api/v1/site-admin", tags=["public website"])
@@ -70,6 +71,7 @@ async def save_page(key: str, payload: PageIn, ctx: Ctx = Depends(hq)):
     p.title, p.body, p.updated_by_id = payload.title.strip(), payload.body.strip(), ctx.user.id
     audit.record(ctx.session, actor_id=ctx.user.id, action="UPDATE", entity="site_page", entity_id=key, ip=ctx.ip)
     await ctx.session.commit()
+    schedule_refresh()  # the phone assistant learns the change
     return await page(key, ctx.session)
 
 
@@ -147,6 +149,7 @@ async def create_post(payload: PostIn, ctx: Ctx = Depends(hq)):
     await ctx.session.flush()
     audit.record(ctx.session, actor_id=ctx.user.id, action="CREATE", entity="news", entity_id=p.id, ip=ctx.ip, published=p.published)
     await ctx.session.commit()
+    schedule_refresh()  # the phone assistant learns the change
     return await _post(ctx.session, p)
 
 
@@ -161,6 +164,7 @@ async def update_post(pid: str, payload: PostIn, ctx: Ctx = Depends(hq)):
     p.title, p.summary, p.body, p.published, p.cover_id = payload.title, payload.summary, payload.body, payload.published, payload.cover_id
     audit.record(ctx.session, actor_id=ctx.user.id, action="UPDATE", entity="news", entity_id=p.id, ip=ctx.ip, published=p.published)
     await ctx.session.commit()
+    schedule_refresh()  # the phone assistant learns the change
     return await _post(ctx.session, p)
 
 
@@ -172,6 +176,7 @@ async def delete_post(pid: str, ctx: Ctx = Depends(hq)):
     await ctx.session.delete(p)
     audit.record(ctx.session, actor_id=ctx.user.id, action="DELETE", entity="news", entity_id=pid, ip=ctx.ip)
     await ctx.session.commit()
+    schedule_refresh()  # the phone assistant learns the change
 
 
 # ---- media --------------------------------------------------------------------------------
@@ -407,6 +412,7 @@ async def create_agenda(payload: AgendaIn, ctx: Ctx = Depends(hq)):
     await ctx.session.flush()
     audit.record(ctx.session, actor_id=ctx.user.id, action="CREATE", entity="agenda_item", entity_id=a.id, ip=ctx.ip)
     await ctx.session.commit()
+    schedule_refresh()  # the phone assistant learns the change
     await ctx.session.refresh(a)
     return await _item(ctx.session, a)
 
@@ -422,6 +428,7 @@ async def update_agenda(aid: str, payload: AgendaIn, ctx: Ctx = Depends(hq)):
     a.updated_by_id = ctx.user.id
     audit.record(ctx.session, actor_id=ctx.user.id, action="UPDATE", entity="agenda_item", entity_id=a.id, ip=ctx.ip)
     await ctx.session.commit()
+    schedule_refresh()  # the phone assistant learns the change
     await ctx.session.refresh(a)
     return await _item(ctx.session, a)
 
@@ -434,6 +441,7 @@ async def delete_agenda(aid: str, ctx: Ctx = Depends(hq)):
     await ctx.session.delete(a)
     audit.record(ctx.session, actor_id=ctx.user.id, action="DELETE", entity="agenda_item", entity_id=aid, ip=ctx.ip)
     await ctx.session.commit()
+    schedule_refresh()  # the phone assistant learns the change
 
 
 class OrderIn(BaseModel):
@@ -448,6 +456,7 @@ async def reorder_agenda(payload: OrderIn, ctx: Ctx = Depends(hq)):
     for i, aid in enumerate(payload.ids, start=1):
         items[aid].position = i
     await ctx.session.commit()
+    schedule_refresh()  # the phone assistant learns the change
     return {"ok": True}
 
 

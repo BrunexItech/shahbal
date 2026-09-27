@@ -122,7 +122,7 @@ function Console() {
             <Button size="sm" variant="secondary" icon={<RefreshCw className="size-4" />} loading={refresh.isPending} disabled={live} onClick={() => refresh.mutate()}>
               Refresh what it knows
             </Button>
-            <p className="mt-1.5 text-xs text-slate-500">After publishing on the website, press this so the assistant uses the latest content.</p>
+            <p className="mt-1.5 text-xs text-slate-500">It updates by itself within a minute of anything published on the website. Press this to update it straight away.</p>
           </div>
         </div>
       </Card>

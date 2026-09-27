@@ -3,6 +3,8 @@
 `sync()` creates the agent (first time) or brings it up to date, and reloads its knowledge from what the
 website has published. Used by the Refresh button in the Command Centre and by `python -m scripts.voice_agent`.
 """
+import asyncio
+import logging
 import re
 from datetime import timedelta
 
@@ -17,8 +19,10 @@ from app.modules.site.models import AgendaItem, NewsPost, SitePage
 from app.modules.visits.models import Visit, VisitStatus
 
 API = "https://api.elevenlabs.io"
-NAME = "Talk to Shahbal (phone line)"
-KB_NAME = "Shahbal campaign: published content"
+# The live server and each dev machine get their own agent and knowledge document, so publishing on
+# one never overwrites what the other says. Production keeps the phone line.
+NAME = "Talk to Shahbal (phone line)" if settings.is_production else "Talk to Shahbal (dev)"
+KB_NAME = "Shahbal campaign: published content" + ("" if settings.is_production else " (dev)")
 CANDIDATE = "Suleiman Shahbal"
 
 FIRST_MESSAGE = (
@@ -161,3 +165,34 @@ async def sync() -> dict:
             if d.get("name") == KB_NAME:
                 await c.delete(f"/v1/convai/knowledge-base/{d['id']}", params={"force": "true"})
     return {"agent_id": agent_id, "created": created, "knowledge_chars": len(text)}
+
+
+# ---- automatic refresh ---------------------------------------------------------------------
+log = logging.getLogger("voiceline")
+_pending: asyncio.Task | None = None
+REFRESH_DELAY = 20  # seconds: several edits in a row become one refresh
+
+
+def configured() -> bool:
+    return bool(settings.elevenlabs_api_key.strip() and settings.elevenlabs_voice_id.strip() and settings.elevenlabs_agent_id.strip())
+
+
+def schedule_refresh() -> None:
+    """Called after HQ publishes on the website: the assistant picks up the change on its own, shortly after.
+    Never raises; a failed refresh is logged and the Refresh button remains."""
+    global _pending
+    if settings.testing or not configured() or (_pending and not _pending.done()):
+        return
+
+    async def run() -> None:
+        await asyncio.sleep(REFRESH_DELAY)
+        try:
+            done = await sync()
+            log.info("phone assistant refreshed (%s characters)", done["knowledge_chars"])
+        except Exception:
+            log.exception("phone assistant refresh failed")
+
+    try:
+        _pending = asyncio.get_running_loop().create_task(run())
+    except RuntimeError:  # no event loop (e.g. a script): nothing to schedule
+        pass
