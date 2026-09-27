@@ -12,6 +12,8 @@ const origin = (u: string) => {
 const isDev = process.env.NODE_ENV !== "production";
 // GIS Lab: satellite imagery (Esri World Imagery) and street-level photos (Mapillary).
 const IMAGERY = "https://server.arcgisonline.com";
+// The phone assistant test ("Talk to Shahbal") speaks with ElevenLabs over a secure WebSocket.
+const ELEVENLABS = "wss://api.elevenlabs.io";
 // Preview pictures of YouTube videos on the Videos page.
 const YT_IMG = "https://i.ytimg.com";
 const MAPILLARY = "https://tiles.mapillary.com https://graph.mapillary.com";
@@ -31,7 +33,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY_IMG} ${YT_IMG}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY} ${MAPILLARY_IMG} ${SIP_WSS}${isDev ? " ws:" : ""}`,
+  `connect-src 'self' ${origin(API)} ${origin(MAP_STYLE)} ${IMAGERY} ${MAPILLARY} ${MAPILLARY_IMG} ${SIP_WSS} ${ELEVENLABS}${isDev ? " ws:" : ""}`,
   `media-src 'self' blob: mediastream: ${origin(API)}`,
   // News stories may embed YouTube clips (privacy-enhanced domain only).
   "frame-src https://www.youtube-nocookie.com",

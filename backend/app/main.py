@@ -30,6 +30,7 @@ from app.modules.privacy.router import router as privacy_router
 from app.modules.users.router import invites_router
 from app.modules.users.router import router as users_router
 from app.modules.visits.router import router as visits_router
+from app.modules.voiceline.router import router as voiceline_router
 from app.modules.voters.router import router as voters_router
 
 
@@ -60,7 +61,7 @@ app.add_middleware(
 
 # Each module owns its router; adding a module = one line here.
 for r in (auth_router, users_router, geo_router, voters_router, portal_router, dashboard_router, audit_router,
-          messaging_router, visits_router, calls_router, election_router, map_router, live_router, invites_router, audience_router,
+          messaging_router, visits_router, voiceline_router, calls_router, election_router, map_router, live_router, invites_router, audience_router,
           issues_router, issues_public_router, calendar_router, ai_router, assignments_router, results_router,
           privacy_router, privacy_public_router, site_router, site_public_router):
     app.include_router(r)

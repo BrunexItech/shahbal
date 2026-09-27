@@ -9,7 +9,8 @@ import tempfile  # noqa: E402
 
 os.environ["RECORDINGS_DIR"] = os.path.join(tempfile.mkdtemp(prefix="shahbal-tests-"), "recordings")
 # Tests never reach real providers, whatever keys backend/.env holds (env vars win over .env).
-os.environ.update(SMS_PROVIDER="sandbox", WHATSAPP_PROVIDER="sandbox", OPENAI_API_KEY="")
+os.environ.update(SMS_PROVIDER="sandbox", WHATSAPP_PROVIDER="sandbox", OPENAI_API_KEY="",
+                  ELEVENLABS_API_KEY="", ELEVENLABS_VOICE_ID="", ELEVENLABS_AGENT_ID="")
 
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402

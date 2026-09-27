@@ -7,7 +7,8 @@ node_modules/
 *.pyc
 .env.local
 
-# generated from node_modules by scripts/copy-maplibre-worker.mjs
+# generated from node_modules by scripts/copy-static-workers.mjs
 frontend/public/maplibre/
+frontend/public/elevenlabs/
 /data/
 /backend/data/

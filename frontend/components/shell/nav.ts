@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Bot,
+  AudioLines,
   CalendarDays,
   CalendarRange,
   ClipboardCheck,
@@ -50,6 +51,7 @@ export const NAV: NavItem[] = [
   { section: "Outreach", href: "/daily-plans", label: "Daily Plans", short: "Plans", icon: ClipboardList, show: can.oversee },
   { section: "Outreach", href: "/visits", label: "Campaign Visits", short: "Visits", icon: Route, show: can.staff },
   { section: "Outreach", href: "/volunteers", label: "Volunteers", icon: HandHeart, show: can.manageUsers },
+  { section: "Outreach", href: "/talk-to-shahbal", label: "Talk to Shahbal", short: "Assistant", icon: AudioLines, show: can.audit },
   { section: "Outreach", href: "/calls", label: "Call Centre", icon: PhoneCall, show: can.callCentre },
   { section: "Election", href: "/election", label: "Election Day", short: "Election", icon: Flag, show: can.staff },
   { section: "Command", href: "/gis-lab", label: "GIS Lab", icon: Globe2, show: can.gisLab },
