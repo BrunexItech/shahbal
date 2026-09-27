@@ -4,6 +4,8 @@ os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://shahbal:shahbal@localhost:5436/shahbal_test"
 )
 os.environ["TESTING"] = "true"
+# Tests never reach real providers, whatever keys backend/.env holds (env vars win over .env).
+os.environ.update(SMS_PROVIDER="sandbox", WHATSAPP_PROVIDER="sandbox", OPENAI_API_KEY="")
 
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402

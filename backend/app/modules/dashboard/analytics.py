@@ -137,9 +137,11 @@ async def my_area(ctx: Ctx) -> dict:
     ).where(mine, live))).one()
     board = (await s.execute(
         select(User.id, User.full_name, func.count(Voter.id).label("n")).join(Voter, Voter.captured_by_id == User.id)
-        .where(in_ward, Voter.created_at >= week).group_by(User.id).order_by(func.count(Voter.id).desc())
+        .where(in_ward, Voter.created_at >= week).group_by(User.id).order_by(func.count(Voter.id).desc(), User.full_name)
     )).all()
-    rank = next((i + 1 for i, (uid, _, _) in enumerate(board) if uid == me.id), None)
+    # Competition ranking: agents on the same count share a place (1, 1, 3), so ties never flip between loads.
+    mine_n = next((n for uid, _, n in board if uid == me.id), None)
+    rank = None if mine_n is None else 1 + sum(1 for _, _, n in board if n > mine_n)
     end_today = local_midnight(-1)
     visits = (await s.execute(
         select(Visit.id, Visit.title, Visit.venue, Visit.scheduled_at, Visit.status)
