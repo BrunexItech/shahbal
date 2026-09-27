@@ -31,7 +31,7 @@ export function AgendaView() {
                   <Card className="h-full overflow-hidden">
                     <details className="group">
                       <summary className="flex cursor-pointer list-none flex-col [&::-webkit-details-marker]:hidden">
-                        {a.cover_id && <img src={mediaUrl(a.cover_id, true)} alt="" loading="lazy" className="aspect-[16/9] w-full object-cover" />}
+                        {a.cover_id && <img src={mediaUrl(a.cover_id, true)} alt="" loading="lazy" className="aspect-[5/2] w-full object-cover" />}
                         <div className="flex gap-4 p-6">
                           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-navy-950 font-display text-base font-extrabold text-gold">{i + 1}</span>
                           <div className="min-w-0 flex-1">

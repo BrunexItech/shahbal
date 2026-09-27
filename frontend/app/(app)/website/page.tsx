@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ExternalLink, Eye, EyeOff, FilePen, ImageIcon, Images, ListChecks, Newspaper, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, Eye, EyeOff, FilePen, ImageIcon, Images, ListChecks, Newspaper, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -62,12 +62,15 @@ function PageForm({ page, href, intro }: { page: SitePage; href: string; intro?:
     <Card className="space-y-4 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-bold text-navy-900">{intro ? "Introduction above the agenda" : "Page"}</p>
-        <Button size="sm" variant="ghost" icon={preview ? <FilePen className="size-4" /> : <Eye className="size-4" />} onClick={() => setPreview((p) => !p)}>{preview ? "Edit" : "Preview"}</Button>
+        {!preview && <Button size="sm" variant="ghost" icon={<Eye className="size-4" />} onClick={() => setPreview(true)}>Preview</Button>}
       </div>
       {preview ? (
-        <div className="rounded-xl bg-slate-50 p-5">
+        <div>
+          <PreviewBar onBack={() => setPreview(false)} />
+          <div className="rounded-xl bg-slate-50 p-5">
           <p className="font-display text-xl font-extrabold text-navy-900">{title}</p>
-          {body.trim() ? <RichBody text={body} media={{ ...page.media, ...media }} className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-700" /> : <p className="mt-3 text-sm text-slate-400">Nothing written yet.</p>}
+          {body.trim() ? <RichBody compact text={body} media={{ ...page.media, ...media }} className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-700" /> : <p className="mt-3 text-sm text-slate-400">Nothing written yet.</p>}
+          </div>
         </div>
       ) : (
         <>
@@ -170,9 +173,30 @@ function AgendaModal({ initial, onClose, onSaved }: { initial: Partial<AgendaIte
     onError: (e) => toast.error(e.message),
   });
   const ok = s.title.trim().length >= 3 && s.summary.trim().length >= 10;
+  const [preview, setPreview] = useState(false);
+  const media = useMediaMap();
   return (
     <Modal open onClose={onClose} size="lg" title={initial.id ? "Edit agenda item" : "New agenda item"}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!ok} onClick={() => save.mutate()}>Save</Button></>}>
+      footer={<>
+        {preview
+          ? <Button variant="ghost" icon={<ArrowLeft className="size-4" />} onClick={() => setPreview(false)}>Back to editing</Button>
+          : <Button variant="ghost" icon={<Eye className="size-4" />} onClick={() => setPreview(true)}>Preview</Button>}
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button loading={save.isPending} disabled={!ok} onClick={() => save.mutate()}>Save</Button>
+      </>}>
+      {preview ? (
+        <article>
+          <PreviewBar onBack={() => setPreview(false)} />
+          <div className="max-w-md overflow-hidden rounded-2xl bg-white ring-1 ring-line">
+            {s.cover_id && <img src={mediaUrl(s.cover_id, true)} alt="" className="aspect-[5/2] w-full object-cover" />}
+            <div className="p-5">
+              <p className="font-display text-lg font-bold text-navy-900">{s.title || "Title"}</p>
+              <p className="mt-1 text-sm text-slate-600">{s.summary}</p>
+              {s.body.trim() && <RichBody compact text={s.body} media={{ ...initial.media, ...media }} className="mt-3 border-t border-line pt-3 text-sm leading-relaxed text-slate-700" />}
+            </div>
+          </div>
+        </article>
+      ) : (
       <div className="space-y-4">
         <Input label="Title" required maxLength={120} placeholder="e.g. Clean water in every ward" value={s.title} onChange={(e) => setS({ ...s, title: e.target.value })} />
         <Textarea label="Summary" required rows={2} maxLength={300} value={s.summary} onChange={(e) => setS({ ...s, summary: e.target.value })} hint="One or two sentences shown on the card." />
@@ -182,7 +206,18 @@ function AgendaModal({ initial, onClose, onSaved }: { initial: Partial<AgendaIte
           <input type="checkbox" className="size-4 accent-kenya-green" checked={s.published} onChange={(e) => setS({ ...s, published: e.target.checked })} /> Show on the website
         </label>
       </div>
+      )}
     </Modal>
+  );
+}
+
+/** Sits on top of every preview so there's always an obvious way back to the editor. */
+function PreviewBar({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-ocean-50 px-4 py-2.5 ring-1 ring-ocean/15">
+      <p className="flex items-center gap-2 text-sm font-semibold text-navy-900"><Eye className="size-4 text-ocean" /> Preview: how it will look on the website</p>
+      <Button size="sm" variant="secondary" icon={<ArrowLeft className="size-4" />} onClick={onBack}>Back to editing</Button>
+    </div>
   );
 }
 
@@ -242,16 +277,19 @@ function StoryModal({ initial, onClose, onSaved }: { initial: Partial<NewsItem>;
   return (
     <Modal open onClose={onClose} size="lg" title={initial.id ? "Edit story" : "New story"}
       footer={<>
-        <Button variant="ghost" onClick={() => setPreview((p) => !p)} icon={preview ? <FilePen className="size-4" /> : <Eye className="size-4" />}>{preview ? "Edit" : "Preview"}</Button>
+        {preview
+          ? <Button variant="ghost" icon={<ArrowLeft className="size-4" />} onClick={() => setPreview(false)}>Back to editing</Button>
+          : <Button variant="ghost" icon={<Eye className="size-4" />} onClick={() => setPreview(true)}>Preview</Button>}
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button loading={save.isPending} disabled={!ok} onClick={() => save.mutate()}>{s.published ? "Publish" : "Save draft"}</Button>
       </>}>
       {preview ? (
         <article>
-          {s.cover_id && <img src={mediaUrl(s.cover_id)} alt="" className="mb-4 aspect-[16/9] w-full rounded-xl object-cover" />}
+          <PreviewBar onBack={() => setPreview(false)} />
+          {s.cover_id && <img src={mediaUrl(s.cover_id, true)} alt="" className="mb-4 aspect-[16/9] w-full max-w-sm rounded-xl object-cover" />}
           <p className="font-display text-xl font-extrabold text-navy-900">{s.title || "Headline"}</p>
           <p className="mt-1 text-sm text-slate-500">{s.summary}</p>
-          <RichBody text={s.body} media={{ ...initial.media, ...media }} className="mt-4 text-sm leading-relaxed text-slate-700" />
+          <RichBody compact text={s.body} media={{ ...initial.media, ...media }} className="mt-4 text-sm leading-relaxed text-slate-700" />
         </article>
       ) : (
         <div className="space-y-4">

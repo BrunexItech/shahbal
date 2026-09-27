@@ -57,23 +57,25 @@ export function useMediaMap(): MediaMap {
 }
 
 /** Page or story text with its photos, videos and YouTube clips. */
-export function RichBody({ text, media, className }: { text: string; media?: MediaMap; className?: string }) {
+export function RichBody({ text, media, className, compact }: { text: string; media?: MediaMap; className?: string; compact?: boolean }) {
   const blocks = parseBlocks(text);
   return (
     <div className={className}>
       {blocks.map((b) => (
         <Fragment key={b.key}>
-          {b.kind === "text" ? (b.text ? <Markdown text={b.text} /> : null) : <MediaBlock kind={b.kind} id={b.id} item={media?.[b.id]} />}
+          {b.kind === "text" ? (b.text ? <Markdown text={b.text} /> : null) : <MediaBlock kind={b.kind} id={b.id} item={media?.[b.id]} compact={compact} />}
         </Fragment>
       ))}
     </div>
   );
 }
 
-function MediaBlock({ kind, id, item }: { kind: string; id: string; item?: Media }) {
+/** Photos and videos at a standard size: never taller than a screenful, however the photo was taken. */
+function MediaBlock({ kind, id, item, compact }: { kind: string; id: string; item?: Media; compact?: boolean }) {
+  const box = compact ? "max-h-56" : "max-h-[26rem]";
   if (kind === "youtube") {
     return (
-      <div className="my-5 aspect-video overflow-hidden rounded-xl bg-slate-900">
+      <div className={cn("my-4 aspect-video overflow-hidden rounded-xl bg-slate-900", compact ? "max-w-sm" : "max-w-2xl")}>
         <iframe src={`https://www.youtube-nocookie.com/embed/${id}`} title="Video" className="size-full" loading="lazy"
           allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
       </div>
@@ -81,11 +83,12 @@ function MediaBlock({ kind, id, item }: { kind: string; id: string; item?: Media
   }
   if (!item) return null; // deleted from the library
   return (
-    <figure className="my-5">
+    <figure className={cn("my-4", compact ? "max-w-sm" : "max-w-2xl")}>
       {item.kind === "video"
-        ? <video src={mediaUrl(id)} controls preload="metadata" playsInline className="w-full rounded-xl bg-slate-900" />
-        : <img src={mediaUrl(id)} alt={item.caption ?? ""} width={item.width ?? undefined} height={item.height ?? undefined} loading="lazy" className="h-auto w-full rounded-xl" />}
-      {item.caption && <figcaption className="mt-2 text-sm text-slate-500">{item.caption}</figcaption>}
+        ? <video src={mediaUrl(id)} controls preload="metadata" playsInline className={cn("w-full rounded-xl bg-slate-900", box)} />
+        : <img src={mediaUrl(id, compact)} alt={item.caption ?? ""} width={item.width ?? undefined} height={item.height ?? undefined} loading="lazy"
+            className={cn("h-auto w-auto max-w-full rounded-xl object-contain", box)} />}
+      {item.caption && <figcaption className="mt-1.5 text-sm text-slate-500">{item.caption}</figcaption>}
     </figure>
   );
 }
@@ -232,8 +235,8 @@ function MediaCard({ id, item }: { id: string; item?: Media }) {
   const update = useUpdateMedia();
   if (!item) return <p className="py-3 pl-2 text-sm text-slate-500 sm:pr-28">This file was deleted from the library. Remove it or pick another.</p>;
   return (
-    <div className="flex flex-col gap-3 pt-10 sm:flex-row sm:pt-0 sm:pr-28">
-      <Thumb item={item} className="h-36 w-full sm:h-20 sm:w-32" />
+    <div className="flex flex-col gap-2 pt-10 sm:flex-row sm:gap-3 sm:pt-0 sm:pr-28">
+      <Thumb item={item} className="h-16 w-24 sm:h-20 sm:w-32" />
       <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
         <MetaField label="Name (HQ only)" max={120} value={item.label ?? ""} placeholder="e.g. Likoni rally, June" onSave={(v) => update.mutate({ id, label: v })} />
         <MetaField label="Caption on the website" max={200} value={item.caption ?? ""} placeholder="Optional" onSave={(v) => update.mutate({ id, caption: v })} />
