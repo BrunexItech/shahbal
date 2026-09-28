@@ -77,6 +77,10 @@ class NoteIn(BaseModel):
     public: bool = False
 
 
+class SmsIn(BaseModel):
+    message: str = Field(min_length=3, max_length=300)
+
+
 class IssueUpdateOut(BaseModel):
     id: str
     kind: str
@@ -85,6 +89,7 @@ class IssueUpdateOut(BaseModel):
     public: bool
     author: str | None
     created_at: datetime
+    sms_status: str | None = None  # sent | delivered | failed (SMS records only)
 
 
 class IssuePhotoOut(BaseModel):
@@ -129,6 +134,7 @@ class IssueDetail(IssueOut):
     updates: list[IssueUpdateOut]
     photo_list: list[IssuePhotoOut]
     can_manage: bool
+    sms_live: bool = True  # False: this server can't send SMS yet, so say so instead of pretending
 
 
 class IssuePage(BaseModel):

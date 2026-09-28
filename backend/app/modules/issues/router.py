@@ -16,17 +16,7 @@ from app.core.roles import CAPTURERS, MANAGERS
 from app.modules.geo.models import Ward
 from app.modules.issues.models import Category, Issue, IssueSource, IssueUpdate
 from app.modules.issues.schemas import (
-    Assignee,
-    IssueDetail,
-    IssuePage,
-    IssuePatch,
-    IssuePhotoOut,
-    NoteIn,
-    PublicIssueIn,
-    PublicReceipt,
-    PublicTrack,
-    PublicUpdate,
-    StaffIssueIn,
+    Assignee, IssueDetail, IssuePage, IssuePatch, IssuePhotoOut, NoteIn, PublicIssueIn, PublicReceipt, PublicTrack, PublicUpdate, SmsIn, StaffIssueIn,
 )
 from app.modules.issues.service import UPLOAD_WINDOW, IssueService, create_issue, notify_reporter, store_photo, upload_token
 from app.modules.visits.photos import MAX_BYTES
@@ -75,6 +65,13 @@ async def update(issue_id: str, payload: IssuePatch, ctx: Ctx = Depends(managers
 @router.post("/{issue_id}/notes", response_model=IssueDetail)
 async def add_note(issue_id: str, payload: NoteIn, ctx: Ctx = Depends(managers)):
     return await IssueService(ctx).patch(issue_id, IssuePatch(note=payload.note, public=payload.public))
+
+
+@router.post("/{issue_id}/sms", response_model=IssueDetail)
+async def sms_resident(issue_id: str, payload: SmsIn, ctx: Ctx = Depends(managers)):
+    """Text the resident directly about their case. The history shows sent, then delivered or failed."""
+    detail, _ = await IssueService(ctx).send_sms(issue_id, payload.message)
+    return detail
 
 
 @router.get("/{issue_id}/assignees", response_model=list[Assignee])

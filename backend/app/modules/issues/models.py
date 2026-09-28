@@ -90,6 +90,9 @@ class IssueUpdate(Base):
     status: Mapped[IssueStatus | None] = mapped_column(pg_enum(IssueStatus, "issue_status"))
     note: Mapped[str | None] = mapped_column(Text)
     public: Mapped[bool] = mapped_column(default=False)  # shown to the reporter when they track the case
+    # SMS records only: what the gateway reported (sent → delivered | failed), matched by its reference.
+    sms_status: Mapped[str | None] = mapped_column(String(12))
+    provider_ref: Mapped[str | None] = mapped_column(String(80), index=True)
 
 
 class IssuePhoto(Base):

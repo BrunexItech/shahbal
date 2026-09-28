@@ -34,13 +34,25 @@ class Provider(Protocol):
     async def send(self, items: list[OutItem]) -> list[Result]: ...
 
 
+NOT_LIVE = "Messages aren't switched on for this server: set SMS_PROVIDER=mobilesasa in backend/.env and restart"
+
+
 class SandboxProvider:
-    """Development: nothing leaves the machine. Logs and marks delivered."""
+    """Development: nothing leaves the machine. Logs and marks delivered.
+    On a live server it refuses instead, so nothing is ever reported as sent when it wasn't."""
 
     async def send(self, items: list[OutItem]) -> list[Result]:
+        if settings.is_production and not settings.testing:
+            log.error("messaging is in practice mode on a production server: %d message(s) not sent", len(items))
+            return [Result(it.message_id, False, error=NOT_LIVE) for it in items]
         for it in items:
             log.info("SANDBOX → %s: %s", it.phone, it.body[:80])
         return [Result(it.message_id, True, f"sandbox-{uuid.uuid4().hex[:12]}", delivered=True) for it in items]
+
+
+def sms_live() -> bool:
+    """True when SMS really go out (a real provider is configured)."""
+    return settings.sms_provider in ("mobilesasa", "africastalking")
 
 
 class AfricasTalkingSms:

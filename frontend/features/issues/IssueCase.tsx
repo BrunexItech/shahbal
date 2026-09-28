@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Camera, ExternalLink, MapPin, MessageSquareText, Phone, UserRound } from "lucide-react";
+import { AlertTriangle, Bot, Camera, ExternalLink, MapPin, MessageSquareText, Phone, Send, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -12,7 +12,7 @@ import { dateTime, timeAgo } from "@/lib/format";
 
 import { issueAssist, useAiStatus } from "@/features/ai/api";
 
-import { useAssignees, useIssue, useIssuePhoto, useUpdateIssue } from "./api";
+import { useAssignees, useIssue, useIssuePhoto, useSmsResident, useUpdateIssue } from "./api";
 import { CATEGORIES, CATEGORY, type IssuePriority, type IssueStatus, PRIORITY, SOURCE, STATUS, STATUS_FLOW } from "./meta";
 
 /** One case: what was reported, what's been done, and (for coordinators) the controls to move it on. */
@@ -90,6 +90,7 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
                     <a href={`tel:${d.reporter_phone}`} className="flex items-center gap-2 font-semibold text-ocean hover:underline"><Phone className="size-4" />{d.reporter_phone}</a>
                   ) : <p className="flex items-center gap-2 text-slate-600"><Phone className="size-4 text-slate-400" />{d.reporter_phone}</p>)}
                   <p className="text-xs text-slate-500">{d.contact_ok ? "Gets SMS updates on this case" : "Didn't ask for SMS updates. They can follow the case on the tracking page."}</p>
+                  {d.can_manage && d.reporter_phone && d.contact_ok && <SmsResident id={d.id} reference={d.reference} live={d.sms_live !== false} />}
                 </div>
               ) : <p className="mt-1.5 text-sm text-slate-600">Reported anonymously.</p>}
             </div>
@@ -158,7 +159,9 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
                 Share this with the resident
               </label>
               <p className="-mt-1 pl-6 text-xs text-slate-500">
-                {d.contact_ok
+                {d.contact_ok && d.sms_live === false
+                  ? "SMS isn't switched on for this server yet, so shared updates only appear on their tracking page."
+                  : d.contact_ok
                   ? "Shared updates go to them by SMS and appear on their tracking page. Moving the case on also texts them."
                   : "They didn't ask for SMS, so shared updates appear only on their tracking page (reference " + d.reference + ")."}
               </p>
@@ -185,7 +188,7 @@ export function IssueCase({ id, onClose }: { id: string; onClose: () => void }) 
                 <li key={u.id} className="relative text-sm">
                   <span className="absolute top-1.5 -left-[21px] size-2.5 rounded-full ring-2 ring-white" style={{ background: u.status ? STATUS[u.status].color : "#94a3b8" }} />
                   <p className="text-navy-900">
-                    <b>{u.kind === "status" && u.status ? STATUS[u.status].en : u.kind === "created" ? "Reported" : u.kind === "sms" ? "SMS sent" : u.kind === "sms_failed" ? <span className="text-kenya-red">SMS not sent</span> : u.kind === "note" ? "Note" : "Updated"}</b>
+                    <b>{u.kind === "status" && u.status ? STATUS[u.status].en : u.kind === "created" ? "Reported" : u.kind === "sms" ? <>SMS <SmsBadge status={u.sms_status} /></> : u.kind === "sms_failed" ? <span className="text-kenya-red">SMS not sent</span> : u.kind === "note" ? "Note" : "Updated"}</b>
                     {u.note && <span className="text-slate-700"> · {u.note}</span>}
                     {u.public && u.kind !== "created" && <Badge tone="blue" className="ml-2">Shared with resident</Badge>}
                   </p>
@@ -236,6 +239,54 @@ function AiAssist({ id, current, onReply, onTopic, onUrgent }: {
         </div>
       )}
       {!topic && !r.urgent && !r.duplicates.length && !r.reply && <p className="text-slate-500">No suggestions for this case.</p>}
+    </div>
+  );
+}
+
+const SMS_BADGE = {
+  sent: { label: "Sent · awaiting delivery report", tone: "amber" },
+  delivered: { label: "Delivered", tone: "green" },
+  failed: { label: "Not delivered", tone: "red" },
+} as const;
+
+function SmsBadge({ status }: { status?: "sent" | "delivered" | "failed" | null }) {
+  const b = SMS_BADGE[status ?? "sent"];
+  return <Badge tone={b.tone} className="ml-1">{b.label}</Badge>;
+}
+
+/** Text the resident directly. Says plainly when this server can't send SMS, and what happened after sending. */
+function SmsResident({ id, reference, live }: { id: string; reference: string; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const send = useSmsResident(id);
+  const prefix = `Team Shahbal: about your report ${reference}: `;
+  const parts = Math.max(1, Math.ceil((prefix.length + text.length + 40) / 153));
+  if (!live) {
+    return (
+      <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-navy-900 ring-1 ring-amber-200">
+        <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+        SMS isn&apos;t switched on for this server yet, so nothing can be texted. HQ: set SMS_PROVIDER=mobilesasa in backend/.env.
+      </p>
+    );
+  }
+  if (!open) return <Button size="sm" variant="secondary" className="mt-2" icon={<Send className="size-4" />} onClick={() => setOpen(true)}>Send SMS</Button>;
+  return (
+    <div className="mt-2 space-y-2">
+      <Textarea label="Message to the resident" rows={3} maxLength={300} value={text} onChange={(e) => setText(e.target.value)}
+        hint={`Starts with “Team Shahbal: about your report ${reference}:”. ${text.length}/300 · about ${parts} SMS`} />
+      <div className="flex gap-2">
+        <Button size="sm" icon={<Send className="size-4" />} loading={send.isPending} disabled={text.trim().length < 3}
+          onClick={() => send.mutate(text.trim(), {
+            onSuccess: (d) => {
+              const last = d.updates[d.updates.length - 1];
+              if (last?.kind === "sms") toast.success(last.sms_status === "delivered" ? "SMS delivered" : "SMS sent. Its delivery shows in the history.");
+              else toast.error(last?.note?.split(" not sent: ")[1] ?? "The SMS didn't go out");
+              setText(""); setOpen(false);
+            },
+            onError: (e) => toast.error(e.message),
+          })}>Send SMS</Button>
+        <Button size="sm" variant="ghost" onClick={() => { setOpen(false); setText(""); }}>Cancel</Button>
+      </div>
     </div>
   );
 }

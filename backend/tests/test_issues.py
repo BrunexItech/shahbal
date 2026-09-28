@@ -87,7 +87,8 @@ async def test_residents_get_a_receipt_and_staff_see_whether_each_sms_really_wen
 
     async def fake_sms(phone, text):
         sent.append((phone, text))
-        return (False, "Mobile Sasa balance is too low for this batch (0402)") if "work has started" in text else (True, None)
+        from app.modules.messaging.transactional import Sent
+        return Sent(False, "Mobile Sasa balance is too low for this batch (0402)") if "work has started" in text else Sent(True, None, f"bulk-{len(sent)}")
 
     monkeypatch.setattr("app.modules.messaging.transactional.send_system_sms", fake_sms)
     ref = (await client.post("/api/v1/portal/issues", json=report(wards["Tudor"]))).json()["reference"]
@@ -129,3 +130,45 @@ async def test_agents_log_cases_offline_safe_and_numbers_add_up(client, admin, w
     assert s["by_source"] == {"field": 1, "public": 2} and sum(w["reported"] for w in s["weekly"]) == 3
     pins = (await client.get("/api/v1/issues/map", headers=admin)).json()
     assert [p["category"] for p in pins] == ["security"]  # only cases with a location
+
+
+async def test_coordinators_text_residents_directly_and_see_what_really_happened(client, admin, wards, monkeypatch):
+    from app.core.config import settings
+    from app.modules.messaging import providers
+
+    ref = (await client.post("/api/v1/portal/issues", json=report(wards["Tudor"]))).json()["reference"]
+    case_id = (await client.get("/api/v1/issues", headers=admin)).json()["items"][0]["id"]
+    d = (await client.post(f"/api/v1/issues/{case_id}/sms", json={"message": "The county engineer visits tomorrow at 10."}, headers=admin)).json()
+    sms = [u for u in d["updates"] if u["kind"] == "sms"][-1]
+    assert f"about your report {ref}: The county engineer visits tomorrow at 10." in sms["note"] and sms["sms_status"] == "delivered"  # sandbox, dev
+
+    # A delivery report from Mobile Sasa settles the status of a real send.
+    async with SessionLocal() as s:
+        u = (await s.execute(select(IssueUpdate).where(IssueUpdate.id == sms["id"]))).scalar_one()
+        u.sms_status, u.provider_ref = "sent", "bulk-abc"
+        await s.commit()
+    monkeypatch.setattr(settings, "mobilesasa_webhook_secret", "whsec_test")
+    r = await client.post("/api/v1/messaging/webhooks/mobilesasa/delivery", headers={"X-MobileSasa-Secret": "whsec_test"},
+                          json={"reference": "bulk-abc", "msisdn": "254712345678", "status": "Failed", "deliveryStatus": "Absent subscriber"})
+    assert r.status_code == 200
+    got = await client.get(f"/api/v1/issues/{case_id}", headers=admin)
+    assert got.status_code == 200, got.text
+    u = next(x for x in got.json()["updates"] if x["id"] == sms["id"])
+    assert u["sms_status"] == "failed" and "Absent subscriber" in u["note"]
+
+    # A live server without a real SMS provider never pretends: nothing "sent", and it says why.
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(providers, "settings", SimpleNamespace(is_production=True, testing=False, sms_provider="sandbox", whatsapp_provider="sandbox"))
+    d = (await client.post(f"/api/v1/issues/{case_id}/sms", json={"message": "Second update for you."}, headers=admin)).json()
+    last = d["updates"][-1]
+    assert last["kind"] == "sms_failed" and "SMS_PROVIDER=mobilesasa" in last["note"] and d["sms_live"] is False
+    assert (await client.get("/api/v1/messaging/status", headers=admin)).json()["sms_live"] is False
+
+    # Residents who didn't ask for SMS, or left no number, aren't texted.
+    await client.post("/api/v1/portal/issues", json=report(wards["Tudor"], contact_ok=False, reporter_phone="0722000444"))
+    quiet = (await client.get("/api/v1/issues", headers=admin)).json()["items"][0]["id"]
+    r = await client.post(f"/api/v1/issues/{quiet}/sms", json={"message": "Hello there."}, headers=admin)
+    assert r.status_code == 409 and "didn't ask for SMS" in r.json()["detail"]
+    agent = await make_user(client, admin, "field_agent", ward=wards["Tudor"])
+    assert (await client.post(f"/api/v1/issues/{case_id}/sms", json={"message": "Hello there."}, headers=agent)).status_code == 403

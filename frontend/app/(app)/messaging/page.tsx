@@ -1,6 +1,7 @@
 "use client";
 
-import { MessageSquarePlus, MessageSquareText } from "lucide-react";
+import { AlertTriangle, MessageSquarePlus, MessageSquareText } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -10,6 +11,7 @@ import { Badge, Button, Card, EmptyState, ErrorState, PageHeader } from "@/compo
 import { useCampaigns } from "@/features/messaging/api";
 import { CampaignStatusBadge } from "@/features/messaging/components";
 import { MessagingOverview } from "@/features/messaging/MessagingOverview";
+import { api } from "@/lib/api";
 import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { dateTime, num } from "@/lib/format";
@@ -30,6 +32,7 @@ export default function MessagingPage() {
       <PageHeader eyebrow="Outreach" title="Messaging"
         subtitle="Targeted SMS & WhatsApp to the right wards and voters. Opted-out voters are always excluded and nothing sends between 9 pm and 8 am."
         actions={<Link href="/messaging/new"><Button icon={<MessageSquarePlus className="size-4" />}>New message</Button></Link>} />
+      <SendingStatus />
       <MessagingOverview />
       <Card className="overflow-hidden">
         <div className="flex gap-1 border-b border-line px-4 pt-3">
@@ -81,5 +84,17 @@ export default function MessagingPage() {
         <p className="mt-4 text-xs text-muted">Messages you create are reviewed by HQ before they go out.</p>
       )}
     </>
+  );
+}
+
+/** Says plainly when this server can't really send SMS (practice mode), instead of letting messages look sent. */
+function SendingStatus() {
+  const q = useQuery({ queryKey: ["messaging", "status"], queryFn: () => api<{ sms_live: boolean; provider: string }>("/messaging/status"), staleTime: 60_000 });
+  if (!q.data || q.data.sms_live) return null;
+  return (
+    <div role="alert" className="mb-4 flex items-start gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-navy-900 ring-1 ring-amber-200">
+      <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
+      <p><b>SMS isn&apos;t switched on for this server.</b> Messages won&apos;t reach anyone until HQ sets <code className="rounded bg-white px-1">SMS_PROVIDER=mobilesasa</code> in backend/.env and restarts. Anything sent now is recorded as not sent.</p>
+    </div>
   );
 }

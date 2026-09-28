@@ -43,6 +43,7 @@ from app.modules.issues.schemas import (
     IssueUpdateOut,
     StaffIssueIn,
 )
+from app.modules.messaging.providers import sms_live
 from app.modules.users.models import User
 from app.modules.visits.photos import clean
 from app.modules.voters.models import Voter
@@ -127,37 +128,46 @@ def _masked(phone: str) -> str:
     return f"{local[:4]}•••{local[-3:]}"
 
 
-async def notify_reporter(session: AsyncSession, issue: Issue, status: IssueStatus | None, note: str | None, *, receipt: bool = False) -> str:
+async def notify_reporter(session: AsyncSession, issue: Issue, status: IssueStatus | None, note: str | None, *,
+                          receipt: bool = False, direct: str | None = None, author_id: str | None = None) -> str:
     """Texts the resident about their case when they asked for updates, and records what really happened
-    on the case history (sent, or why not), so staff never assume a message went out when it didn't.
-    Call after the change itself is committed; commits the outcome. Returns sent | failed | not_requested | opted_out | no_phone."""
+    on the case history: sent (then delivered or failed, from the gateway's report), or why not.
+    `direct` is a message a coordinator typed to the resident. Call after the change itself is committed;
+    commits the outcome. Returns sent | failed | not_requested | opted_out | no_phone."""
     if not issue.reporter_phone:
         return "no_phone"
     if not issue.contact_ok:
         return "not_requested"
+    who = _masked(issue.reporter_phone)
     opted_out = (await session.execute(
         select(Voter.id).where(Voter.phone == issue.reporter_phone, Voter.opted_out.is_(True)).limit(1)
     )).first()
     if opted_out:
-        session.add(IssueUpdate(issue_id=issue.id, kind="sms_failed", public=False,
-                                note=f"SMS not sent: {_masked(issue.reporter_phone)} has asked not to be contacted"))
+        session.add(IssueUpdate(issue_id=issue.id, author_id=author_id, kind="sms_failed", public=False, sms_status="failed",
+                                note=f"SMS to {who} not sent: they have asked not to be contacted"))
         await session.commit()
         return "opted_out"
     ward = await session.get(Ward, issue.ward_id)
     fields = {"ref": issue.reference, "cat": LABELS[issue.category], "ward": ward.name if ward else "Mombasa"}
-    head = RECEIPT_SMS if receipt else STATUS_SMS.get(status, "there's an update on your report {ref} ({cat}).") if status else "there's an update on your report {ref} ({cat})."
-    text = f"{settings.sms_sender_name}: " + head.format(**fields)
-    if note:
-        text += f" {note.strip()[:200]}"
+    if direct:
+        text = f"{settings.sms_sender_name}: about your report {issue.reference}: {direct.strip()}"
+    else:
+        head = RECEIPT_SMS if receipt else STATUS_SMS.get(status, "there's an update on your report {ref} ({cat}).") if status else "there's an update on your report {ref} ({cat})."
+        text = f"{settings.sms_sender_name}: " + head.format(**fields)
+        if note:
+            text += f" {note.strip()[:200]}"
     text += _track_hint()
     from app.modules.messaging.transactional import send_system_sms
 
-    ok, error = await send_system_sms(issue.reporter_phone, text)
-    session.add(IssueUpdate(issue_id=issue.id, kind="sms" if ok else "sms_failed", public=False,
-                            note=f"SMS to {_masked(issue.reporter_phone)}: “{text}”" if ok
-                            else f"SMS to {_masked(issue.reporter_phone)} not sent: {error or 'the SMS service refused it'}"))
+    sent = await send_system_sms(issue.reporter_phone, text)
+    if sent.ok:
+        session.add(IssueUpdate(issue_id=issue.id, author_id=author_id, kind="sms", public=False, note=f"SMS to {who}: “{text}”",
+                                sms_status="delivered" if sent.delivered else "sent", provider_ref=sent.provider_id))
+    else:
+        session.add(IssueUpdate(issue_id=issue.id, author_id=author_id, kind="sms_failed", public=False, sms_status="failed",
+                                note=f"SMS to {who} not sent: {sent.error or 'the SMS service refused it'}"))
     await session.commit()
-    return "sent" if ok else "failed"
+    return "sent" if sent.ok else "failed"
 
 
 class IssueService:
@@ -236,11 +246,12 @@ class IssueService:
         photos = (await self.s.execute(select(IssuePhoto).where(IssuePhoto.issue_id == issue.id).order_by(IssuePhoto.created_at))).scalars().all()
         return IssueDetail(
             **self._out(row).model_dump(),
-            updates=[IssueUpdateOut(id=u.id, kind=u.kind, status=u.status, note=u.note, public=u.public, author=name, created_at=u.created_at)
-                     for u, name in updates],
+            updates=[IssueUpdateOut(id=u.id, kind=u.kind, status=u.status, note=u.note, public=u.public, author=name, created_at=u.created_at,
+                                    sms_status=u.sms_status) for u, name in updates],
             photo_list=[IssuePhotoOut(id=p.id, url=f"/api/v1/issues/{issue.id}/photos/{p.id}", width=p.width, height=p.height,
                                       by_resident=p.added_by_id is None, created_at=p.created_at) for p in photos],
             can_manage=self._can_manage(issue, ward),
+            sms_live=sms_live(),
         )
 
     # ---- writing ----------------------------------------------------------------
@@ -315,6 +326,19 @@ class IssueService:
         if (status_changed and issue.status in STATUS_SMS) or (not status_changed and note and data.public):
             await notify_reporter(self.s, issue, issue.status if status_changed else None, note if data.public else None)
         return await self.detail(issue.id)
+
+    async def send_sms(self, issue_id: str, message: str) -> tuple[IssueDetail, str]:
+        """A coordinator texts the resident about their case directly. Only when the resident gave a number
+        and asked for updates; the outcome (sent, delivered or failed, with the reason) goes on the history."""
+        issue, _ = await self._managed(issue_id)
+        if not issue.reporter_phone:
+            raise HTTPException(409, "This resident didn't leave a phone number")
+        if not issue.contact_ok:
+            raise HTTPException(409, "This resident didn't ask for SMS updates. Share the update on their tracking page instead.")
+        audit.record(self.s, actor_id=self.user.id, action="SMS", entity="issue", entity_id=issue.id, ip=self.ctx.ip)
+        await self.s.commit()
+        outcome = await notify_reporter(self.s, issue, None, None, direct=message, author_id=self.user.id)
+        return await self.detail(issue.id), outcome
 
     async def assignees(self, issue_id: str) -> list[Assignee]:
         _, ward = await self._managed(issue_id)

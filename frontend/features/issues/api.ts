@@ -14,7 +14,8 @@ export interface Issue {
   created_at: string; updated_at: string | null; resolved_at: string | null;
 }
 export interface IssueDetail extends Issue {
-  updates: { id: string; kind: string; status: IssueStatus | null; note: string | null; public: boolean; author: string | null; created_at: string }[];
+  updates: { id: string; kind: string; status: IssueStatus | null; note: string | null; public: boolean; author: string | null; created_at: string; sms_status?: "sent" | "delivered" | "failed" | null }[];
+  sms_live?: boolean;
   photo_list: { id: string; url: string; width: number; height: number; by_resident: boolean; created_at: string }[];
   can_manage: boolean;
 }
@@ -66,6 +67,12 @@ export function useCreateIssue() {
 }
 
 export type IssuePatch = { status?: IssueStatus; priority?: IssuePriority; category?: IssueCategory; assigned_to_id?: string; unassign?: boolean; note?: string; public?: boolean };
+
+/** A coordinator texts the resident directly; the case comes back with the SMS outcome in its history. */
+export function useSmsResident(id: string) {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: (message: string) => api<IssueDetail>(`/issues/${id}/sms`, { body: { message } }), onSuccess: refresh });
+}
 
 export function useUpdateIssue(id: string) {
   const refresh = useRefresh();

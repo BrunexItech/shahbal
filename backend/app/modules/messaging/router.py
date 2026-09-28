@@ -19,7 +19,7 @@ from app.core.phone import to_e164
 from app.core.ratelimit import client_ip
 from app.modules.messaging.dispatcher import refresh_counters
 from app.modules.messaging.models import CampaignStatus, Message, MessageCampaign, MessageStatus
-from app.modules.messaging.providers import mobilesasa_balance
+from app.modules.messaging.providers import mobilesasa_balance, sms_live
 from app.modules.messaging.stats import messaging_stats
 from app.modules.messaging.schemas import CampaignIn, CampaignOut, MessageOut, PreviewIn, PreviewOut, ReviewIn
 from app.modules.messaging.service import MessagingService
@@ -161,6 +161,15 @@ async def mobilesasa_delivery(request: Request, session: AsyncSession = Depends(
         q = q.where(Message.phone == f"+{msisdn}")
     m = (await session.execute(q.limit(2))).scalars().all()
     if len(m) != 1:
+        # Not a campaign message: maybe an SMS to a Community Voice resident (one message per reference).
+        from app.modules.issues.models import IssueUpdate
+
+        u = (await session.execute(select(IssueUpdate).where(IssueUpdate.provider_ref == ref).limit(2))).scalars().all()
+        if len(u) == 1 and u[0].sms_status != "delivered":
+            u[0].sms_status = "delivered" if status == "Delivered" else "failed"
+            if status != "Delivered":
+                u[0].note = f"{u[0].note} · not delivered: {str(d.get('deliveryStatus') or status)[:120]}"
+            await session.commit()
         return {"ok": True}
     msg = m[0]
     if status == "Delivered":
@@ -173,6 +182,12 @@ async def mobilesasa_delivery(request: Request, session: AsyncSession = Depends(
     await refresh_counters_any(session, msg.campaign_id)
     await session.commit()
     return {"ok": True}
+
+
+@router.get("/status")
+async def sending_status(ctx: Ctx = Depends(any_user)):
+    """Whether SMS really go out from this server (false = practice mode), so screens can say so plainly."""
+    return {"sms_live": sms_live(), "provider": settings.sms_provider}
 
 
 @router.get("/balance")
