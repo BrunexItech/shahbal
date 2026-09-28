@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus } from "lucide-react";
+import { Lock, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -9,6 +9,7 @@ import { SkeletonRows } from "@/components/loaders";
 import { Button, Card, EmptyState, ErrorState, PageHeader, Pagination, SOURCE_LABEL, StatusBadge, SupportBadge } from "@/components/ui";
 import { useGeoTree } from "@/features/geo/api";
 import { useVoters, type VoterFilters } from "@/features/voters/api";
+import { ContactsExport } from "@/features/voters/components/ContactsExport";
 import { VoterFiltersBar } from "@/features/voters/components/VoterFiltersBar";
 import { useUser } from "@/lib/auth";
 import { dateTime, initials, num } from "@/lib/format";
@@ -20,6 +21,7 @@ export default function VotersPage() {
   const [filters, setFilters] = useState<VoterFilters>({ page: 1, size: 25 });
   const { data, isLoading, isFetching, error, refetch } = useVoters(filters);
   const { data: tree } = useGeoTree();
+  const [exporting, setExporting] = useState(false);
 
   // Deep link from the coverage map: /voters?ward=<id>
   useEffect(() => {
@@ -33,10 +35,14 @@ export default function VotersPage() {
         eyebrow="Voters"
         title="Voter registry"
         subtitle={data ? `${num(data.total)} records in your area` : "Search and manage captured voters"}
-        actions={can.capture(user.role) && (
-          <Link href="/voters/new"><Button icon={<UserPlus className="size-4" />}>Capture voter</Button></Link>
+        actions={(can.capture(user.role) || can.exportData(user.role)) && (
+          <div className="flex flex-wrap gap-2">
+            {can.exportData(user.role) && <Button variant="secondary" icon={<Lock className="size-4" />} onClick={() => setExporting(true)}>Download contacts</Button>}
+            {can.capture(user.role) && <Link href="/voters/new"><Button icon={<UserPlus className="size-4" />}>Capture voter</Button></Link>}
+          </div>
         )}
       />
+      {exporting && tree && <ContactsExport tree={tree} onClose={() => setExporting(false)} />}
       <Card className="overflow-hidden">
         <VoterFiltersBar value={filters} onChange={setFilters} tree={tree} />
         {isLoading ? (

@@ -3,11 +3,18 @@ from fastapi import APIRouter, Depends, Query
 from app.core.deps import Ctx, any_user, require, require_step_up
 from app.core.pagination import Page
 from app.core.roles import ADMINS, CAPTURERS, VERIFIERS, Role
+from app.modules.voters.contacts import ContactsExportIn, export_contacts
 from app.modules.voters.models import Source, Status, Support
 from app.modules.voters.schemas import DuplicateCheck, RejectIn, VoterCreate, VoterOut, VoterUpdate
 from app.modules.voters.service import VoterService
 
 router = APIRouter(prefix="/api/v1/voters", tags=["voters"])
+
+
+@router.post("/contacts-export")
+async def contacts_export(payload: ContactsExportIn, ctx: Ctx = Depends(require_step_up(Role.super_admin))):
+    """HQ only, right after "Confirm it's you": one area's contacts as an encrypted ZIP (password shown once)."""
+    return await export_contacts(ctx, payload)
 capturers = require(*CAPTURERS)
 verifiers = require(*VERIFIERS)
 editors = require(Role.super_admin, Role.coordinator, Role.ward_coordinator, Role.call_agent)
